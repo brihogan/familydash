@@ -1,0 +1,379 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPiggyBank } from '@fortawesome/free-solid-svg-icons';
+import { accountsApi } from '../api/accounts.api.js';
+import { familyApi } from '../api/family.api.js';
+import { useAuth } from '../context/AuthContext.jsx';
+import AccountCard from '../components/bank/AccountCard.jsx';
+import TransactionList from '../components/bank/TransactionList.jsx';
+import UnifiedBankDialog from '../components/bank/UnifiedBankDialog.jsx';
+import RecurringRuleList from '../components/bank/RecurringRuleList.jsx';
+import RecurringRuleForm from '../components/bank/RecurringRuleForm.jsx';
+import Modal from '../components/shared/Modal.jsx';
+import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
+
+const ACCOUNT_TYPES = ['savings', 'charity', 'custom'];
+
+const ALL_ACCOUNT_TYPES = ['main', 'savings', 'charity', 'custom'];
+
+function EditAccountForm({ account, onSave, onCancel, loading }) {
+  const [name, setName] = useState(account?.name || '');
+  const [type, setType] = useState(account?.type || 'savings');
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) { setError('Name is required.'); return; }
+    setError('');
+    await onSave({ name: name.trim(), type });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={100}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+        >
+          {ALL_ACCOUNT_TYPES.map((t) => (
+            <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+          ))}
+        </select>
+      </div>
+      {error && <p className="text-sm text-red-500">{error}</p>}
+      <div className="flex gap-2 pt-1">
+        <button type="submit" disabled={loading}
+          className="flex-1 bg-brand-500 hover:bg-brand-600 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors">
+          {loading ? 'Saving…' : 'Save'}
+        </button>
+        <button type="button" onClick={onCancel}
+          className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function AddAccountForm({ onSave, onCancel, loading }) {
+  const [name, setName] = useState('');
+  const [type, setType] = useState('savings');
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) { setError('Name is required.'); return; }
+    setError('');
+    await onSave({ name: name.trim(), type });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Tithing, Savings, Disney Fund"
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+          maxLength={100}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+        >
+          {ACCOUNT_TYPES.map((t) => (
+            <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+          ))}
+        </select>
+      </div>
+      {error && <p className="text-sm text-red-500">{error}</p>}
+      <div className="flex gap-2 pt-1">
+        <button
+          type="submit"
+          disabled={loading}
+          className="flex-1 bg-brand-500 hover:bg-brand-600 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
+        >
+          {loading ? 'Creating…' : 'Create Account'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+export default function KidBankPage() {
+  const { userId } = useParams();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const isParent = user?.role === 'parent';
+
+  const [memberName, setMemberName] = useState('');
+  const [kids, setKids] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [rules, setRules] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [txModal, setTxModal] = useState(null); // 'deposit' | 'withdraw' | 'transfer' | null
+  const [ruleModal, setRuleModal] = useState(false);
+  const [addAccountModal, setAddAccountModal] = useState(false);
+  const [addAccountLoading, setAddAccountLoading] = useState(false);
+  const [renameAccount, setRenameAccount] = useState(null);
+  const [renameLoading, setRenameLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const fetchAccounts = useCallback(async () => {
+    try {
+      const data = await accountsApi.getAccounts(userId);
+      setAccounts(data.accounts);
+      // Keep the selected account in sync (or pick first on initial load)
+      setSelectedAccount((prev) => {
+        if (!prev) return data.accounts[0] ?? null;
+        return data.accounts.find((a) => a.id === prev.id) ?? data.accounts[0] ?? null;
+      });
+    } catch {
+      setError('Failed to load accounts.');
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  const fetchTransactions = useCallback(async () => {
+    if (!selectedAccount) return;
+    try {
+      const data = await accountsApi.getTransactions(userId, selectedAccount.id);
+      setTransactions(data.transactions);
+    } catch {
+      setError('Failed to load transactions.');
+    }
+  }, [userId, selectedAccount]);
+
+  const fetchRules = useCallback(async () => {
+    if (!isParent) return;
+    try {
+      const data = await accountsApi.getRecurringRules(userId);
+      setRules(data.rules);
+    } catch {}
+  }, [userId, isParent]);
+
+  useEffect(() => {
+    familyApi.getFamily().then(({ members }) => {
+      const m = members.find((mem) => mem.id === parseInt(userId, 10));
+      if (m) setMemberName(m.name);
+      if (isParent) setKids(members.filter((mem) => mem.role === 'kid' && mem.is_active));
+    }).catch(() => {});
+  }, [userId, isParent]);
+
+  useEffect(() => { fetchAccounts(); }, [userId]);
+  useEffect(() => { fetchTransactions(); }, [selectedAccount]);
+  useEffect(() => { fetchRules(); }, [fetchRules]);
+
+  const handleAddAccount = async (data) => {
+    setAddAccountLoading(true);
+    try {
+      await accountsApi.createAccount(userId, data);
+      setAddAccountModal(false);
+      await fetchAccounts();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to create account.');
+    } finally {
+      setAddAccountLoading(false);
+    }
+  };
+
+  const handleDeleteRule = async (ruleId) => {
+    await accountsApi.deleteRecurringRule(userId, ruleId);
+    fetchRules();
+  };
+
+  const handleEditAccount = async ({ name, type }) => {
+    setRenameLoading(true);
+    try {
+      await accountsApi.updateAccount(userId, renameAccount.id, { name, type });
+      setRenameAccount(null);
+      await fetchAccounts();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to update account.');
+    } finally {
+      setRenameLoading(false);
+    }
+  };
+
+  if (loading) return <LoadingSkeleton rows={4} />;
+
+  return (
+    <div>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            <FontAwesomeIcon icon={faPiggyBank} className="mr-2 text-brand-500" />
+            {isParent ? `${memberName || '…'}'s Bank` : 'My Bank'}
+          </h1>
+          {isParent && kids.length > 1 && (
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <span className="text-xs text-gray-400">Switch to:</span>
+              <select
+                value={userId}
+                onChange={(e) => navigate(`/bank/${e.target.value}`)}
+                className="text-sm font-medium text-brand-600 border border-brand-200 rounded-lg px-2.5 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-brand-300 cursor-pointer hover:border-brand-400 transition-colors"
+              >
+                {kids.map((k) => (
+                  <option key={k.id} value={String(k.id)}>{k.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+        {isParent && (
+          <button
+            onClick={() => setAddAccountModal(true)}
+            className="px-3 py-1.5 border border-gray-300 text-sm rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            + Sub-account
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">{error}</div>
+      )}
+
+      {/* Accounts row */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+        {accounts.map((a) => (
+          <AccountCard
+            key={a.id}
+            account={a}
+            selected={selectedAccount?.id === a.id}
+            onClick={setSelectedAccount}
+            onEdit={isParent ? setRenameAccount : undefined}
+          />
+        ))}
+      </div>
+
+      {/* Action buttons */}
+      {selectedAccount && (
+        <div className="grid grid-cols-2 sm:flex gap-2 mb-6">
+          {isParent && (
+            <button
+              onClick={() => setTxModal('deposit')}
+              className="py-2 px-4 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg font-medium transition-colors"
+            >
+              + Deposit
+            </button>
+          )}
+          <button
+            onClick={() => setTxModal('withdraw')}
+            className="py-2 px-4 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium transition-colors"
+          >
+            Withdraw
+          </button>
+          <button
+            onClick={() => setTxModal('transfer')}
+            className="py-2 px-4 bg-purple-500 hover:bg-purple-600 text-white text-sm rounded-lg font-medium transition-colors"
+          >
+            Transfer
+          </button>
+          {isParent && (
+            <button
+              onClick={() => setRuleModal(true)}
+              className="py-2 px-4 border border-gray-300 text-sm rounded-lg text-gray-600 hover:bg-gray-50 transition-colors sm:ml-auto"
+            >
+              + Recurring Rule
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Transactions */}
+      {selectedAccount && (
+        <div className="mb-6">
+          <h2 className="text-base font-semibold text-gray-700 mb-3">
+            Transactions — {selectedAccount.name}
+          </h2>
+          <TransactionList transactions={transactions} viewingUserId={userId} />
+        </div>
+      )}
+
+      {/* Recurring rules (parent only) */}
+      {isParent && rules.length > 0 && (
+        <div>
+          <h2 className="text-base font-semibold text-gray-700 mb-3">Recurring Rules</h2>
+          <RecurringRuleList rules={rules} onDelete={handleDeleteRule} />
+        </div>
+      )}
+
+      {/* Deposit / Withdraw / Transfer modal */}
+      <UnifiedBankDialog
+        open={!!txModal}
+        onClose={() => setTxModal(null)}
+        userId={userId}
+        initialMode={txModal || 'deposit'}
+        sourceAccount={selectedAccount}
+        userAccounts={accounts}
+        onSuccess={async () => {
+          await fetchAccounts();
+          await fetchTransactions();
+        }}
+      />
+
+      {/* Edit account modal (parent only) */}
+      <Modal open={!!renameAccount} onClose={() => setRenameAccount(null)} title="Edit Account">
+        <EditAccountForm
+          account={renameAccount}
+          onSave={handleEditAccount}
+          onCancel={() => setRenameAccount(null)}
+          loading={renameLoading}
+        />
+      </Modal>
+
+      {/* Add sub-account modal */}
+      <Modal open={addAccountModal} onClose={() => setAddAccountModal(false)} title="Add Sub-account">
+        <AddAccountForm
+          onSave={handleAddAccount}
+          onCancel={() => setAddAccountModal(false)}
+          loading={addAccountLoading}
+        />
+      </Modal>
+
+      {/* Recurring rule modal */}
+      <Modal open={ruleModal} onClose={() => setRuleModal(false)} title="Add Recurring Rule">
+        <RecurringRuleForm
+          accounts={accounts}
+          loading={false}
+          onCancel={() => setRuleModal(false)}
+          onSave={async (data) => {
+            await accountsApi.createRecurringRule(userId, data);
+            setRuleModal(false);
+            fetchRules();
+          }}
+        />
+      </Modal>
+    </div>
+  );
+}

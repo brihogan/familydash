@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+  /* Prevent iOS Safari from zooming on input focus (requires font-size ≥ 16px) */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* ── Chore animations ───────────────────────────────────────────────────── */
+
+/* Checkbox scale-bounce when completing */
+@keyframes chore-checkbox-pop {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.55); }
+  60%  { transform: scale(0.82); }
+  80%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+/* SVG checkmark stroke draws in */
+@keyframes chore-check-draw {
+  from { stroke-dashoffset: 20; opacity: 0.4; }
+  to   { stroke-dashoffset: 0;  opacity: 1; }
+}
+
+/* Confetti particles fly outward */
+@keyframes chore-burst {
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0.2); }
+}
+
+/* Completed item slides in from above */
+@keyframes chore-enter {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
