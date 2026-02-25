@@ -20,12 +20,12 @@ export default function QuickBankAdjust({ userId, onDone, large = false }) {
       <button
         type="button"
         onClick={handleOpen}
-        className={`inline-flex items-center justify-center border border-gray-300 text-gray-500 hover:text-brand-600 hover:border-brand-400 transition-colors ${
-          large ? 'rounded-full w-9 h-9' : 'rounded px-1.5 py-0.5'
+        className={`inline-flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/10 transition-colors ${
+          large ? 'rounded-full w-9 h-9' : 'rounded-full w-7 h-7'
         }`}
         title="Bank transaction"
       >
-        <FontAwesomeIcon icon={faCalculator} className={large ? 'text-base' : 'text-xs'} />
+        <FontAwesomeIcon icon={faCalculator} className={large ? 'text-base' : 'text-xs block'} />
       </button>
 
       <UnifiedBankDialog

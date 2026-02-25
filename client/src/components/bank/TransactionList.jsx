@@ -36,17 +36,21 @@ export default function TransactionList({ transactions, viewingUserId }) {
         return (
           <div
             key={tx.id}
-            className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-800">{label}</p>
-              <p className="text-xs text-gray-400 truncate">
-                {[tx.description, tx.created_by_name && `by ${tx.created_by_name}`].filter(Boolean).join(' · ')}
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{label}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                {[
+                  tx.description,
+                  tx.created_by_name
+                    ? `by ${tx.created_by_name} on ${relativeTime(tx.created_at)}`
+                    : relativeTime(tx.created_at),
+                ].filter(Boolean).join(' · ')}
               </p>
             </div>
             <div className="text-right shrink-0">
               <CurrencyDisplay cents={tx.amount_cents} />
-              <p className="text-xs text-gray-400">{relativeTime(tx.created_at)}</p>
             </div>
           </div>
         );

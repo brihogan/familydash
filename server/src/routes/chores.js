@@ -57,6 +57,8 @@ router.post('/:id/chores/:cid/complete', authenticate, requireOwnOrParent, requi
     if (!log) return res.status(404).json({ error: 'Chore log not found.' });
     if (log.completed_at) return res.status(409).json({ error: 'Chore already completed.' });
 
+    const user = db.prepare('SELECT family_id FROM users WHERE id = ?').get(userId);
+
     const completeTx = db.transaction(() => {
       db.prepare(`UPDATE chore_logs SET completed_at = datetime('now') WHERE id = ?`).run(logId);
 
@@ -64,12 +66,11 @@ router.post('/:id/chores/:cid/complete', authenticate, requireOwnOrParent, requi
         db.prepare('UPDATE users SET ticket_balance = ticket_balance + ? WHERE id = ?')
           .run(log.ticket_reward_at_time, userId);
 
-        const ledgerRow = db.prepare(`
+        db.prepare(`
           INSERT INTO ticket_ledger (user_id, amount, type, description, reference_id, reference_type)
           VALUES (?, ?, 'chore_reward', ?, ?, 'chore_log')
         `).run(userId, log.ticket_reward_at_time, `Completed: ${log.chore_name}`, logId);
 
-        const user = db.prepare('SELECT family_id FROM users WHERE id = ?').get(userId);
         insertActivity({
           familyId: user.family_id,
           subjectUserId: userId,
@@ -84,6 +85,31 @@ router.post('/:id/chores/:cid/complete', authenticate, requireOwnOrParent, requi
     });
 
     completeTx();
+
+    // Check if all chores for today are now completed → chores_all_done milestone
+    const allLogs = db.prepare(
+      'SELECT completed_at FROM chore_logs WHERE user_id = ? AND log_date = ?'
+    ).all(userId, date);
+    if (allLogs.length > 0 && allLogs.every((l) => l.completed_at)) {
+      const alreadyLogged = db.prepare(`
+        SELECT id FROM activity_feed
+        WHERE subject_user_id = ? AND event_type = 'chores_all_done'
+          AND date(created_at, 'localtime') = ?
+      `).get(userId, date);
+      if (!alreadyLogged) {
+        insertActivity({
+          familyId: user.family_id,
+          subjectUserId: userId,
+          actorUserId: req.user.userId,
+          eventType: 'chores_all_done',
+          description: 'Completed all chores for today! 🌟',
+          referenceId: null,
+          referenceType: null,
+          amountCents: null,
+        });
+      }
+    }
+
     const updated = db.prepare('SELECT * FROM chore_logs WHERE id = ?').get(logId);
     const balance = db.prepare('SELECT ticket_balance FROM users WHERE id = ?').get(userId).ticket_balance;
     res.json({ log: updated, ticketBalance: balance });

@@ -15,6 +15,8 @@ import ticketsRouter from './src/routes/tickets.js';
 import rewardsRouter from './src/routes/rewards.js';
 import activityRouter from './src/routes/activity.js';
 import overviewRouter from './src/routes/overview.js';
+import taskSetsRouter from './src/routes/taskSets.js';
+import userTasksRouter from './src/routes/userTasks.js';
 import { errorHandler } from './src/middleware/errorHandler.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -56,6 +58,7 @@ app.use('/api/auth', authLimiter, authRouter);
 app.use('/api/family', familyRouter);
 app.use('/api/family', rewardsRouter);
 app.use('/api/family', activityRouter);
+app.use('/api/family', taskSetsRouter);
 
 // Dashboard
 app.use('/api/dashboard', dashboardRouter);
@@ -67,6 +70,7 @@ app.use('/api/users', ticketsRouter);
 app.use('/api/users', rewardsRouter);
 app.use('/api/users', activityRouter);
 app.use('/api/users', overviewRouter);
+app.use('/api/users', userTasksRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

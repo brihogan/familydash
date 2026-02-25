@@ -71,30 +71,30 @@ export default function DisplayPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
           <span className="text-2xl font-bold text-brand-600">
             {familyName ? `${familyName} Dashboard` : 'Family Dashboard'}
           </span>
           {lastUpdated && (
-            <span className="text-xs text-gray-400 hidden sm:block">
+            <span className="text-xs text-gray-400 dark:text-gray-500 hidden sm:block">
               Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
         </div>
         <button
           onClick={handleLogout}
-          className="text-sm text-gray-500 hover:text-gray-700 border border-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+          className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
         >
           Logout
         </button>
       </header>
 
       {/* Sort controls */}
-      <div className="bg-white border-b border-gray-100 px-6 py-2 flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-gray-400 mr-1">Sort:</span>
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-6 py-2 flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-gray-400 dark:text-gray-500 mr-1">Sort:</span>
         {SORT_OPTIONS.map((opt) => (
           <button
             key={opt.key}
@@ -102,7 +102,7 @@ export default function DisplayPage() {
             className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
               sortKey === opt.key
                 ? 'bg-brand-500 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
             }`}
           >
             {opt.label}

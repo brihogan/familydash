@@ -147,3 +147,51 @@ CREATE TABLE IF NOT EXISTS activity_feed (
 );
 CREATE INDEX IF NOT EXISTS idx_activity_family  ON activity_feed(family_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_subject ON activity_feed(subject_user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS task_sets (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  family_id     INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+  name          TEXT    NOT NULL,
+  type          TEXT    NOT NULL DEFAULT 'Project' CHECK (type IN ('Award', 'Project')),
+  emoji         TEXT,
+  description   TEXT    NOT NULL DEFAULT '',
+  tags          TEXT    NOT NULL DEFAULT '[]',
+  category      TEXT    NOT NULL DEFAULT '',
+  ticket_reward INTEGER NOT NULL DEFAULT 0 CHECK (ticket_reward >= 0),
+  is_active     INTEGER NOT NULL DEFAULT 1,
+  created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_task_sets_family ON task_sets(family_id);
+
+CREATE TABLE IF NOT EXISTS task_steps (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_set_id INTEGER NOT NULL REFERENCES task_sets(id) ON DELETE CASCADE,
+  name        TEXT    NOT NULL,
+  description TEXT    NOT NULL DEFAULT '',
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  is_active   INTEGER NOT NULL DEFAULT 1,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_task_steps_set ON task_steps(task_set_id);
+
+CREATE TABLE IF NOT EXISTS task_assignments (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_set_id INTEGER NOT NULL REFERENCES task_sets(id) ON DELETE CASCADE,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  assigned_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  is_active   INTEGER NOT NULL DEFAULT 1,
+  UNIQUE(task_set_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_task_assignments_set  ON task_assignments(task_set_id);
+CREATE INDEX IF NOT EXISTS idx_task_assignments_user ON task_assignments(user_id);
+
+CREATE TABLE IF NOT EXISTS task_step_completions (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_step_id INTEGER NOT NULL REFERENCES task_steps(id) ON DELETE CASCADE,
+  task_set_id  INTEGER NOT NULL REFERENCES task_sets(id) ON DELETE CASCADE,
+  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  completed_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(task_step_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_task_step_completions_user ON task_step_completions(user_id, task_set_id);

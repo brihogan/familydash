@@ -34,7 +34,7 @@ router.get('/:id/accounts', authenticate, requireOwnOrParent, (req, res, next) =
     processRecurringRules(req.user.familyId);
 
     const accounts = db.prepare(`
-      SELECT id, name, type, balance_cents, sort_order, created_at
+      SELECT id, user_id, name, type, balance_cents, sort_order, created_at
       FROM accounts WHERE user_id = ? AND is_active = 1
       ORDER BY sort_order ASC, id ASC
     `).all(userId);
@@ -113,7 +113,13 @@ router.get('/:id/accounts/:aid/transactions', authenticate, requireOwnOrParent, 
     const limit = Math.min(100, parseInt(req.query.limit, 10) || 20);
     const offset = (page - 1) * limit;
 
-    const total = db.prepare('SELECT COUNT(*) AS cnt FROM transactions WHERE account_id = ?').get(accountId).cnt;
+    const conditions = ['t.account_id = ?'];
+    const bindings = [accountId];
+    if (req.query.from) { conditions.push('t.created_at >= ?'); bindings.push(req.query.from); }
+    if (req.query.to)   { conditions.push('t.created_at <= ?'); bindings.push(req.query.to); }
+    const where = conditions.join(' AND ');
+
+    const total = db.prepare(`SELECT COUNT(*) AS cnt FROM transactions t WHERE ${where}`).get(...bindings).cnt;
     const rows = db.prepare(`
       SELECT t.*,
              u.name  AS created_by_name,
@@ -124,10 +130,10 @@ router.get('/:id/accounts/:aid/transactions', authenticate, requireOwnOrParent, 
       JOIN users u ON u.id = t.created_by_user_id
       LEFT JOIN accounts la ON la.id = t.linked_account_id
       LEFT JOIN users lu ON lu.id = la.user_id
-      WHERE t.account_id = ?
+      WHERE ${where}
       ORDER BY t.created_at DESC
       LIMIT ? OFFSET ?
-    `).all(accountId, limit, offset);
+    `).all(...bindings, limit, offset);
 
     res.json({ transactions: rows, total, page, limit });
   } catch (err) {

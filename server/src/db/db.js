@@ -61,6 +61,21 @@ try {
   db.exec(`ALTER TABLE rewards ADD COLUMN emoji TEXT`);
 } catch (_) { /* column already exists */ }
 
+// v9: tags on task_sets — JSON array of lowercase tag strings
+try {
+  db.exec(`ALTER TABLE task_sets ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`);
+} catch (_) { /* column already exists or table not yet created */ }
+
+// v10: category on task_sets — single plain-text category string
+try {
+  db.exec(`ALTER TABLE task_sets ADD COLUMN category TEXT NOT NULL DEFAULT ''`);
+} catch (_) { /* column already exists */ }
+
+// v11: ticket_reward on task_sets — tickets awarded when all steps are completed
+try {
+  db.exec(`ALTER TABLE task_sets ADD COLUMN ticket_reward INTEGER NOT NULL DEFAULT 0`);
+} catch (_) { /* column already exists */ }
+
 // v8: rename account type 'tithing' → 'charity'
 // SQLite can't ALTER a CHECK constraint, so we recreate the accounts table.
 const hasTithing = db.prepare(`SELECT COUNT(*) AS n FROM accounts WHERE type = 'tithing'`).get().n;

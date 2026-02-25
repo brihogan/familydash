@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 antialiased;
   }
   /* Prevent iOS Safari from zooming on input focus (requires font-size ≥ 16px) */
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
@@ -41,4 +41,39 @@
 @keyframes chore-enter {
   from { opacity: 0; transform: translateY(-8px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Trophy badge animations ─────────────────────────────────────────────── */
+
+/* Sits still, then does a 3D coin-like rock sequence, then rests again */
+@keyframes badge-rock {
+  0%,  12%, 88%, 100% { transform: perspective(140px) rotateY(  0deg) rotateX( 0.0deg); }
+  22%                  { transform: perspective(140px) rotateY(-10deg) rotateX( 2.0deg); }
+  38%                  { transform: perspective(140px) rotateY(  8deg) rotateX(-2.0deg); }
+  52%                  { transform: perspective(140px) rotateY( -6deg) rotateX( 1.0deg); }
+  66%                  { transform: perspective(140px) rotateY(  4deg) rotateX(-1.0deg); }
+  78%                  { transform: perspective(140px) rotateY( -1deg) rotateX( 0.0deg); }
+}
+
+/* Award completion modal entrance */
+@keyframes award-pop {
+  0%   { opacity: 0; transform: scale(0.7); }
+  70%  { transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Continuous gloss sweep for the static award badge in the modal */
+@keyframes award-badge-shimmer {
+  0%, 100% { transform: translateX(-180%) skewX(-20deg); opacity: 0; }
+  30%       { opacity: 0.6; }
+  60%       { transform: translateX(180%) skewX(-20deg); opacity: 0; }
+}
+
+
+/* Diagonal light sweep synced with the rock — invisible during idle phase */
+@keyframes badge-shimmer {
+  0%,  32%, 100% { transform: translateX(-160%) skewX(-20deg); opacity: 0; }
+  44%            { transform: translateX(  10%) skewX(-20deg); opacity: 0.85; }
+  56%            { transform: translateX( 160%) skewX(-20deg); opacity: 0; }
+  82%            { transform: translateX( 160%) skewX(-20deg); opacity: 0; }
 }

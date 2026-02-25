@@ -21,20 +21,20 @@ export default function RewardCard({ reward, ticketBalance, onRedeem, onEdit, on
   const label = isParent ? daysLabel(reward.ticket_cost, kidsWithEarning) : null;
 
   return (
-    <div className={`bg-white rounded-xl border p-4 shadow-sm flex flex-col gap-3 transition-all ${
-      isParent || canAfford ? 'border-gray-200 hover:border-brand-300' : 'border-gray-100 opacity-70'
+    <div className={`bg-white dark:bg-gray-800 rounded-xl border p-4 shadow-sm flex flex-col gap-3 transition-all ${
+      isParent || canAfford ? 'border-gray-200 dark:border-gray-700 hover:border-brand-300' : 'border-gray-100 dark:border-gray-700 opacity-70'
     }`}>
       <div>
         {reward.emoji && <div className="text-3xl mb-2 leading-none">{reward.emoji}</div>}
-        <h3 className="font-semibold text-gray-800">{reward.name}</h3>
+        <h3 className="font-semibold text-gray-800 dark:text-gray-200">{reward.name}</h3>
         {reward.description && (
-          <p className="text-sm text-gray-500 mt-0.5">{reward.description}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{reward.description}</p>
         )}
       </div>
       <div className="flex items-center justify-between mt-auto">
         <span className="text-sm font-bold text-brand-600">
           🎟 {reward.ticket_cost} tickets
-          {label && <span className="ml-1 text-xs font-normal text-gray-400">({label})</span>}
+          {label && <span className="ml-1 text-xs font-normal text-gray-400 dark:text-gray-500">({label})</span>}
         </span>
         {isParent ? (
           <div className="flex gap-3">
@@ -58,7 +58,7 @@ export default function RewardCard({ reward, ticketBalance, onRedeem, onEdit, on
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               canAfford
                 ? 'bg-brand-500 hover:bg-brand-600 text-white'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
             } disabled:opacity-60`}
           >
             {loading ? '…' : canAfford ? 'Redeem' : 'Not enough'}

@@ -42,27 +42,79 @@
 - [x] Test it on mobile
 - [x] Activity (24 hours), or group by day of week?
 - [x] Chores - select mode to delete or copy to other kid
-- [ ] Clean up pages 
-  - [ ] History w/ filters everywhere?
-  - [ ] Single chores list (chore-history, chores really the same)
-- [ ] Activity - should Tickets filter also show tickets earned from chores?
-- [ ] On history page - all "just now" is that correct?
+- [x] Dark/system theme
+- [x] Filter (today, yesterday, last 7 days, all)
+  - [x] Activity
+  - [x] Bank
+  - [x] Tickets
+- [x] Clean up pages 
+  - [x] History w/ filters everywhere?
+  - [x] Single chores list (chore-history, chores really the same)
+- [x] On history page - all "just now" is that correct? - change to actual date/time?
+- [x] On Dashboard (table layout) quick buttons to rounded
+- [x] Auto-refresh the page? Info was stale this morning...
+- [x] Log out icon
+- [x] Login: dark/light mode select, also "Parent/Kid" font (purple) is too dark
+- [x] Recent activity - summerize and truncate better
 - [ ] Test out recurring bank rule (and move them to another screen?)
+- [ ] Activity - should Tickets filter also show tickets earned from chores?
 - [ ] Settings:
   - [x] Rename bank accounts (defaults)
+  - [ ] Indicate which kid can self-check off tasks (or need to check them off and require permission, vs can't check it off, at all)
+  - [ ] Indicate which kid can self-complete a task set
+  - [ ] How many task sets can be checked out? (ideally only 4 at max, but that includes any projects assigned)
+  - [ ] Use banking for the family?
+  - [ ] Use tickets for the family?
+  - [ ] Use daily chores for the family?
+  - [ ] Use task sets for the family?
   - [ ] Change parent's email
   - [ ] Allow parent to "pin" recent bank and ticket transactions (so they stay all the time).
+
+## Task sets
+
+- [x] Set name
+- [x] Set type (badget, scavenger, etc)
+- [x] Set tag (for filtering, like "Agriculture" for badges)
+- [x] Steps
+- [x] In Edit Task Set - the Tag, if present is unreadable in dark mode. let's lighten the font for tags in dark mode.
+- [x] Allow parents to assign tasks to kids
+- [x] Project vs Award. Project more like a chore that's assigned multiple times (like steps to completed a bigger project and can repeat) - and is more like one-and-done, not really to be seen again. Award is more like for displaying/showing-off.
+- [x] Group by Category
+- [x] Done set to "completed" area below
+- [x] Done steps to "completed" area below (with animations like chores)
+- [x] How to show on dashboard (circle progress?) - might require chores being circle progress around profile pic?
+- [x] Add Task Set/Step completion as part of the Last Activity column (new filter type?) along with undo buttons
+- [x] Graph - add steps from tasksets to the bar of chores completed that day
+- [x] Sets:
+  - [x] From within the award, also show who else is assigned
+  - [x] Add celebration card after completed taskset (saying to go to trophey shelf)
+  - [x] Add celebration card after completed project - saying good job and showing ticket payout, if any.
+  - [x] Add celebration card after completed daily chores
+  - [x] How long did it take to complete the task set?
+  - [x] When "unassigning" the counter on the list doesn't change.
+  - [x] Assign/unassign steps complete counter with warning when unassigning.
+  - [x] Add ticket payouts to tasksets (add/edit dialog) then pay that out when the celebration card is displayed. If a step is undone then that payout should be reversed, though.
+  - [x] Slow down glossy shine on badges...
+  - [x] Add log/activity under Sets so we can see when assigned, when completed, etc per user.
+  - [x] Allow parent to rearrange steps in a Set (drag & drop)
+  - [x] How to display Sets on dashboard once they are completed? Keep them there until new Sets replace them? -> Keep them for the rest of the day, then reset/clear at end of day.
+  - [x] What to do with a Project once it's done? Award goes to Trophey Shelf, but where does a project go?
+  - [x] Add Trophies to Card and Table?
+- [ ] FInal:
+  - [ ] Allow kids to "check-out" a task set (x at a time?) 
+  - [ ] How to sort/find/filter when lists get long?
+  - [ ] How to limit projects (since more than 3-4 seems busy/crowded)
 
 
 
 ## Advanced
 
-- [ ] Task sets
-  - [ ] Set name
-  - [ ] Set type (badget, scavenger, etc)
-  - [ ] Tasks
-  - [ ] Allow kids to "check-out" a task set (x at a time?)
-  - [ ] Show progress of checked out task set to show off
+- [ ] How do we handle levels of badgets/awards and how do we handle optional steps for badges?
+- [ ] Trophies:
+  - [ ] Streaks -> check offs, no spending, etc?
+  - [ ] Challenges (ranks) -> X days of all chores done, X amount of projects earned, X amont of awards earned, X amount of money in checking/savings/etc.
+- [ ] TRMNL view
+- [ ] PWA? (sounds easy, just need some icons)
+- [ ] Log in with Apple account? (requires Apple dev fee)
 - [ ] Curiosity Untamed scraper for badges
 - [ ] Task set that handles selecting optional tasks per level
-- [ ] TRMNL view

@@ -31,8 +31,8 @@ function SortableChoreRow({ template, onEdit, onDelete, selectMode, selected, on
       ref={setNodeRef}
       style={style}
       onClick={selectMode ? () => onToggleSelect(template.id) : undefined}
-      className={`flex items-center gap-3 bg-white border rounded-lg p-3 shadow-sm transition-colors ${
-        selected ? 'border-brand-400 bg-brand-50' : 'border-gray-200'
+      className={`flex items-center gap-3 bg-white dark:bg-gray-800 border rounded-lg p-3 shadow-sm transition-colors ${
+        selected ? 'border-brand-400 bg-brand-50 dark:bg-brand-900/20' : 'border-gray-200 dark:border-gray-700'
       } ${selectMode ? 'cursor-pointer' : ''}`}
     >
       {/* Drag handle — hidden in select mode */}
@@ -40,7 +40,7 @@ function SortableChoreRow({ template, onEdit, onDelete, selectMode, selected, on
         <button
           {...attributes}
           {...listeners}
-          className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing shrink-0"
+          className="text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 cursor-grab active:cursor-grabbing shrink-0"
         >
           ⠿
         </button>
@@ -49,7 +49,7 @@ function SortableChoreRow({ template, onEdit, onDelete, selectMode, selected, on
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium">{template.name}</p>
         {template.description && (
-          <p className="text-xs text-gray-400 truncate">{template.description}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{template.description}</p>
         )}
       </div>
 
@@ -80,7 +80,7 @@ function SortableChoreRow({ template, onEdit, onDelete, selectMode, selected, on
           checked={selected}
           onChange={() => onToggleSelect(template.id)}
           onClick={(e) => e.stopPropagation()}
-          className="w-4 h-4 rounded border-gray-300 text-brand-500 accent-brand-500 cursor-pointer shrink-0"
+          className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-brand-500 accent-brand-500 cursor-pointer shrink-0"
         />
       )}
     </div>

@@ -13,6 +13,35 @@ import RecurringRuleForm from '../components/bank/RecurringRuleForm.jsx';
 import Modal from '../components/shared/Modal.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 
+const DATE_OPTIONS = [
+  { key: 'today',     label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: '7d',        label: 'Last 7 days' },
+  { key: 'all',       label: 'All' },
+];
+
+const SELECT_CLS = 'border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-400';
+
+function localMidnightUTC(offsetDays = 0) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  if (offsetDays) d.setDate(d.getDate() - offsetDays);
+  return d.toISOString().replace('T', ' ').slice(0, 19);
+}
+
+const TX_TYPE_OPTIONS = [
+  { key: 'all',         label: 'All' },
+  { key: 'transfers',   label: 'Transfers' },
+  { key: 'deposits',    label: 'Deposits' },
+  { key: 'withdrawals', label: 'Withdrawals' },
+];
+
+const TX_TYPE_GROUPS = {
+  transfers:   ['transfer_in', 'transfer_out'],
+  deposits:    ['deposit', 'allowance', 'manual_adjustment'],
+  withdrawals: ['withdraw'],
+};
+
 const ACCOUNT_TYPES = ['savings', 'charity', 'custom'];
 
 const ALL_ACCOUNT_TYPES = ['main', 'savings', 'charity', 'custom'];
@@ -32,21 +61,21 @@ function EditAccountForm({ account, onSave, onCancel, loading }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Name</label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={100}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
         <select
           value={type}
           onChange={(e) => setType(e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
         >
           {ALL_ACCOUNT_TYPES.map((t) => (
             <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
@@ -60,7 +89,7 @@ function EditAccountForm({ account, onSave, onCancel, loading }) {
           {loading ? 'Saving…' : 'Save'}
         </button>
         <button type="button" onClick={onCancel}
-          className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
           Cancel
         </button>
       </div>
@@ -83,22 +112,22 @@ function AddAccountForm({ onSave, onCancel, loading }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Name</label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Tithing, Savings, Disney Fund"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
           maxLength={100}
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
         <select
           value={type}
           onChange={(e) => setType(e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
         >
           {ACCOUNT_TYPES.map((t) => (
             <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
@@ -117,7 +146,7 @@ function AddAccountForm({ onSave, onCancel, loading }) {
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
         >
           Cancel
         </button>
@@ -145,6 +174,8 @@ export default function KidBankPage() {
   const [addAccountLoading, setAddAccountLoading] = useState(false);
   const [renameAccount, setRenameAccount] = useState(null);
   const [renameLoading, setRenameLoading] = useState(false);
+  const [dateKey, setDateKey] = useState('today');
+  const [txTypeKey, setTxTypeKey] = useState('all');
   const [error, setError] = useState('');
 
   const fetchAccounts = useCallback(async () => {
@@ -165,13 +196,24 @@ export default function KidBankPage() {
 
   const fetchTransactions = useCallback(async () => {
     if (!selectedAccount) return;
+    // Guard: selectedAccount may be stale from a previous kid when userId just changed
+    if (selectedAccount.user_id !== parseInt(userId, 10)) return;
     try {
-      const data = await accountsApi.getTransactions(userId, selectedAccount.id);
+      const params = {};
+      if (dateKey === 'today') {
+        params.from = localMidnightUTC(0);
+      } else if (dateKey === 'yesterday') {
+        params.from = localMidnightUTC(1);
+        params.to   = localMidnightUTC(0);
+      } else if (dateKey === '7d') {
+        params.from = localMidnightUTC(6);
+      }
+      const data = await accountsApi.getTransactions(userId, selectedAccount.id, params);
       setTransactions(data.transactions);
     } catch {
       setError('Failed to load transactions.');
     }
-  }, [userId, selectedAccount]);
+  }, [userId, selectedAccount, dateKey]);
 
   const fetchRules = useCallback(async () => {
     if (!isParent) return;
@@ -189,8 +231,12 @@ export default function KidBankPage() {
     }).catch(() => {});
   }, [userId, isParent]);
 
-  useEffect(() => { fetchAccounts(); }, [userId]);
-  useEffect(() => { fetchTransactions(); }, [selectedAccount]);
+  useEffect(() => {
+    setSelectedAccount(null);
+    setError('');
+    fetchAccounts();
+  }, [userId]);
+  useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
   useEffect(() => { fetchRules(); }, [fetchRules]);
 
   const handleAddAccount = async (data) => {
@@ -230,17 +276,17 @@ export default function KidBankPage() {
     <div>
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             <FontAwesomeIcon icon={faPiggyBank} className="mr-2 text-brand-500" />
             {isParent ? `${memberName || '…'}'s Bank` : 'My Bank'}
           </h1>
           {isParent && kids.length > 1 && (
             <div className="flex items-center gap-1.5 mt-1.5">
-              <span className="text-xs text-gray-400">Switch to:</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500">Switch to:</span>
               <select
                 value={userId}
                 onChange={(e) => navigate(`/bank/${e.target.value}`)}
-                className="text-sm font-medium text-brand-600 border border-brand-200 rounded-lg px-2.5 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-brand-300 cursor-pointer hover:border-brand-400 transition-colors"
+                className="text-sm font-medium text-brand-600 border border-brand-200 rounded-lg px-2.5 py-1 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-300 cursor-pointer hover:border-brand-400 transition-colors"
               >
                 {kids.map((k) => (
                   <option key={k.id} value={String(k.id)}>{k.name}</option>
@@ -252,7 +298,7 @@ export default function KidBankPage() {
         {isParent && (
           <button
             onClick={() => setAddAccountModal(true)}
-            className="px-3 py-1.5 border border-gray-300 text-sm rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-sm rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             + Sub-account
           </button>
@@ -260,7 +306,7 @@ export default function KidBankPage() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">{error}</div>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-4 py-3 mb-4 text-sm">{error}</div>
       )}
 
       {/* Accounts row */}
@@ -302,7 +348,7 @@ export default function KidBankPage() {
           {isParent && (
             <button
               onClick={() => setRuleModal(true)}
-              className="py-2 px-4 border border-gray-300 text-sm rounded-lg text-gray-600 hover:bg-gray-50 transition-colors sm:ml-auto"
+              className="py-2 px-4 border border-gray-300 dark:border-gray-600 text-sm rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors sm:ml-auto"
             >
               + Recurring Rule
             </button>
@@ -311,19 +357,53 @@ export default function KidBankPage() {
       )}
 
       {/* Transactions */}
-      {selectedAccount && (
-        <div className="mb-6">
-          <h2 className="text-base font-semibold text-gray-700 mb-3">
-            Transactions — {selectedAccount.name}
-          </h2>
-          <TransactionList transactions={transactions} viewingUserId={userId} />
-        </div>
-      )}
+      {selectedAccount && (() => {
+        const displayTx = txTypeKey === 'all'
+          ? transactions
+          : transactions.filter((tx) => TX_TYPE_GROUPS[txTypeKey]?.includes(tx.type));
+        return (
+          <div className="mb-6">
+            <div className="mb-3">
+              <h2 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                Transactions — {selectedAccount.name}
+              </h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-gray-400 dark:text-gray-500">Date</span>
+                  <select
+                    className={SELECT_CLS}
+                    value={dateKey}
+                    onChange={(e) => setDateKey(e.target.value)}
+                  >
+                    {DATE_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center gap-1">
+                  {TX_TYPE_OPTIONS.map((o) => (
+                    <button
+                      key={o.key}
+                      onClick={() => setTxTypeKey(o.key)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                        txTypeKey === o.key
+                          ? 'bg-brand-600 text-white'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <TransactionList transactions={displayTx} viewingUserId={userId} />
+          </div>
+        );
+      })()}
 
       {/* Recurring rules (parent only) */}
       {isParent && rules.length > 0 && (
         <div>
-          <h2 className="text-base font-semibold text-gray-700 mb-3">Recurring Rules</h2>
+          <h2 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">Recurring Rules</h2>
           <RecurringRuleList rules={rules} onDelete={handleDeleteRule} />
         </div>
       )}

@@ -10,19 +10,19 @@ export default function RecurringRuleList({ rules, onDelete }) {
   return (
     <div className="space-y-2">
       {rules.map((rule) => (
-        <div key={rule.id} className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg">
+        <div key={rule.id} className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium">
               {rule.type === 'deposit' ? 'Deposit' : 'Transfer'} {formatCents(rule.amount_cents)}
             </p>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-400 dark:text-gray-500">
               Every {DAYS[rule.day_of_week]}
               {rule.description && ` · ${rule.description}`}
               {rule.to_account_name && ` → ${rule.to_account_name}`}
             </p>
           </div>
           {rule.last_run_date && (
-            <span className="text-xs text-gray-400">Last: {rule.last_run_date}</span>
+            <span className="text-xs text-gray-400 dark:text-gray-500">Last: {rule.last_run_date}</span>
           )}
           <button
             onClick={() => onDelete(rule.id)}

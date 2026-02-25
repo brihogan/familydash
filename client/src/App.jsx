@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
+import { ThemeProvider } from './context/ThemeContext.jsx';
 import ProtectedRoute from './components/shared/ProtectedRoute.jsx';
 import ParentRoute from './components/shared/ParentRoute.jsx';
 import Layout from './components/shared/Layout.jsx';
@@ -14,12 +15,18 @@ import RewardsPage from './pages/RewardsPage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
 import SettingsUsersPage from './pages/SettingsUsersPage.jsx';
 import SettingsChoresPage from './pages/SettingsChoresPage.jsx';
+import SettingsTasksPage from './pages/SettingsTasksPage.jsx';
+import KidTasksPage from './pages/KidTasksPage.jsx';
+import KidTrophiesPage from './pages/KidTrophiesPage.jsx';
+import TaskSetDetailPage from './pages/TaskSetDetailPage.jsx';
+import UserTaskDetailPage from './pages/UserTaskDetailPage.jsx';
 import KidOverviewPage from './pages/KidOverviewPage.jsx';
 import FamilyActivityPage from './pages/FamilyActivityPage.jsx';
 import DisplayPage from './pages/DisplayPage.jsx';
 
 export default function App() {
   return (
+    <ThemeProvider>
     <AuthProvider>
       <BrowserRouter>
         <Routes>
@@ -36,6 +43,10 @@ export default function App() {
               <Route path="/chores/:userId" element={<KidChoresPage />} />
               <Route path="/bank/:userId" element={<KidBankPage />} />
               <Route path="/tickets/:userId" element={<KidTicketsPage />} />
+              <Route path="/tasks/:userId" element={<KidTasksPage />} />
+              <Route path="/tasks/:userId/:taskSetId" element={<UserTaskDetailPage />} />
+              <Route path="/trophies/:userId" element={<KidTrophiesPage />} />
+              <Route path="/task/:id" element={<TaskSetDetailPage />} />
               <Route path="/rewards" element={<RewardsPage />} />
               <Route path="/kid/:userId" element={<KidOverviewPage />} />
 
@@ -47,6 +58,7 @@ export default function App() {
                 <Route path="/settings/users" element={<SettingsUsersPage />} />
                 <Route path="/settings/chores" element={<SettingsChoresPage />} />
                 <Route path="/settings/chores/:userId" element={<SettingsChoresPage />} />
+                <Route path="/settings/tasks" element={<SettingsTasksPage />} />
                 <Route path="/settings/rewards" element={<Navigate to="/rewards" replace />} />
               </Route>
             </Route>
@@ -56,5 +68,6 @@ export default function App() {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+    </ThemeProvider>
   );
 }

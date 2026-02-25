@@ -51,9 +51,7 @@ function DayActivityLog({ activity }) {
               <span className={`font-medium ${item.actor_role === 'parent' ? 'text-brand-600' : 'text-gray-600'}`}>
                 {item.actor_name}
               </span>
-              {' '}({item.actor_role})
-              {' · '}
-              {relativeTime(item.created_at)}
+              {' '}({item.actor_role}){' on '}{relativeTime(item.created_at)}
             </p>
           </div>
         </div>

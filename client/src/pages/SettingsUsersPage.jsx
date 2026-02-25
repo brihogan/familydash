@@ -61,50 +61,50 @@ function AddUserForm({ onSave, onCancel, loading }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
         <select value={role} onChange={(e) => setRole(e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-200">
           <option value="kid">Kid</option>
           <option value="parent">Parent</option>
         </select>
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
         <input type="text" value={name} onChange={(e) => setName(e.target.value)} required
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-200" />
       </div>
       {role === 'kid' ? (
         <>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
             <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-200" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">PIN (4 digits)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PIN (4 digits)</label>
             <input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
               required maxLength={4} placeholder="••••"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-200" />
           </div>
         </>
       ) : (
         <>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-200" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-200" />
           </div>
         </>
       )}
 
       {/* Avatar preview + color + emoji */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Avatar</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Avatar</label>
         <div className="flex items-start gap-4">
           {/* Live preview */}
           <div className="flex-shrink-0">
@@ -112,7 +112,7 @@ function AddUserForm({ onSave, onCancel, loading }) {
           </div>
           <div className="flex-1 space-y-2">
             <div>
-              <p className="text-xs text-gray-500 mb-1.5">Color</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Color</p>
               <div className="flex gap-1.5 flex-wrap">
                 {AVATAR_COLORS.map((c) => (
                   <button key={c} type="button" onClick={() => setAvatarColor(c)}
@@ -122,7 +122,7 @@ function AddUserForm({ onSave, onCancel, loading }) {
               </div>
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-1.5">Emoji <span className="text-gray-400">(optional)</span></p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Emoji <span className="text-gray-400 dark:text-gray-500">(optional)</span></p>
               <div className="grid grid-cols-10 gap-1">
                 {FORM_EMOJIS.map((e) => (
                   <button key={e} type="button" onClick={() => setAvatarEmoji(avatarEmoji === e ? null : e)}
@@ -145,7 +145,7 @@ function AddUserForm({ onSave, onCancel, loading }) {
           {loading ? 'Adding…' : 'Add Member'}
         </button>
         <button type="button" onClick={onCancel}
-          className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
           Cancel
         </button>
       </div>
@@ -162,12 +162,12 @@ function TogglePill({ label, checked, onChange }) {
       className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
         checked
           ? 'bg-brand-50 border-brand-300 text-brand-700'
-          : 'bg-gray-50 border-gray-200 text-gray-400'
+          : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-400'
       }`}
     >
       <span
         className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors ${
-          checked ? 'bg-brand-500' : 'bg-gray-300'
+          checked ? 'bg-brand-500' : 'bg-gray-300 dark:bg-gray-500'
         }`}
       />
       {label}
@@ -195,14 +195,14 @@ function SortableMemberRow({ member, onNavigate, onDeactivate, onToggle, onEmoji
     <div
       ref={setNodeRef}
       style={style}
-      className="flex flex-wrap items-center gap-x-3 gap-y-2 p-4 bg-white border border-gray-200 rounded-xl shadow-sm"
+      className="flex flex-wrap items-center gap-x-3 gap-y-2 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm"
     >
       {/* Row 1: drag handle + avatar + name */}
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <button
           {...attributes}
           {...listeners}
-          className="touch-none text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing flex-shrink-0"
+          className="touch-none text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0"
           aria-label="Drag to reorder"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -219,7 +219,7 @@ function SortableMemberRow({ member, onNavigate, onDeactivate, onToggle, onEmoji
         </button>
         <div className="flex-1 min-w-0">
           <p className="font-medium text-sm">{member.name}</p>
-          <p className="text-xs text-gray-400 capitalize">
+          <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">
             {member.role} · {member.email || member.username || '—'}
             {!member.is_active && <span className="ml-2 text-xs text-red-400">Inactive</span>}
           </p>
@@ -227,7 +227,7 @@ function SortableMemberRow({ member, onNavigate, onDeactivate, onToggle, onEmoji
       </div>
 
       {/* Row 2 on mobile / right side on desktop: toggles + actions */}
-      <div className="flex items-center gap-2 w-full sm:w-auto">
+      <div className="flex items-center gap-2 w-full sm:w-auto justify-end sm:justify-start">
         <TogglePill
           label="Show balance"
           checked={!!member.show_balance_on_dashboard}
@@ -376,11 +376,11 @@ export default function SettingsUsersPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             <FontAwesomeIcon icon={faUsers} className="mr-2 text-brand-500" />
             Family Members
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">Drag to set the display order</p>
+          <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">Drag to set the display order</p>
         </div>
         <button onClick={() => setAddModal(true)}
           className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium transition-colors">
@@ -388,7 +388,7 @@ export default function SettingsUsersPage() {
         </button>
       </div>
 
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">{error}</div>}
+      {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-4 py-3 mb-4 text-sm">{error}</div>}
 
       {loading ? <LoadingSkeleton rows={3} /> : (
         <DndContext

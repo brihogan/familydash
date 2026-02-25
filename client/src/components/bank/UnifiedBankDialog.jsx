@@ -209,7 +209,7 @@ export default function UnifiedBankDialog({
         {/* ── Recent transactions (deposit / withdraw only) ── */}
         {visibleRecent.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Recent</p>
+            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Recent</p>
             <div className="flex flex-wrap gap-1.5">
               {visibleRecent.map((r, i) => (
                 <button
@@ -221,7 +221,7 @@ export default function UnifiedBankDialog({
                       ? r.mode === 'deposit'
                         ? 'bg-green-100 border-green-400 text-green-700'
                         : 'bg-red-100 border-red-400 text-red-700'
-                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-400'
+                      : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-400'
                   }`}
                 >
                   {recentLabel(r)}
@@ -232,15 +232,15 @@ export default function UnifiedBankDialog({
         )}
 
         {/* ── Mode toggle ── */}
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">New Transaction</p>
-        <div className="flex rounded-lg overflow-hidden border border-gray-200">
+        <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">New Transaction</p>
+        <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
           {MODES.map((m) => (
             <button
               key={m}
               type="button"
               onClick={() => setMode(m)}
               className={`flex-1 py-2 text-sm font-medium capitalize transition-colors ${
-                mode === m ? MODE_STYLES[m] : 'bg-white text-gray-500 hover:bg-gray-50'
+                mode === m ? MODE_STYLES[m] : 'bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600'
               }`}
             >
               {m.charAt(0).toUpperCase() + m.slice(1)}
@@ -251,13 +251,13 @@ export default function UnifiedBankDialog({
         {/* ── Dashboard: account selector (deposit / withdraw) ── */}
         {dashboardMode && mode !== 'transfer' && ownAccounts.length > 0 && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {mode === 'deposit' ? 'Into account' : 'From account'}
             </label>
             <select
               value={srcId}
               onChange={(e) => setSrcId(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
             >
               {ownAccounts.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
@@ -271,11 +271,11 @@ export default function UnifiedBankDialog({
           <>
             {dashboardMode && ownAccounts.length > 0 && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">From account</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From account</label>
                 <select
                   value={srcId}
                   onChange={(e) => setSrcId(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
                 >
                   {ownAccounts.map((a) => (
                     <option key={a.id} value={a.id}>{a.name}</option>
@@ -284,14 +284,14 @@ export default function UnifiedBankDialog({
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">To account</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">To account</label>
               {destAccounts.length === 0 ? (
-                <p className="text-sm text-gray-400 italic">No other accounts available.</p>
+                <p className="text-sm text-gray-400 dark:text-gray-500 italic">No other accounts available.</p>
               ) : (
                 <select
                   value={toAccountId}
                   onChange={(e) => setToAccountId(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
                 >
                   {Object.entries(groupedDest).map(([owner, accs]) => (
                     <optgroup key={owner} label={owner}>
@@ -309,11 +309,11 @@ export default function UnifiedBankDialog({
         {/* ── Deposit sub-type (parent only) ── */}
         {mode === 'deposit' && isParent && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
             <select
               value={depositType}
               onChange={(e) => setDepositType(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
             >
               {DEPOSIT_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
@@ -324,30 +324,30 @@ export default function UnifiedBankDialog({
 
         {/* ── Amount ── */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Amount ($)</label>
           <input
             type="number"
             step="0.01"
             min="0.01"
             value={dollars}
             onChange={(e) => setDollars(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
             placeholder="0.00"
           />
         </div>
 
         {/* ── Description ── */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             {mode === 'transfer' ? 'Note' : 'Description'}
             {mode === 'withdraw' && <span className="text-red-500 ml-1">*</span>}
-            {mode === 'transfer' && <span className="text-gray-400 ml-1">(optional)</span>}
+            {mode === 'transfer' && <span className="text-gray-400 dark:text-gray-500 ml-1">(optional)</span>}
           </label>
           <input
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
             placeholder={
               mode === 'deposit'  ? 'What is this for?' :
               mode === 'withdraw' ? 'What are you spending this on?' :
@@ -376,7 +376,7 @@ export default function UnifiedBankDialog({
           <button
             type="button"
             onClick={() => { if (!submitting) onClose(); }}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
           >
             Cancel
           </button>

@@ -164,6 +164,8 @@ router.get('/redemptions', authenticate, (req, res, next) => {
     const whereClauses = ['u.family_id = ?'];
     const whereParams  = [req.user.familyId];
     if (filterUserId) { whereClauses.push('rr.user_id = ?'); whereParams.push(filterUserId); }
+    if (req.query.from) { whereClauses.push('rr.created_at >= ?'); whereParams.push(req.query.from); }
+    if (req.query.to)   { whereClauses.push('rr.created_at <= ?'); whereParams.push(req.query.to); }
     const where = whereClauses.join(' AND ');
 
     const total = db.prepare(

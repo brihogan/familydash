@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faExpand, faHouse } from '@fortawesome/free-solid-svg-icons';
@@ -8,7 +8,7 @@ import DashboardTable from '../components/dashboard/DashboardTable.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 
 const SORT_OPTIONS = [
-  { key: 'custom',  label: 'Custom Order' },
+  { key: 'custom',  label: 'Default Order' },
   { key: 'balance', label: 'Bank Balance' },
   { key: 'tickets', label: 'Tickets' },
   { key: 'chores',  label: 'Chore Progress' },
@@ -45,7 +45,11 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const [sortKey, setSortKey] = useState('custom');
 
+  const lastFetchRef = useRef(Date.now());
+  const REFRESH_MS = 60 * 60 * 1000; // 1 hour
+
   const fetchDashboard = useCallback(async () => {
+    lastFetchRef.current = Date.now();
     try {
       const data = await dashboardApi.getDashboard();
       setMembers(data.members);
@@ -60,6 +64,23 @@ export default function DashboardPage() {
     fetchDashboard();
   }, [fetchDashboard]);
 
+  // Periodic auto-refresh every hour
+  useEffect(() => {
+    const interval = setInterval(fetchDashboard, REFRESH_MS);
+    return () => clearInterval(interval);
+  }, [fetchDashboard]);
+
+  // Refresh immediately when the tab becomes visible again after 1+ hour
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastFetchRef.current >= REFRESH_MS) {
+        fetchDashboard();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [fetchDashboard]);
+
   const sortedMembers = useMemo(
     () => sortMembers(members.filter((m) => m.showOnDashboard), sortKey),
     [members, sortKey],
@@ -69,7 +90,7 @@ export default function DashboardPage() {
     <div>
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             <FontAwesomeIcon icon={faHouse} className="mr-2 text-brand-500" />
             Dashboard
           </h1>
@@ -84,7 +105,7 @@ export default function DashboardPage() {
               <button
                 onClick={() => navigate('/display')}
                 title="Display view"
-                className="text-gray-400 hover:text-brand-600 transition-colors"
+                className="text-gray-400 dark:text-gray-500 hover:text-brand-600 transition-colors"
               >
                 <FontAwesomeIcon icon={faExpand} />
               </button>
@@ -92,10 +113,10 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">Sort:</span>
+          <span className="text-xs text-gray-400 dark:text-gray-500">Sort:</span>
           {/* Mobile: dropdown */}
           <select
-            className="md:hidden border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent"
+            className="md:hidden border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent"
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value)}
           >
@@ -112,7 +133,7 @@ export default function DashboardPage() {
                 className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                   sortKey === opt.key
                     ? 'bg-brand-500 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
                 {opt.label}
@@ -123,7 +144,7 @@ export default function DashboardPage() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-4 py-3 mb-4 text-sm">
           {error}
         </div>
       )}

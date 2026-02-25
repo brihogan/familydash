@@ -5,13 +5,21 @@ import CurrencyDisplay from './CurrencyDisplay.jsx';
 import { relativeTime } from '../../utils/relativeTime.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { choresApi } from '../../api/chores.api.js';
+import { taskSetsApi } from '../../api/taskSets.api.js';
 
 // Map each event type to the relevant page for that subject
 export function getActivityPath(item) {
   switch (item.event_type) {
     case 'chore_completed':
     case 'chore_undone':
+    case 'chores_all_done':
       return `/chores/${item.subject_user_id}`;
+    case 'task_step_completed':
+    case 'task_step_undone':
+    case 'taskset_completed':
+    case 'taskset_uncompleted':
+    case 'taskset_reset':
+      return `/tasks/${item.subject_user_id}/${item.reference_id}`;
     case 'deposit':
     case 'withdrawal':
     case 'transfer_out':
@@ -30,21 +38,27 @@ export function getActivityPath(item) {
 }
 
 export const EVENT_ICONS = {
-  chore_completed:  '✅',
-  chore_undone:     '↩️',
-  deposit:          '💵',
-  withdrawal:       '💸',
-  transfer_out:     '➡️',
-  transfer_in:      '⬅️',
-  allowance:        '🎁',
-  manual_adjustment:'🔧',
-  reward_redeemed:  '🏆',
-  tickets_added:    '🎟',
-  tickets_removed:  '🎟',
+  chore_completed:      '✅',
+  chore_undone:         '↩️',
+  chores_all_done:      '🌟',
+  task_step_completed:  '☑️',
+  task_step_undone:     '↩️',
+  taskset_completed:    '🎯',
+  taskset_uncompleted:  '↩️',
+  taskset_reset:        '🔄',
+  deposit:              '💵',
+  withdrawal:           '💸',
+  transfer_out:         '➡️',
+  transfer_in:          '⬅️',
+  allowance:            '🎁',
+  manual_adjustment:    '🔧',
+  reward_redeemed:      '🏆',
+  tickets_added:        '🎟',
+  tickets_removed:      '🎟',
 };
 
 const BANK_EVENTS   = new Set(['deposit', 'withdrawal', 'transfer_out', 'transfer_in', 'allowance', 'manual_adjustment']);
-const TICKET_EVENTS = new Set(['tickets_added', 'tickets_removed', 'chore_completed', 'chore_undone']);
+const TICKET_EVENTS = new Set(['tickets_added', 'tickets_removed', 'chore_completed', 'chore_undone', 'taskset_completed', 'taskset_uncompleted']);
 
 /**
  * Single activity row used in both FamilyActivityPage and KidOverviewPage.
@@ -55,7 +69,16 @@ const TICKET_EVENTS = new Set(['tickets_added', 'tickets_removed', 'chore_comple
 // ─── Day-grouped list ─────────────────────────────────────────────────────────
 
 function toLocalDate(dateInput) {
-  const d = new Date(dateInput);
+  // SQLite sends "YYYY-MM-DD HH:MM:SS" with no timezone marker.
+  // Browsers parse bare datetime strings as local time, so anything
+  // after midnight UTC (e.g. 7 pm EST) lands on the next local day.
+  // Append 'Z' to force UTC parsing, then use local date methods.
+  let d;
+  if (typeof dateInput === 'string' && !dateInput.endsWith('Z') && !dateInput.includes('+')) {
+    d = new Date(dateInput.replace(' ', 'T') + 'Z');
+  } else {
+    d = new Date(dateInput);
+  }
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
@@ -82,7 +105,7 @@ export function GroupedActivityList({ activity, showAvatar = true, onUndone }) {
       {groups.map((group) => (
         <div key={group.day}>
           <div className="pt-3 pb-1 px-1">
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{group.label}</span>
+            <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{group.label}</span>
           </div>
           {group.items.map((item) => (
             <ActivityRow key={item.id} item={item} showAvatar={showAvatar} onUndone={onUndone} />
@@ -107,7 +130,11 @@ export default function ActivityRow({ item, showAvatar = true, onUndone }) {
     e.stopPropagation();
     setUndoing(true);
     try {
-      await choresApi.uncompleteChore(item.subject_user_id, item.reference_id);
+      if (item.event_type === 'task_step_completed') {
+        await taskSetsApi.toggleStep(item.subject_user_id, item.reference_id, item.amount_cents);
+      } else {
+        await choresApi.uncompleteChore(item.subject_user_id, item.reference_id);
+      }
       setUndone(true);
       onUndone?.();
     } catch {
@@ -124,11 +151,11 @@ export default function ActivityRow({ item, showAvatar = true, onUndone }) {
   return (
     <div
       onClick={path ? () => navigate(path) : undefined}
-      className={`flex items-start gap-3 py-3 border-b border-gray-100 last:border-0 rounded-lg px-1 -mx-1 transition-colors ${
-        path ? 'cursor-pointer hover:bg-gray-50' : ''
+      className={`flex items-center gap-3 py-3 border-b border-gray-100 dark:border-gray-700 last:border-0 rounded-lg px-1 -mx-1 transition-colors ${
+        path ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800' : ''
       }`}
     >
-      <span className="text-lg shrink-0 pt-0.5">{EVENT_ICONS[item.event_type] || '📌'}</span>
+      <span className="text-lg shrink-0">{EVENT_ICONS[item.event_type] || '📌'}</span>
 
       {showAvatar && (
         <div className="flex items-center gap-2 shrink-0">
@@ -142,26 +169,26 @@ export default function ActivityRow({ item, showAvatar = true, onUndone }) {
       )}
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-gray-800">{item.description}</p>
-        <p className="text-xs text-gray-400 mt-0.5">
+        <p className="text-sm text-gray-800 dark:text-gray-200">{item.description}</p>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
           {showAvatar && (
             <>
-              <span className="font-medium text-gray-600">{item.subject_name}</span>
+              <span className="font-medium text-gray-600 dark:text-gray-400">{item.subject_name}</span>
               {' · '}
             </>
           )}
           {'by '}
-          <span className={`font-medium ${item.actor_role === 'parent' ? 'text-brand-600' : 'text-gray-600'}`}>
+          <span className={`font-medium ${item.actor_role === 'parent' ? 'text-brand-600' : 'text-gray-600 dark:text-gray-400'}`}>
             {item.actor_name}
           </span>
-          {' '}({item.actor_role})
+          {' '}({item.actor_role}){' on '}{relativeTime(item.created_at)}
         </p>
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        {isParent && item.event_type === 'chore_completed' && item.reference_id && (
+        {isParent && (item.event_type === 'chore_completed' || item.event_type === 'task_step_completed') && item.reference_id && (
           undone ? (
-            <span className="text-xs text-gray-400 border border-gray-200 px-2 py-1 rounded">
+            <span className="text-xs text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 px-2 py-1 rounded">
               Undone
             </span>
           ) : (
@@ -174,18 +201,13 @@ export default function ActivityRow({ item, showAvatar = true, onUndone }) {
             </button>
           )
         )}
-        <div className="flex flex-col items-end gap-0.5 pt-0.5">
-          {showMoney && <CurrencyDisplay cents={item.amount_cents} />}
-          {showTickets && (
-            <span className={`font-mono text-sm font-medium ${ticketPos ? 'text-green-700' : 'text-red-600'}`}>
-              {ticketPos ? '+' : ''}{item.amount_cents} 🎟
-            </span>
-          )}
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-gray-400 whitespace-nowrap">{relativeTime(item.created_at)}</span>
-            {path && <span className="text-gray-300 text-xs">›</span>}
-          </div>
-        </div>
+        {showMoney && <CurrencyDisplay cents={item.amount_cents} />}
+        {showTickets && (
+          <span className={`font-mono text-sm font-medium ${ticketPos ? 'text-green-700' : 'text-red-600'}`}>
+            {ticketPos ? '+' : ''}{item.amount_cents} 🎟
+          </span>
+        )}
+        {path && <span className="text-gray-300 dark:text-gray-600 text-xs">›</span>}
       </div>
     </div>
   );

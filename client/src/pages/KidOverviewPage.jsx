@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTachographDigital } from '@fortawesome/free-solid-svg-icons';
+import { faTachographDigital, faCrown } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { overviewApi } from '../api/overview.api.js';
 import { activityApi } from '../api/activity.api.js';
@@ -15,7 +15,8 @@ import EmptyState from '../components/shared/EmptyState.jsx';
 
 const TYPE_GROUPS = {
   bank:    ['deposit', 'withdrawal', 'transfer_out', 'transfer_in', 'allowance', 'manual_adjustment'],
-  chores:  ['chore_completed', 'chore_undone'],
+  chores:  ['chore_completed', 'chore_undone', 'chores_all_done'],
+  tasks:   ['task_step_completed', 'task_step_undone', 'taskset_completed'],
   rewards: ['reward_redeemed'],
   tickets: ['tickets_added', 'tickets_removed'],
 };
@@ -24,36 +25,52 @@ const TYPE_OPTIONS = [
   { key: 'all',     label: 'All' },
   { key: 'bank',    label: 'Bank' },
   { key: 'chores',  label: 'Chores' },
+  { key: 'tasks',   label: 'Sets/Steps' },
   { key: 'rewards', label: 'Rewards' },
   { key: 'tickets', label: 'Tickets' },
 ];
 
 const DATE_OPTIONS = [
-  { key: '48h',  label: 'Last 48h',  hours: 48 },
-  { key: '7d',   label: '7 days',    hours: 168 },
-  { key: '30d',  label: '30 days',   hours: 720 },
-  { key: 'all',  label: 'All time',  hours: null },
+  { key: 'today',     label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: '7d',        label: 'Last 7 days' },
+  { key: 'all',       label: 'All' },
 ];
 
-const SEL = 'border border-gray-200 rounded-md px-2 py-1 text-xs bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-brand-400';
+function localMidnightUTC(offsetDays = 0) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  if (offsetDays) d.setDate(d.getDate() - offsetDays);
+  return d.toISOString().replace('T', ' ').slice(0, 19);
+}
+
+const SEL = 'border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-400';
 
 // ─── Weekly bar chart ─────────────────────────────────────────────────────────
 
 function WeeklyChart({ data }) {
   const globalMax = Math.max(
-    ...data.flatMap((d) => [d.ticketsFromChores + d.ticketsFromParents, d.choresTotal]),
+    ...data.flatMap((d) => [
+      d.ticketsFromChores + d.ticketsFromParents,
+      d.choresTotal + (d.stepsDone ?? 0),
+    ]),
     1,
   );
 
   return (
     <div>
-      <div className="flex items-end gap-3 h-28">
+      {/* One column per day — divide-x draws the subtle vertical separators */}
+      <div className="flex divide-x divide-gray-100 dark:divide-gray-700">
         {data.map((day) => {
-          const ticketsTotal = day.ticketsFromChores + day.ticketsFromParents;
+          const ticketsTotal  = day.ticketsFromChores + day.ticketsFromParents;
+          const stepsDone     = day.stepsDone ?? 0;
+          const combined      = day.choresTotal + stepsDone;
+          const choreBarH     = combined > 0 ? Math.max((combined / globalMax) * 88, 4) : 0;
+          const allChoresDone = day.choresTotal > 0 && day.choresDone === day.choresTotal;
           return (
-          <div key={day.date} className="flex-1 flex flex-col gap-1">
-            {/* Number labels */}
-            <div className="flex gap-0.5 justify-center text-center">
+          <div key={day.date} className="flex-1 flex flex-col px-1.5 first:pl-0 last:pr-0">
+            {/* Number label */}
+            <div className="flex justify-center mb-1 h-4">
               {ticketsTotal > 0 && (
                 <span className="text-xs text-amber-600 font-medium leading-none">{ticketsTotal}</span>
               )}
@@ -78,62 +95,74 @@ function WeeklyChart({ data }) {
                   )}
                 </div>
               ) : (
-                <div className="flex-1 min-h-[2px] rounded-t-sm bg-gray-100" />
+                <div className="flex-1 min-h-[2px] rounded-t-sm bg-gray-100 dark:bg-gray-700" />
               )}
-              {/* Chores: stacked done (blue, bottom) + undone (red, top) */}
-              {day.choresTotal > 0 ? (
-                <div
-                  className="flex-1 flex flex-col rounded-t-sm overflow-hidden transition-all"
-                  style={{ height: `${Math.max((day.choresTotal / globalMax) * 88, 4)}px` }}
-                  title={`${day.choresDone}/${day.choresTotal} chores done`}
-                >
-                  {day.choresTotal - day.choresDone > 0 && (
-                    <div className="bg-red-400 w-full" style={{ flex: day.choresTotal - day.choresDone }} />
-                  )}
-                  {day.choresDone > 0 && (
-                    <div className="bg-blue-400 w-full" style={{ flex: day.choresDone }} />
-                  )}
-                </div>
-              ) : (
-                <div className="flex-1 min-h-[2px] rounded-t-sm bg-gray-100" />
-              )}
+              {/* Chores + tasks bar with optional crown */}
+              <div className="flex-1 relative flex items-end">
+                {allChoresDone && (
+                  <FontAwesomeIcon
+                    icon={faCrown}
+                    className="absolute left-1/2 -translate-x-1/2 text-yellow-400"
+                    style={{ bottom: `${choreBarH + 3}px`, fontSize: '11px' }}
+                  />
+                )}
+                {combined > 0 ? (
+                  <div
+                    className="w-full flex flex-col rounded-t-sm overflow-hidden transition-all"
+                    style={{ height: `${choreBarH}px` }}
+                    title={`${day.choresDone}/${day.choresTotal} chores done, ${stepsDone} task steps`}
+                  >
+                    {day.choresTotal - day.choresDone > 0 && (
+                      <div className="bg-red-400 w-full" style={{ flex: day.choresTotal - day.choresDone }} />
+                    )}
+                    {stepsDone > 0 && (
+                      <div className="bg-violet-400 w-full" style={{ flex: stepsDone }} />
+                    )}
+                    {day.choresDone > 0 && (
+                      <div className="bg-blue-400 w-full" style={{ flex: day.choresDone }} />
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-full min-h-[2px] rounded-t-sm bg-gray-100 dark:bg-gray-700" />
+                )}
+              </div>
+            </div>
+            {/* Day label */}
+            <div className={`text-center text-xs mt-1 truncate ${
+              day.isToday ? 'font-semibold text-brand-600' : 'text-gray-400 dark:text-gray-500'
+            }`}>
+              {day.label}
             </div>
           </div>
           );
         })}
       </div>
 
-      {/* Day labels */}
-      <div className="flex gap-3 mt-1">
-        {data.map((day) => (
-          <div
-            key={day.date}
-            className={`flex-1 text-center text-xs truncate ${
-              day.isToday ? 'font-semibold text-brand-600' : 'text-gray-400'
-            }`}
-          >
-            {day.label}
-          </div>
-        ))}
-      </div>
-
       {/* Legend */}
       <div className="flex gap-3 justify-center mt-3 flex-wrap">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-sm bg-amber-400" />
-          <span className="text-xs text-gray-500">Tickets (chores)</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">Tickets (chores)</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-sm bg-emerald-400" />
-          <span className="text-xs text-gray-500">Tickets (parent)</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">Tickets (parent)</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-sm bg-blue-400" />
-          <span className="text-xs text-gray-500">Chores done</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">Chores done</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm bg-violet-400" />
+          <span className="text-xs text-gray-500 dark:text-gray-400">Set steps</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-sm bg-red-400" />
-          <span className="text-xs text-gray-500">Chores pending</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">Chores pending</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <FontAwesomeIcon icon={faCrown} className="text-yellow-400 text-xs" />
+          <span className="text-xs text-gray-500 dark:text-gray-400">All chores done</span>
         </div>
       </div>
     </div>
@@ -151,7 +180,7 @@ function StatCard({ onClick, children, accent = 'brand' }) {
   return (
     <div
       onClick={onClick}
-      className={`bg-white rounded-xl border border-gray-200 p-4 shadow-sm cursor-pointer transition-colors ${colors[accent]}`}
+      className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm cursor-pointer transition-colors ${colors[accent]}`}
     >
       {children}
     </div>
@@ -172,7 +201,7 @@ export default function KidOverviewPage() {
   const [actLoading, setActLoading] = useState(true);
   const [error,      setError]      = useState('');
 
-  const [actDateKey, setActDateKey] = useState('48h');
+  const [actDateKey, setActDateKey] = useState('today');
   const [actTypeKey, setActTypeKey] = useState('all');
   const [kids,       setKids]       = useState([]);
 
@@ -198,10 +227,15 @@ export default function KidOverviewPage() {
   const fetchActivity = useCallback(() => {
     setActLoading(true);
     const params = { limit: 50 };
-    const dateOpt = DATE_OPTIONS.find((d) => d.key === actDateKey);
-    if (dateOpt?.hours) {
-      params.from = new Date(Date.now() - dateOpt.hours * 3_600_000).toISOString();
+    if (actDateKey === 'today') {
+      params.from = localMidnightUTC(0);
+    } else if (actDateKey === 'yesterday') {
+      params.from = localMidnightUTC(1);
+      params.to   = localMidnightUTC(0);
+    } else if (actDateKey === '7d') {
+      params.from = localMidnightUTC(6);
     }
+    // 'all' → no date params
     if (actTypeKey !== 'all') {
       params.event_types = TYPE_GROUPS[actTypeKey].join(',');
     }
@@ -215,7 +249,7 @@ export default function KidOverviewPage() {
 
   if (loading) return <LoadingSkeleton rows={6} />;
   if (error)   return (
-    <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>
+    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-4 py-3 text-sm">{error}</div>
   );
   if (!overview) return null;
 
@@ -232,17 +266,17 @@ export default function KidOverviewPage() {
       {/* ── Header ── */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             <FontAwesomeIcon icon={faTachographDigital} className="mr-2 text-brand-500" />
             {isParent ? `${memberName}'s Overview` : 'My Overview'}
           </h1>
           {isParent && kids.length > 1 && (
             <div className="flex items-center gap-1.5 mt-1.5">
-              <span className="text-xs text-gray-400">Switch to:</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500">Switch to:</span>
               <select
                 value={userId}
                 onChange={(e) => navigate(`/kid/${e.target.value}`)}
-                className="text-sm font-medium text-brand-600 border border-brand-200 rounded-lg px-2.5 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-brand-300 cursor-pointer hover:border-brand-400 transition-colors"
+                className="text-sm font-medium text-brand-600 border border-brand-200 rounded-lg px-2.5 py-1 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-300 cursor-pointer hover:border-brand-400 transition-colors"
               >
                 {kids.map((k) => (
                   <option key={k.id} value={String(k.id)}>{k.name}</option>
@@ -262,8 +296,8 @@ export default function KidOverviewPage() {
       </div>
 
       {/* ── 7-day chart ── */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-700 mb-4">Last 7 Days</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Last 7 Days</h2>
         <WeeklyChart data={last7Days} />
       </div>
 
@@ -272,16 +306,16 @@ export default function KidOverviewPage() {
 
         {/* Bank */}
         <StatCard onClick={() => navigate(`/bank/${userId}`)} accent="green">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Bank</p>
+          <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Bank</p>
           {mainAccount && (
-            <p className="text-2xl font-mono font-bold text-gray-900 mb-2">
+            <p className="text-2xl font-mono font-bold text-gray-900 dark:text-gray-100 mb-2">
               {formatCents(mainAccount.balance_cents)}
             </p>
           )}
           {subAccounts.length > 0 && (
-            <div className="space-y-1 border-t border-gray-100 pt-2">
+            <div className="space-y-1 border-t border-gray-100 dark:border-gray-700 pt-2">
               {subAccounts.map((a) => (
-                <div key={a.id} className="flex justify-between text-xs text-gray-500">
+                <div key={a.id} className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                   <span className="truncate">{a.name}</span>
                   <span className="font-mono">{formatCents(a.balance_cents)}</span>
                 </div>
@@ -293,33 +327,33 @@ export default function KidOverviewPage() {
 
         {/* Tickets */}
         <StatCard onClick={() => navigate(`/tickets/${userId}`)} accent="amber">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Tickets</p>
+          <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Tickets</p>
           <p className="text-2xl font-bold text-amber-600 mb-1">
             {ticketBalance} <span className="text-lg">🎟</span>
           </p>
-          <p className="text-xs text-gray-400">current balance</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">current balance</p>
           <p className="text-xs text-brand-500 mt-3">View history →</p>
         </StatCard>
 
         {/* Chores */}
         <StatCard onClick={() => navigate(`/chores/${userId}`)} accent="brand">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Chores Today</p>
+          <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Chores Today</p>
           {choreProgressToday.total > 0 ? (
             <>
-              <p className="text-2xl font-bold text-gray-900 mb-2">
+              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
                 {choreProgressToday.done}
-                <span className="text-base font-normal text-gray-400">/{choreProgressToday.total}</span>
+                <span className="text-base font-normal text-gray-400 dark:text-gray-500">/{choreProgressToday.total}</span>
               </p>
-              <div className="bg-gray-100 rounded-full h-2 mb-1">
+              <div className="bg-gray-100 dark:bg-gray-700 rounded-full h-2 mb-1">
                 <div
                   className="bg-brand-500 h-2 rounded-full transition-all"
                   style={{ width: `${chorePct}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-400">{chorePct}% complete</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">{chorePct}% complete</p>
             </>
           ) : (
-            <p className="text-sm text-gray-400 italic">No chores today</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic">No chores today</p>
           )}
           <p className="text-xs text-brand-500 mt-3">View chores →</p>
         </StatCard>
@@ -327,10 +361,10 @@ export default function KidOverviewPage() {
       </div>
 
       {/* ── Activity feed ── */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div className="px-4 py-3 border-b border-gray-100">
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-semibold text-gray-700">Recent Activity</h2>
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Recent Activity</h2>
             {isParent && (
               <Link
                 to={`/family-activity?userId=${userId}`}
@@ -341,9 +375,12 @@ export default function KidOverviewPage() {
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <select className={SEL} value={actDateKey} onChange={(e) => setActDateKey(e.target.value)}>
-              {DATE_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-            </select>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-400 dark:text-gray-500">Date</span>
+              <select className={SEL} value={actDateKey} onChange={(e) => setActDateKey(e.target.value)}>
+                {DATE_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
+            </div>
             <div className="flex items-center gap-1">
               {TYPE_OPTIONS.map((o) => (
                 <button
@@ -352,7 +389,7 @@ export default function KidOverviewPage() {
                   className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                     actTypeKey === o.key
                       ? 'bg-brand-600 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 >
                   {o.label}

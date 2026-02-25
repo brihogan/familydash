@@ -3,13 +3,13 @@ export default function ChoreProgress({ done, total }) {
   const pct = Math.round((done / total) * 100);
   return (
     <div className="flex items-center gap-3">
-      <div className="flex-1 bg-gray-100 rounded-full h-3">
+      <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-3">
         <div
           className="bg-brand-500 h-3 rounded-full transition-all"
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-sm font-medium text-gray-600 whitespace-nowrap">
+      <span className="text-sm font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">
         {done}/{total}
       </span>
       {done === total && total > 0 && (

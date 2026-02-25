@@ -64,6 +64,11 @@ router.get('/:id/overview', authenticate, requireOwnOrParent, (req, res, next) =
              COUNT(CASE WHEN completed_at IS NOT NULL THEN 1 END) AS done
       FROM chore_logs WHERE user_id = ? AND log_date = ?
     `);
+    const stepsStmt = db.prepare(`
+      SELECT COUNT(*) AS done
+      FROM task_step_completions
+      WHERE user_id = ? AND date(completed_at, 'localtime') = ?
+    `);
 
     const last7Days = [];
     for (let i = 6; i >= 0; i--) {
@@ -75,6 +80,7 @@ router.get('/:id/overview', authenticate, requireOwnOrParent, (req, res, next) =
 
       const tickets = ticketsStmt.get(userId, date);
       const chores  = choresStmt.get(userId, date);
+      const steps   = stepsStmt.get(userId, date);
 
       last7Days.push({
         date,
@@ -84,6 +90,7 @@ router.get('/:id/overview', authenticate, requireOwnOrParent, (req, res, next) =
         ticketsFromParents: tickets.from_parents,
         choresDone:         chores.done,
         choresTotal:        chores.total,
+        stepsDone:          steps.done,
       });
     }
 

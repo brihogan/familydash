@@ -28,11 +28,18 @@ router.get('/:id/tickets', authenticate, requireOwnOrParent, (req, res, next) =>
     const offset = (page - 1) * limit;
 
     const { ticket_balance } = db.prepare('SELECT ticket_balance FROM users WHERE id = ?').get(userId);
-    const total = db.prepare('SELECT COUNT(*) AS cnt FROM ticket_ledger WHERE user_id = ?').get(userId).cnt;
+
+    const conditions = ['user_id = ?'];
+    const bindings = [userId];
+    if (req.query.from) { conditions.push('created_at >= ?'); bindings.push(req.query.from); }
+    if (req.query.to)   { conditions.push('created_at <= ?'); bindings.push(req.query.to); }
+    const where = conditions.join(' AND ');
+
+    const total = db.prepare(`SELECT COUNT(*) AS cnt FROM ticket_ledger WHERE ${where}`).get(...bindings).cnt;
     const ledger = db.prepare(`
-      SELECT * FROM ticket_ledger WHERE user_id = ?
+      SELECT * FROM ticket_ledger WHERE ${where}
       ORDER BY created_at DESC LIMIT ? OFFSET ?
-    `).all(userId, limit, offset);
+    `).all(...bindings, limit, offset);
 
     res.json({ ticketBalance: ticket_balance, ledger, total, page, limit });
   } catch (err) {

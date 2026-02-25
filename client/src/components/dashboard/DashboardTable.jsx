@@ -1,16 +1,40 @@
 import { useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faBroom, faCrown } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useTheme } from '../../context/ThemeContext.jsx';
 import Avatar from '../shared/Avatar.jsx';
+import { IconDisplay } from '../shared/IconPicker.jsx';
 import QuickTicketAdjust from './QuickTicketAdjust.jsx';
 import QuickBankAdjust from './QuickBankAdjust.jsx';
 import LastActivityCell from './LastActivityCell.jsx';
 import DashboardRow from './DashboardRow.jsx';
+import ProgressRing from './ProgressRing.jsx';
 import { formatCents } from '../../utils/formatCents.js';
+
+// Shift each RGB channel toward white by `amount` (0–255)
+function lightenHex(hex, amount = 40) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  const r = Math.min(255, (n >> 16)         + amount);
+  const g = Math.min(255, ((n >> 8) & 0xff) + amount);
+  const b = Math.min(255, (n & 0xff)        + amount);
+  return `rgb(${r},${g},${b})`;
+}
+
+// Shift each RGB channel toward black by `amount` (0–255)
+function darkenHex(hex, amount = 50) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  const r = Math.max(0, (n >> 16)         - amount);
+  const g = Math.max(0, ((n >> 8) & 0xff) - amount);
+  const b = Math.max(0, (n & 0xff)        - amount);
+  return `rgb(${r},${g},${b})`;
+}
 
 // ── Mobile card ──────────────────────────────────────────────────────────────
 
 function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const navigate = useNavigate();
   const isParent = user?.role === 'parent';
   const isOwnRow = member.id === user?.id;
@@ -19,12 +43,21 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
   const nameClickable  = isInteractiveKidRow;
   const statsClickable = isInteractiveKidRow;
 
-  const chorePct = member.choreTotal > 0 ? (member.choreDone / member.choreTotal) * 100 : 0;
+  const chorePct = member.choreTotal > 0 ? Math.round((member.choreDone / member.choreTotal) * 100) : 0;
+  const choreDone = member.choreTotal > 0 && member.choreDone === member.choreTotal;
+
+  // Dark mode: track=darker shade, progress=lighter shade of avatar color.
+  // Light mode: track=light gray, progress=black.
+  const ringTrackColor    = isDark ? darkenHex(member.avatarColor, 55) : lightenHex(member.avatarColor, 50);
+  const ringProgressColor = isDark ? lightenHex(member.avatarColor, 80) : darkenHex(member.avatarColor, 55);
+  const ringBgColor       = isDark ? darkenHex(member.avatarColor, 90) : lightenHex(member.avatarColor, 90);
+  // Slightly darker shade for the filled (100%) ring in dark mode
+  const ringDoneColor     = isDark ? lightenHex(member.avatarColor, 45) : darkenHex(member.avatarColor, 55);
 
   return (
     <div
-      className={`bg-white rounded-xl shadow-md overflow-hidden border-2 transition-colors ${
-        isOwnRow ? 'border-brand-400' : 'border-transparent border border-gray-200'
+      className={`bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden transition-colors ${
+        isOwnRow ? 'ring-2 ring-brand-400' : 'border border-gray-200 dark:border-gray-700'
       }`}
     >
       {/* ── Colored header banner ── */}
@@ -33,31 +66,8 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
         style={{ backgroundColor: member.avatarColor }}
         onClick={nameClickable ? () => navigate(`/kid/${member.id}`) : undefined}
       >
-        {/* Avatar with circular chore-progress ring */}
-        <div className="relative w-[70px] h-[70px] shrink-0">
-          <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 70 70">
-            {/* Track */}
-            <circle cx="35" cy="35" r="33" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="4" />
-            {/* Progress fill */}
-            {member.choreTotal > 0 && (
-              <circle
-                cx="35" cy="35" r="33"
-                fill="none"
-                stroke="white"
-                strokeWidth="4"
-                strokeLinecap="round"
-                strokeDasharray={`${(chorePct / 100) * 2 * Math.PI * 33} ${2 * Math.PI * 33}`}
-              />
-            )}
-          </svg>
-          {/* Avatar — click → /chores */}
-          <div
-            className={`absolute inset-0 flex items-center justify-center ${isInteractiveKidRow ? 'cursor-pointer' : ''}`}
-            onClick={isInteractiveKidRow ? (e) => { e.stopPropagation(); navigate(`/chores/${member.id}`); } : undefined}
-          >
-            <Avatar name={member.name} color={member.avatarColor} emoji={member.avatarEmoji} size="lg" />
-          </div>
-        </div>
+        {/* Avatar — slightly lighter than header so it stands out */}
+        <Avatar name={member.name} color={lightenHex(member.avatarColor)} emoji={member.avatarEmoji} size="lg" />
 
         {/* Name + role */}
         <div className="flex-1 min-w-0">
@@ -65,39 +75,63 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
           <p className="text-xs text-white/70 capitalize">{member.role}</p>
         </div>
 
-        {/* Right side: chore count (→ /chores) + You badge */}
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          {member.choreTotal > 0 && (
-            <div
-              className={`text-right ${isInteractiveKidRow ? 'cursor-pointer' : ''}`}
+        {/* Right side: progress circles */}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Chore ring */}
+          <div className="rounded-full">
+            <ProgressRing
+              pct={chorePct}
+              done={choreDone}
+              size={46}
+              trackColor={ringTrackColor}
+              progressColor={choreDone ? ringDoneColor : ringProgressColor}
+              bgColor={choreDone ? ringDoneColor : ringBgColor}
+              title={`Chores: ${member.choreDone}/${member.choreTotal}`}
               onClick={isInteractiveKidRow ? (e) => { e.stopPropagation(); navigate(`/chores/${member.id}`); } : undefined}
             >
-              <p className="text-xl font-bold text-white leading-tight">{member.choreDone}/{member.choreTotal}</p>
-              <p className="text-xs text-white/70 text-right">chores</p>
-            </div>
-          )}
-          {isOwnRow && (
-            <span className="text-xs bg-white/25 text-white px-2 py-0.5 rounded-full font-medium">You</span>
-          )}
+              <FontAwesomeIcon icon={choreDone ? faCrown : faBroom} className={choreDone ? 'text-yellow-400' : undefined} />
+            </ProgressRing>
+          </div>
+          {/* Task set rings */}
+          {(member.taskSets || []).map((ts) => {
+            const pct = ts.stepCount > 0 ? Math.round((ts.completedCount / ts.stepCount) * 100) : 0;
+            return (
+              <div key={ts.id} className="rounded-full">
+                <ProgressRing
+                  key={ts.id}
+                  pct={pct}
+                  done={pct === 100}
+                  size={46}
+                  trackColor={ringTrackColor}
+                  progressColor={pct === 100 ? ringDoneColor : ringProgressColor}
+                  bgColor={pct === 100 ? ringDoneColor : ringBgColor}
+                  title={ts.name}
+                  onClick={isInteractiveKidRow ? (e) => { e.stopPropagation(); navigate(`/tasks/${member.id}/${ts.id}`); } : undefined}
+                >
+                  <IconDisplay value={ts.emoji} fallback="📋" />
+                </ProgressRing>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       {/* ── Stats rows ── */}
       <div className="p-4">
-        <div className="mb-3 pt-1 pb-3 border-b border-gray-100">
-        {/* Row 1: Balance + Tickets side by side */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="mb-3 pt-1 pb-3 border-b border-gray-100 dark:border-gray-700">
+        {/* Row 1: Balance + Tickets + Trophies side by side */}
+        <div className={`grid gap-1 ${member.role === 'kid' ? 'grid-cols-3' : 'grid-cols-2'}`}>
           {/* Balance → Bank */}
-          <div>
-            <p className="text-xs text-gray-400 mb-1">Balance</p>
-            <div className="flex items-center gap-2">
+          <div className="text-center">
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Balance</p>
+            <div className="flex items-center justify-center gap-1.5">
               <p
-                className={`text-2xl font-mono font-semibold text-gray-800 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
+                className={`text-xl font-mono font-semibold text-gray-800 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
                 onClick={statsClickable ? () => navigate(`/bank/${member.id}`) : undefined}
               >
                 {showBalance
                   ? formatCents(member.mainBalanceCents)
-                  : <span className="text-gray-400 tracking-widest text-base">—&thinsp;—&thinsp;—</span>
+                  : <span className="text-gray-400 dark:text-gray-500 tracking-widest text-base">—</span>
                 }
               </p>
               {!readOnly && isParent && member.role === 'kid' && (
@@ -107,11 +141,11 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
           </div>
 
           {/* Tickets → Tickets page */}
-          <div>
-            <p className="text-xs text-gray-400 mb-1">Tickets</p>
-            <div className="flex items-center gap-2">
+          <div className="text-center">
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Tickets</p>
+            <div className="flex items-center justify-center gap-1.5">
               <p
-                className={`text-2xl font-semibold text-gray-800 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
+                className={`text-xl font-semibold text-gray-800 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
                 onClick={statsClickable ? () => navigate(`/tickets/${member.id}`) : undefined}
               >
                 {member.ticketBalance}
@@ -121,13 +155,26 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
               )}
             </div>
           </div>
+
+          {/* Trophies → Trophies page (kids only) */}
+          {member.role === 'kid' && (
+            <div className="text-center">
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Trophies</p>
+              <p
+                className={`text-xl font-semibold text-amber-500 dark:text-amber-400 ${statsClickable ? 'cursor-pointer hover:text-amber-600' : ''}`}
+                onClick={statsClickable ? () => navigate(`/trophies/${member.id}`) : undefined}
+              >
+                🏆 {member.trophyCount}
+              </p>
+            </div>
+          )}
         </div>
 
         </div>
 
         {/* Last activity */}
         {member.lastActivityDisplay && (
-          <p className="text-xs text-gray-500 truncate">
+          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
             {member.lastActivityDisplay}
           </p>
         )}
@@ -155,18 +202,19 @@ export default function DashboardTable({ members, onRefresh, readOnly = false, m
       </div>
 
       {/* ── Desktop table (md and above) ── */}
-      <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-        <table className="w-full min-w-[600px]">
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+        <table className="w-full">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-100 text-left">
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Member</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Balance</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Tickets</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Today's Chores</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Last Activity</th>
+            <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-100 dark:border-gray-700 text-left">
+              <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap w-px">Member</th>
+              <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right whitespace-nowrap w-px">Balance</th>
+              <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right whitespace-nowrap w-px">Tickets</th>
+              <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right whitespace-nowrap w-px">Trophies</th>
+              <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap w-px">Progress</th>
+              <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Last Activity</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
             {members.map((m) => (
               <DashboardRow
                 key={m.id}

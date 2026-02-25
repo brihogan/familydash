@@ -58,7 +58,7 @@ router.get('/:id/activity', authenticate, requireOwnOrParent, (req, res, next) =
       FROM activity_feed af
       JOIN users u ON u.id = af.actor_user_id
       WHERE ${where}
-      ORDER BY af.created_at DESC
+      ORDER BY af.created_at DESC, af.id DESC
       LIMIT ? OFFSET ?
     `).all(...bindings, limit, offset);
 
@@ -71,6 +71,7 @@ router.get('/:id/activity', authenticate, requireOwnOrParent, (req, res, next) =
 const VALID_EVENT_TYPES = new Set([
   'deposit', 'withdrawal', 'transfer_out', 'transfer_in', 'allowance', 'manual_adjustment',
   'chore_completed', 'chore_undone', 'reward_redeemed', 'tickets_added', 'tickets_removed',
+  'task_step_completed', 'task_step_undone', 'taskset_completed', 'chores_all_done',
 ]);
 
 // ─── GET /api/family/activity ─────────────────────────────────────────────
@@ -116,7 +117,7 @@ router.get('/activity', authenticate, requireRole('parent'), (req, res, next) =>
       JOIN users su ON su.id = af.subject_user_id
       JOIN users au ON au.id = af.actor_user_id
       WHERE ${where}
-      ORDER BY af.created_at DESC
+      ORDER BY af.created_at DESC, af.id DESC
       LIMIT ? OFFSET ?
     `).all(...bindings, limit, offset);
 

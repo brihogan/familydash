@@ -1,9 +1,13 @@
 import { useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faBroom, faCrown } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext.jsx';
 import Avatar from '../shared/Avatar.jsx';
+import { IconDisplay } from '../shared/IconPicker.jsx';
 import QuickTicketAdjust from './QuickTicketAdjust.jsx';
 import QuickBankAdjust from './QuickBankAdjust.jsx';
 import LastActivityCell from './LastActivityCell.jsx';
+import ProgressRing from './ProgressRing.jsx';
 import { formatCents } from '../../utils/formatCents.js';
 
 export default function DashboardRow({ member, onRefresh, readOnly = false, maskPrivateData = false }) {
@@ -18,35 +22,34 @@ export default function DashboardRow({ member, onRefresh, readOnly = false, mask
   // Balance / tickets / chores navigation is available to both parents and own-kid
   const statsClickable = isInteractiveKidRow;
 
-  const choreLabel = member.choreTotal > 0
-    ? `${member.choreDone}/${member.choreTotal}`
-    : '—';
+  const chorePct  = member.choreTotal > 0 ? Math.round((member.choreDone / member.choreTotal) * 100) : 0;
+  const choreDone = member.choreTotal > 0 && member.choreDone === member.choreTotal;
 
   return (
-    <tr className={`transition-colors ${isOwnRow ? 'bg-brand-50' : 'hover:bg-gray-50'}`}>
+    <tr className={`transition-colors ${isOwnRow ? 'bg-brand-50 dark:bg-indigo-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
       {/* Name → History (parent only) */}
       <td
-        className={`px-4 py-3 ${isOwnRow ? 'border-l-2 border-brand-500' : ''} ${nameClickable ? 'cursor-pointer' : ''}`}
+        className={`px-4 py-3 whitespace-nowrap ${isOwnRow ? 'border-l-2 border-brand-500' : ''} ${nameClickable ? 'cursor-pointer' : ''}`}
         onClick={nameClickable ? () => navigate(`/kid/${member.id}`) : undefined}
       >
         <div className="flex items-center gap-3">
           <Avatar name={member.name} color={member.avatarColor} emoji={member.avatarEmoji} size="sm" />
           <div>
             <p className={`font-medium text-sm ${nameClickable ? 'hover:text-brand-600' : ''}`}>{member.name}</p>
-            <p className="text-xs text-gray-400 capitalize">{member.role}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">{member.role}</p>
           </div>
         </div>
       </td>
 
       {/* Balance → Bank */}
-      <td className="px-4 py-3">
+      <td className="px-4 py-3 whitespace-nowrap">
         <div className="flex items-center justify-end gap-2">
           <span
             className={`text-sm font-mono ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
             onClick={statsClickable ? () => navigate(`/bank/${member.id}`) : undefined}
           >
             {maskPrivateData && !member.showBalanceOnDashboard && !isOwnRow
-              ? <span className="text-gray-400 tracking-widest">—&thinsp;—&thinsp;—</span>
+              ? <span className="text-gray-400 dark:text-gray-500 tracking-widest">—&thinsp;—&thinsp;—</span>
               : formatCents(member.mainBalanceCents)
             }
           </span>
@@ -57,13 +60,13 @@ export default function DashboardRow({ member, onRefresh, readOnly = false, mask
       </td>
 
       {/* Tickets */}
-      <td className="px-4 py-3">
+      <td className="px-4 py-3 whitespace-nowrap">
         <div className="flex items-center justify-end gap-2">
           <span
             className={`text-sm font-medium ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
             onClick={statsClickable ? () => navigate(`/tickets/${member.id}`) : undefined}
           >
-            {member.ticketBalance}
+            {member.ticketBalance} 🎟
           </span>
           {!readOnly && isParent && member.role === 'kid' && (
             <QuickTicketAdjust userId={member.id} ticketBalance={member.ticketBalance} onDone={onRefresh} />
@@ -71,27 +74,60 @@ export default function DashboardRow({ member, onRefresh, readOnly = false, mask
         </div>
       </td>
 
-      {/* Chores → Chores page */}
-      <td
-        className={`px-4 py-3 ${statsClickable ? 'cursor-pointer hover:opacity-75' : ''}`}
-        onClick={statsClickable ? () => navigate(`/chores/${member.id}`) : undefined}
-      >
-        {member.choreTotal > 0 ? (
-          <div className="flex items-center gap-2">
-            <div className="flex-1 bg-gray-100 rounded-full h-2 w-24">
-              <div
-                className="bg-brand-500 h-2 rounded-full transition-all"
-                style={{ width: `${(member.choreDone / member.choreTotal) * 100}%` }}
-              />
-            </div>
-            <span className="text-xs text-gray-500">{choreLabel}</span>
-          </div>
+      {/* Trophies */}
+      <td className="px-4 py-3 whitespace-nowrap text-right">
+        {member.role === 'kid' ? (
+          <span
+            className={`text-sm font-medium text-amber-500 dark:text-amber-400 ${statsClickable ? 'cursor-pointer hover:text-amber-600' : ''}`}
+            onClick={statsClickable ? () => navigate(`/trophies/${member.id}`) : undefined}
+          >
+            🏆 {member.trophyCount}
+          </span>
         ) : (
-          <span className="text-xs text-gray-400">—</span>
+          <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
         )}
       </td>
 
-      <td className="px-4 py-3">
+      {/* Progress: chore ring + task rings */}
+      <td className="px-4 py-3 whitespace-nowrap">
+        {member.role === 'kid' ? (
+          <div className="flex items-center gap-1">
+            {/* Chore ring */}
+            <div className="rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+              <ProgressRing
+                pct={chorePct}
+                done={choreDone}
+                size={40}
+                title={`Chores: ${member.choreDone}/${member.choreTotal}`}
+                onClick={statsClickable ? (e) => { e.stopPropagation(); navigate(`/chores/${member.id}`); } : undefined}
+              >
+                <FontAwesomeIcon icon={choreDone ? faCrown : faBroom} className={choreDone ? 'text-yellow-400' : undefined} />
+              </ProgressRing>
+            </div>
+            {/* Task set rings */}
+            {(member.taskSets || []).map((ts) => {
+              const pct = ts.stepCount > 0 ? Math.round((ts.completedCount / ts.stepCount) * 100) : 0;
+              return (
+                <div key={ts.id} className="rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                  <ProgressRing
+                    pct={pct}
+                    done={pct === 100}
+                    size={40}
+                    title={ts.name}
+                    onClick={statsClickable ? (e) => { e.stopPropagation(); navigate(`/tasks/${member.id}/${ts.id}`); } : undefined}
+                  >
+                    <IconDisplay value={ts.emoji} fallback="📋" />
+                  </ProgressRing>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
+        )}
+      </td>
+
+      <td className="px-4 py-3 max-w-0">
         <LastActivityCell display={member.lastActivityDisplay} />
       </td>
     </tr>

@@ -36,7 +36,7 @@ export default function ChoreItem({ log, onToggle, disabled }) {
   const isAnimating = phase !== 'idle';
   const showDone    = done || isAnimating;
 
-  // Card background / border driven by phase
+  // Card background / border driven by phase (inline styles — cannot use Tailwind for animated green states)
   const cardStyle = (() => {
     if (phase === 'exit') return {
       transition: 'opacity 360ms ease-out, transform 360ms ease-out',
@@ -56,7 +56,7 @@ export default function ChoreItem({ log, onToggle, disabled }) {
 
   return (
     <div
-      className="flex items-center gap-3 p-3 rounded-lg border"
+      className="flex items-center gap-3 p-3 rounded-lg border dark:border-gray-700"
       style={cardStyle}
     >
       {/* Checkbox + burst container */}
@@ -68,7 +68,7 @@ export default function ChoreItem({ log, onToggle, disabled }) {
           className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors disabled:cursor-not-allowed ${
             showDone
               ? 'border-green-500 bg-green-500'
-              : 'border-gray-300 hover:border-brand-400'
+              : 'border-gray-300 dark:border-gray-600 hover:border-brand-400'
           }`}
           style={
             phase === 'pop'
@@ -114,11 +114,11 @@ export default function ChoreItem({ log, onToggle, disabled }) {
 
       {/* Chore name + description */}
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium transition-colors ${showDone ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+        <p className={`text-sm font-medium transition-colors ${showDone ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
           {log.name}
         </p>
         {log.description && (
-          <p className="text-xs text-gray-400 truncate">{log.description}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{log.description}</p>
         )}
       </div>
 

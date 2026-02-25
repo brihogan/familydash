@@ -20,13 +20,13 @@ export default function ActivityItem({ item }) {
       <div className="text-lg shrink-0 pt-0.5">{EVENT_ICONS[item.event_type] || '📌'}</div>
       <div className="flex-1 min-w-0">
         <p className="text-sm text-gray-800">{item.description}</p>
-        {item.subject_name && item.actor_name && item.subject_name !== item.actor_name && (
-          <p className="text-xs text-gray-400">by {item.actor_name}</p>
-        )}
+        <p className="text-xs text-gray-400">
+          {item.subject_name && item.actor_name && item.subject_name !== item.actor_name
+            ? `by ${item.actor_name} on ${relativeTime(item.created_at)}`
+            : relativeTime(item.created_at)
+          }
+        </p>
       </div>
-      <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap">
-        {relativeTime(item.created_at)}
-      </span>
     </div>
   );
 }
