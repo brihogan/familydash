@@ -1,18 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faHouse, faTrophy, faTachographDigital, faBroom,
   faPiggyBank, faTicket, faUsers, faScroll, faRightFromBracket,
-  faMedal, faClipboardCheck,
+  faMedal, faClipboardCheck, faGear, faInbox,
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
+import { useFamilySettings } from '../../context/FamilySettingsContext.jsx';
 import Avatar from './Avatar.jsx';
 import EmojiPicker from './EmojiPicker.jsx';
 import { familyApi } from '../../api/family.api.js';
 import { overviewApi } from '../../api/overview.api.js';
 import { taskSetsApi } from '../../api/taskSets.api.js';
+import { inboxApi } from '../../api/inbox.api.js';
 import { formatCents } from '../../utils/formatCents.js';
 
 function HamburgerIcon() {
@@ -51,15 +53,17 @@ function MoonIcon() {
 export default function Layout() {
   const { user, logout, patchUser } = useAuth();
   const { isDark, toggleTheme } = useTheme();
+  const { useBanking, useSets, useTickets } = useFamilySettings();
   const navigate = useNavigate();
   const location = useLocation();
   const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [firstKidId, setFirstKidId] = useState(null);
   const [kidStats, setKidStats] = useState(null);
+  const [inboxCount, setInboxCount] = useState(0);
 
-  // Fetch nav badge stats for kids
-  useEffect(() => {
+  // Fetch nav badge stats for kids; re-fetch on 'kid-stats-updated' event
+  const refreshKidStats = useCallback(() => {
     if (user?.role !== 'kid') return;
     Promise.all([
       overviewApi.getOverview(user.id),
@@ -67,18 +71,33 @@ export default function Layout() {
     ]).then(([overview, taskData]) => {
       const mainAccount = overview.accounts.find((a) => a.type === 'main');
       setKidStats({
-        choresRemaining:  overview.choreProgressToday.total - overview.choreProgressToday.done,
-        mainBalanceCents: mainAccount?.balance_cents ?? 0,
-        ticketBalance:    overview.ticketBalance,
+        choresRemaining:        overview.choreProgressToday.total - overview.choreProgressToday.done,
+        mainBalanceCents:       mainAccount?.balance_cents ?? 0,
+        ticketBalance:          overview.ticketBalance,
         taskSetsCount:          taskData.taskSets.filter(
-        (ts) => !(ts.step_count > 0 && ts.completed_count === ts.step_count)
-      ).length,
-      completedTaskSetsCount: taskData.taskSets.filter(
-        (ts) => ts.type === 'Award' && ts.step_count > 0 && ts.completed_count === ts.step_count
-      ).length,
+          (ts) => !(ts.step_count > 0 && ts.completed_count === ts.step_count)
+        ).length,
+        completedTaskSetsCount: taskData.taskSets.filter(
+          (ts) => ts.type === 'Award' && ts.step_count > 0 && ts.completed_count === ts.step_count
+        ).length,
       });
     }).catch(() => {});
   }, [user?.role, user?.id]);
+
+  useEffect(() => {
+    refreshKidStats();
+    window.addEventListener('kid-stats-updated', refreshKidStats);
+    return () => window.removeEventListener('kid-stats-updated', refreshKidStats);
+  }, [refreshKidStats]);
+
+  // Fetch inbox count for parent nav badge; re-fetch whenever InboxPage signals a change
+  useEffect(() => {
+    if (user?.role !== 'parent') return;
+    const refresh = () => inboxApi.getInboxCount().then(({ count }) => setInboxCount(count)).catch(() => {});
+    refresh();
+    window.addEventListener('inbox-updated', refresh);
+    return () => window.removeEventListener('inbox-updated', refresh);
+  }, [user?.role]);
 
   // Fetch first kid for parent "Kid Pages" nav links
   useEffect(() => {
@@ -121,6 +140,36 @@ export default function Layout() {
 
   const close = () => setBottomPanelOpen(false);
 
+  // Prevent pull-to-refresh while the bottom panel is open
+  useEffect(() => {
+    if (!bottomPanelOpen) return;
+    const prev = document.body.style.overscrollBehavior;
+    document.body.style.overscrollBehavior = 'none';
+    return () => { document.body.style.overscrollBehavior = prev; };
+  }, [bottomPanelOpen]);
+
+  const [dragY,      setDragY]      = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartY = useRef(null);
+
+  const handleDragStart = (e) => {
+    dragStartY.current = e.touches[0].clientY;
+    setIsDragging(true);
+  };
+  const handleDragMove = (e) => {
+    if (dragStartY.current === null) return;
+    const delta = e.touches[0].clientY - dragStartY.current;
+    setDragY(Math.max(0, delta)); // only allow downward drag
+  };
+  const handleDragEnd = (e) => {
+    if (dragStartY.current === null) return;
+    const delta = e.changedTouches[0].clientY - dragStartY.current;
+    dragStartY.current = null;
+    setIsDragging(false);
+    setDragY(0);
+    if (delta > 100) close(); // dragged far enough — dismiss
+  };
+
   // NavLink base class
   const navClass = ({ isActive }) =>
     `flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
@@ -138,7 +187,7 @@ export default function Layout() {
     }`;
 
   const Nav = () => (
-    <nav className="flex-1 px-3 py-4 space-y-1 text-sm">
+    <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-4 space-y-1 text-sm">
       <NavLink to="/dashboard" className={navClass} onClick={close}>
         <FontAwesomeIcon icon={faHouse} className="w-4 shrink-0" />
         Dashboard
@@ -146,6 +195,16 @@ export default function Layout() {
 
       {user?.role === 'parent' && (
         <>
+          <NavLink to="/inbox" className={navClass} onClick={close}>
+            <FontAwesomeIcon icon={faInbox} className="w-4 shrink-0" />
+            Inbox
+            {inboxCount > 0 && (
+              <span className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400">
+                {inboxCount}
+              </span>
+            )}
+          </NavLink>
+
           {firstKidId && (
             <>
               <div className="pt-2 pb-1 px-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
@@ -159,18 +218,24 @@ export default function Layout() {
                 <FontAwesomeIcon icon={faBroom} className="w-4 shrink-0" />
                 Chores
               </NavLink>
-              <NavLink to={`/bank/${firstKidId}`} className={() => kidPathClass('/bank')} onClick={close}>
-                <FontAwesomeIcon icon={faPiggyBank} className="w-4 shrink-0" />
-                Bank
-              </NavLink>
-              <NavLink to={`/tickets/${firstKidId}`} className={() => kidPathClass('/tickets')} onClick={close}>
-                <FontAwesomeIcon icon={faTicket} className="w-4 shrink-0" />
-                Tickets
-              </NavLink>
-              <NavLink to={`/tasks/${firstKidId}`} className={() => kidPathClass('/tasks')} onClick={close}>
-                <FontAwesomeIcon icon={faMedal} className="w-4 shrink-0" />
-                Sets &amp; Steps
-              </NavLink>
+              {useBanking && (
+                <NavLink to={`/bank/${firstKidId}`} className={() => kidPathClass('/bank')} onClick={close}>
+                  <FontAwesomeIcon icon={faPiggyBank} className="w-4 shrink-0" />
+                  Bank
+                </NavLink>
+              )}
+              {useTickets && (
+                <NavLink to={`/tickets/${firstKidId}`} className={() => kidPathClass('/tickets')} onClick={close}>
+                  <FontAwesomeIcon icon={faTicket} className="w-4 shrink-0" />
+                  Tickets
+                </NavLink>
+              )}
+              {useSets && (
+                <NavLink to={`/tasks/${firstKidId}`} className={() => kidPathClass('/tasks')} onClick={close}>
+                  <FontAwesomeIcon icon={faMedal} className="w-4 shrink-0" />
+                  Sets &amp; Steps
+                </NavLink>
+              )}
               <NavLink to={`/trophies/${firstKidId}`} className={() => kidPathClass('/trophies')} onClick={close}>
                 <FontAwesomeIcon icon={faTrophy} className="w-4 shrink-0" />
                 Trophies
@@ -181,18 +246,26 @@ export default function Layout() {
           <div className="pt-2 pb-1 px-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
             Settings
           </div>
+          <NavLink to="/settings" end className={navClass} onClick={close}>
+            <FontAwesomeIcon icon={faGear} className="w-4 shrink-0" />
+            Settings
+          </NavLink>
           <NavLink to="/settings/users" className={navClass} onClick={close}>
             <FontAwesomeIcon icon={faUsers} className="w-4 shrink-0" />
-            Family Members
+            Family &amp; Chores
           </NavLink>
-          <NavLink to="/settings/tasks" className={navClass} onClick={close}>
-            <FontAwesomeIcon icon={faClipboardCheck} className="w-4 shrink-0" />
-            Manage Sets
-          </NavLink>
-          <NavLink to="/rewards" className={navClass} onClick={close}>
-            <FontAwesomeIcon icon={faTrophy} className="w-4 shrink-0" />
-            Rewards
-          </NavLink>
+          {useSets && (
+            <NavLink to="/settings/tasks" className={navClass} onClick={close}>
+              <FontAwesomeIcon icon={faClipboardCheck} className="w-4 shrink-0" />
+              Manage Sets
+            </NavLink>
+          )}
+          {useTickets && (
+            <NavLink to="/rewards" className={navClass} onClick={close}>
+              <FontAwesomeIcon icon={faTrophy} className="w-4 shrink-0" />
+              Rewards
+            </NavLink>
+          )}
           <NavLink to="/family-activity" className={navClass} onClick={close}>
             <FontAwesomeIcon icon={faScroll} className="w-4 shrink-0" />
             Family Activity
@@ -219,33 +292,39 @@ export default function Layout() {
               </span>
             )}
           </NavLink>
-          <NavLink to={`/bank/${user.id}`} className={navClass} onClick={close}>
-            <FontAwesomeIcon icon={faPiggyBank} className="w-4 shrink-0" />
-            My Bank
-            {kidStats && (
-              <span className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-                {formatCents(kidStats.mainBalanceCents)}
-              </span>
-            )}
-          </NavLink>
-          <NavLink to={`/tickets/${user.id}`} className={navClass} onClick={close}>
-            <FontAwesomeIcon icon={faTicket} className="w-4 shrink-0" />
-            My Tickets
-            {kidStats && (
-              <span className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-brand-50 dark:bg-brand-500/20 text-brand-700 dark:text-gray-400">
-                {kidStats.ticketBalance}
-              </span>
-            )}
-          </NavLink>
-          <NavLink to={`/tasks/${user.id}`} className={navClass} onClick={close}>
-            <FontAwesomeIcon icon={faMedal} className="w-4 shrink-0" />
-            My Sets
-            {kidStats && (
-              <span className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-brand-50 dark:bg-brand-500/20 text-brand-700 dark:text-gray-400">
-                {kidStats.taskSetsCount}
-              </span>
-            )}
-          </NavLink>
+          {useBanking && (
+            <NavLink to={`/bank/${user.id}`} className={navClass} onClick={close}>
+              <FontAwesomeIcon icon={faPiggyBank} className="w-4 shrink-0" />
+              My Bank
+              {kidStats && (
+                <span className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                  {formatCents(kidStats.mainBalanceCents)}
+                </span>
+              )}
+            </NavLink>
+          )}
+          {useTickets && (
+            <NavLink to={`/tickets/${user.id}`} className={navClass} onClick={close}>
+              <FontAwesomeIcon icon={faTicket} className="w-4 shrink-0" />
+              My Tickets
+              {kidStats && (
+                <span className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-brand-50 dark:bg-brand-500/20 text-brand-700 dark:text-gray-400">
+                  {kidStats.ticketBalance}
+                </span>
+              )}
+            </NavLink>
+          )}
+          {useSets && (
+            <NavLink to={`/tasks/${user.id}`} className={navClass} onClick={close}>
+              <FontAwesomeIcon icon={faMedal} className="w-4 shrink-0" />
+              My Sets
+              {kidStats && (
+                <span className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-brand-50 dark:bg-brand-500/20 text-brand-700 dark:text-gray-400">
+                  {kidStats.taskSetsCount}
+                </span>
+              )}
+            </NavLink>
+          )}
           <NavLink to={`/trophies/${user.id}`} className={navClass} onClick={close}>
             <FontAwesomeIcon icon={faTrophy} className="w-4 shrink-0" />
             My Trophies
@@ -255,10 +334,12 @@ export default function Layout() {
               </span>
             )}
           </NavLink>
-          <NavLink to="/rewards" className={navClass} onClick={close}>
-            <FontAwesomeIcon icon={faTrophy} className="w-4 shrink-0" />
-            Rewards
-          </NavLink>
+          {useTickets && (
+            <NavLink to="/rewards" className={navClass} onClick={close}>
+              <FontAwesomeIcon icon={faTrophy} className="w-4 shrink-0" />
+              Rewards
+            </NavLink>
+          )}
         </>
       )}
     </nav>
@@ -346,13 +427,15 @@ export default function Layout() {
         </header>
 
         {/* Page content — extra bottom padding on mobile to clear the bottom bar */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6">
-          <Outlet />
+        <main className={`flex-1 overflow-x-hidden overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6 ${bottomPanelOpen ? 'overflow-hidden' : ''}`}>
+          <div className="max-w-6xl mx-auto">
+            <Outlet />
+          </div>
         </main>
 
         {/* ── Bottom bar (mobile only) ── */}
         <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg">
-          <div className="flex items-center justify-between px-6 py-2">
+          <div className="flex items-center justify-between px-6 pt-2 pb-4">
             <button
               onClick={() => setBottomPanelOpen((o) => !o)}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -374,15 +457,18 @@ export default function Layout() {
 
         {/* ── Bottom sheet panel (mobile only) ── */}
         <div
-          className={`
-            lg:hidden fixed bottom-0 left-0 right-0 z-50
-            bg-white dark:bg-gray-800 rounded-t-2xl shadow-2xl
-            transition-transform duration-300 ease-in-out
-            max-h-[75vh] flex flex-col
-            ${bottomPanelOpen ? 'translate-y-0' : 'translate-y-full'}
-          `}
+          className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 rounded-t-2xl shadow-2xl max-h-[75vh] flex flex-col"
+          style={{
+            transform:  isDragging ? `translateY(${dragY}px)` : bottomPanelOpen ? 'translateY(0)' : 'translateY(100%)',
+            transition: isDragging ? 'none' : 'transform 300ms ease-in-out',
+          }}
         >
-          {/* Drag handle */}
+          {/* Drag handle + user info — drag to reposition / release to snap */}
+          <div
+            onTouchStart={handleDragStart}
+            onTouchMove={handleDragMove}
+            onTouchEnd={handleDragEnd}
+          >
           <div className="flex justify-center pt-3 pb-1">
             <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
           </div>
@@ -416,9 +502,10 @@ export default function Layout() {
               <CloseIcon />
             </button>
           </div>
+          </div>{/* end swipe target */}
 
           {/* Nav links */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto overscroll-contain">
             <Nav />
           </div>
         </div>

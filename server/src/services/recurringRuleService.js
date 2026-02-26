@@ -8,7 +8,7 @@ const getDueRulesStmt = db.prepare(`
   WHERE u.family_id = ?
     AND rr.is_active = 1
     AND rr.day_of_week = CAST(strftime('%w', 'now', 'localtime') AS INTEGER)
-    AND (rr.last_run_date IS NULL OR rr.last_run_date < date('now', 'localtime'))
+    AND (rr.last_run_date IS NULL OR date(rr.last_run_date) < date('now', 'localtime'))
 `);
 
 const getUserByAccountStmt = db.prepare(`
@@ -34,7 +34,7 @@ const runDepositRule = db.transaction((rule) => {
   `).run(user.family_id, user.id, user.id, rule.description || 'Recurring allowance', txInfo.lastInsertRowid, rule.amount_cents);
 
   db.prepare(`
-    UPDATE recurring_rules SET last_run_date = date('now', 'localtime') WHERE id = ?
+    UPDATE recurring_rules SET last_run_date = datetime('now', 'localtime') WHERE id = ?
   `).run(rule.id);
 });
 
@@ -65,7 +65,7 @@ const runTransferRule = db.transaction((rule) => {
   `).run(srcUser.family_id, srcUser.id, srcUser.id, rule.description || 'Recurring transfer', outTx.lastInsertRowid, -rule.amount_cents);
 
   db.prepare(`
-    UPDATE recurring_rules SET last_run_date = date('now', 'localtime') WHERE id = ?
+    UPDATE recurring_rules SET last_run_date = datetime('now', 'localtime') WHERE id = ?
   `).run(rule.id);
 });
 

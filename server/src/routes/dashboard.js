@@ -111,7 +111,7 @@ router.get('/', authenticate, (req, res, next) => {
       const tasksByUser = {};
       for (const row of taskRows) {
         if (!tasksByUser[row.user_id]) tasksByUser[row.user_id] = [];
-        if (tasksByUser[row.user_id].length < 4) {
+        if (tasksByUser[row.user_id].length < 10) {
           tasksByUser[row.user_id].push({
             id:             row.id,
             name:           row.name,

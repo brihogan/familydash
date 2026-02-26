@@ -37,7 +37,7 @@ router.get('/', authenticate, (req, res, next) => {
     const family = db.prepare('SELECT id, name, created_at FROM families WHERE id = ?').get(req.user.familyId);
     const members = db.prepare(`
       SELECT u.id, u.name, u.username, u.email, u.role, u.avatar_color, u.avatar_emoji, u.ticket_balance,
-             u.is_active, u.sort_order, u.show_on_dashboard, u.show_balance_on_dashboard, u.created_at,
+             u.is_active, u.sort_order, u.show_on_dashboard, u.show_balance_on_dashboard, u.require_task_approval, u.created_at,
              COALESCE(ct.daily_potential, 0) AS daily_ticket_potential
       FROM users u
       LEFT JOIN (
@@ -204,6 +204,7 @@ const UpdateUserSchema = z.object({
   password: z.string().min(8).optional(),
   show_on_dashboard: z.boolean().optional(),
   show_balance_on_dashboard: z.boolean().optional(),
+  require_task_approval: z.boolean().optional(),
   avatar_emoji: z.string().max(10).nullable().optional(),
 }).strict();
 
@@ -243,6 +244,9 @@ router.put('/users/:id', authenticate, requireRole('parent'), async (req, res, n
     if (body.show_balance_on_dashboard !== undefined) {
       updates.push('show_balance_on_dashboard = ?'); values.push(body.show_balance_on_dashboard ? 1 : 0);
     }
+    if (body.require_task_approval !== undefined) {
+      updates.push('require_task_approval = ?'); values.push(body.require_task_approval ? 1 : 0);
+    }
     if (body.avatar_emoji !== undefined) {
       updates.push('avatar_emoji = ?'); values.push(body.avatar_emoji ?? null);
     }
@@ -274,6 +278,79 @@ router.delete('/users/:id', authenticate, requireRole('parent'), (req, res, next
 
     db.prepare('UPDATE users SET is_active = 0 WHERE id = ?').run(userId);
     res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── DELETE /api/family/users/:id/permanent ───────────────────────────────
+// Hard-deletes the user and all associated data. Requires parent role.
+
+const permanentDeleteUser = db.transaction((userId, familyId) => {
+  // 1. Remove activity_feed rows where this user is the actor (not cascaded)
+  db.prepare('DELETE FROM activity_feed WHERE actor_user_id = ?').run(userId);
+  // 2. Remove transactions in OTHER users' accounts created by this user (not cascaded)
+  db.prepare(`
+    DELETE FROM transactions
+    WHERE created_by_user_id = ?
+    AND account_id NOT IN (SELECT id FROM accounts WHERE user_id = ?)
+  `).run(userId, userId);
+  // 3. Delete the user — ON DELETE CASCADE handles everything else:
+  //    accounts → transactions, recurring_rules
+  //    chore_templates → chore_logs
+  //    ticket_ledger, reward_redemptions, task_assignments,
+  //    task_step_completions, refresh_tokens, activity_feed (subject)
+  db.prepare('DELETE FROM users WHERE id = ? AND family_id = ?').run(userId, familyId);
+});
+
+router.delete('/users/:id/permanent', authenticate, requireRole('parent'), (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (userId === req.user.userId) return res.status(400).json({ error: 'Cannot delete yourself.' });
+
+    const target = db.prepare('SELECT id FROM users WHERE id = ? AND family_id = ?').get(userId, req.user.familyId);
+    if (!target) return res.status(404).json({ error: 'User not found.' });
+
+    permanentDeleteUser(userId, req.user.familyId);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── GET /api/family/settings ─────────────────────────────────────────────
+// Any authenticated family member can read settings.
+
+router.get('/settings', authenticate, (req, res, next) => {
+  try {
+    const family = db.prepare('SELECT use_banking, use_sets, use_tickets FROM families WHERE id = ?').get(req.user.familyId);
+    if (!family) return res.status(404).json({ error: 'Family not found.' });
+    res.json({ useBanking: family.use_banking === 1, useSets: family.use_sets === 1, useTickets: family.use_tickets === 1 });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── PATCH /api/family/settings ───────────────────────────────────────────
+// Parent-only: update family-wide feature flags.
+
+router.patch('/settings', authenticate, requireRole('parent'), (req, res, next) => {
+  try {
+    const { use_banking, use_sets, use_tickets } = req.body;
+    if (use_banking !== undefined) {
+      db.prepare('UPDATE families SET use_banking = ? WHERE id = ?')
+        .run(use_banking ? 1 : 0, req.user.familyId);
+    }
+    if (use_sets !== undefined) {
+      db.prepare('UPDATE families SET use_sets = ? WHERE id = ?')
+        .run(use_sets ? 1 : 0, req.user.familyId);
+    }
+    if (use_tickets !== undefined) {
+      db.prepare('UPDATE families SET use_tickets = ? WHERE id = ?')
+        .run(use_tickets ? 1 : 0, req.user.familyId);
+    }
+    const family = db.prepare('SELECT use_banking, use_sets, use_tickets FROM families WHERE id = ?').get(req.user.familyId);
+    res.json({ useBanking: family.use_banking === 1, useSets: family.use_sets === 1, useTickets: family.use_tickets === 1 });
   } catch (err) {
     next(err);
   }

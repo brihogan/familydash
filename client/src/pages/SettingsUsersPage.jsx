@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUsers } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import {
   DndContext,
   closestCenter,
@@ -153,29 +154,8 @@ function AddUserForm({ onSave, onCancel, loading }) {
   );
 }
 
-// Small pill toggle: label + on/off
-function TogglePill({ label, checked, onChange }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-        checked
-          ? 'bg-brand-50 border-brand-300 text-brand-700'
-          : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-400'
-      }`}
-    >
-      <span
-        className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors ${
-          checked ? 'bg-brand-500' : 'bg-gray-300 dark:bg-gray-500'
-        }`}
-      />
-      {label}
-    </button>
-  );
-}
-
-function SortableMemberRow({ member, onNavigate, onDeactivate, onToggle, onEmojiClick }) {
+function SortableMemberRow({ member, onNavigate, onDeactivate, onEmojiClick }) {
+  const { useTickets } = useFamilySettings();
   const {
     attributes,
     listeners,
@@ -195,7 +175,8 @@ function SortableMemberRow({ member, onNavigate, onDeactivate, onToggle, onEmoji
     <div
       ref={setNodeRef}
       style={style}
-      className="flex flex-wrap items-center gap-x-3 gap-y-2 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm"
+      onClick={() => onNavigate(`/settings/users/${member.id}`)}
+      className="flex flex-wrap items-center gap-x-3 gap-y-2 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm cursor-pointer hover:border-brand-300 dark:hover:border-brand-500/50 transition-colors"
     >
       {/* Row 1: drag handle + avatar + name */}
       <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -211,7 +192,7 @@ function SortableMemberRow({ member, onNavigate, onDeactivate, onToggle, onEmoji
         </button>
         <button
           type="button"
-          onClick={() => onEmojiClick(member)}
+          onClick={(e) => { e.stopPropagation(); onEmojiClick(member); }}
           className="flex-shrink-0 rounded-full hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-brand-400"
           title="Change avatar emoji"
         >
@@ -226,39 +207,32 @@ function SortableMemberRow({ member, onNavigate, onDeactivate, onToggle, onEmoji
         </div>
       </div>
 
-      {/* Row 2 on mobile / right side on desktop: toggles + actions */}
-      <div className="flex items-center gap-2 w-full sm:w-auto justify-end sm:justify-start">
-        <TogglePill
-          label="Show balance"
-          checked={!!member.show_balance_on_dashboard}
-          onChange={(val) => onToggle(member.id, 'show_balance_on_dashboard', val)}
-        />
-        <div className="flex items-center gap-1.5">
-          {member.role === 'kid' && (
-            <>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-medium text-amber-700">
+      {/* Right: kid info + deactivate + chevron */}
+      <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+        {member.role === 'kid' && (
+          <>
+            {useTickets && (
+              <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
                 🎟 {member.daily_ticket_potential ?? 0}/day
               </span>
-              <button onClick={() => onNavigate(`/settings/chores/${member.id}`)}
-                className="text-sm text-brand-600 hover:underline flex-shrink-0">
-                Chores
-              </button>
-            </>
-          )}
-          {member.role === 'parent' && (
-            <TogglePill
-              label="On dash"
-              checked={!!member.show_on_dashboard}
-              onChange={(val) => onToggle(member.id, 'show_on_dashboard', val)}
-            />
-          )}
-        </div>
+            )}
+            <button
+              onClick={(e) => { e.stopPropagation(); onNavigate(`/settings/chores/${member.id}`); }}
+              className="text-xs font-medium px-2.5 py-1 rounded-md border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-brand-400 hover:text-brand-600 transition-colors"
+            >
+              Chores
+            </button>
+          </>
+        )}
         {member.is_active && (
-          <button onClick={() => onDeactivate(member.id)}
-            className="text-sm text-red-500 hover:underline flex-shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); onDeactivate(member.id); }}
+            className="text-xs font-medium px-2.5 py-1 rounded-md border border-red-200 dark:border-red-500/40 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+          >
             Deactivate
           </button>
         )}
+        <span className="text-gray-300 dark:text-gray-600">›</span>
       </div>
     </div>
   );
@@ -315,17 +289,6 @@ export default function SettingsUsersPage() {
     }
   };
 
-  const handleToggle = async (id, field, value) => {
-    // Optimistic update
-    setMembers((prev) => prev.map((m) => m.id === id ? { ...m, [field]: value ? 1 : 0 } : m));
-    try {
-      await familyApi.updateUser(id, { [field]: value });
-    } catch {
-      setError('Failed to save setting.');
-      fetchMembers(); // revert
-    }
-  };
-
   const handleAdd = async (data) => {
     setAddLoading(true);
     try {
@@ -378,7 +341,7 @@ export default function SettingsUsersPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             <FontAwesomeIcon icon={faUsers} className="mr-2 text-brand-500" />
-            Family Members
+            Family &amp; Chores
           </h1>
           <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">Drag to set the display order</p>
         </div>
@@ -404,7 +367,6 @@ export default function SettingsUsersPage() {
                   member={m}
                   onNavigate={navigate}
                   onDeactivate={handleDeactivate}
-                  onToggle={handleToggle}
                   onEmojiClick={setEmojiFor}
                 />
               ))}

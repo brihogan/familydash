@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { createHash } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'dev_access_secret_change_me';
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'dev_refresh_secret_change_me';
@@ -12,7 +12,8 @@ export function signAccessToken(payload) {
 }
 
 export function signRefreshToken(payload) {
-  return jwt.sign(payload, REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES });
+  const jti = randomBytes(16).toString('hex'); // unique per-token ID prevents hash collisions
+  return jwt.sign({ ...payload, jti }, REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES });
 }
 
 export function verifyAccessToken(token) {

@@ -113,6 +113,7 @@ export default function KidChoresPage() {
         await choresApi.uncompleteChore(userId, log.id, date);
       }
       await fetchChores();
+      window.dispatchEvent(new CustomEvent('kid-stats-updated'));
     } catch (err) {
       setError(err.response?.data?.error || 'Action failed.');
     } finally {
@@ -120,8 +121,9 @@ export default function KidChoresPage() {
     }
   };
 
-  const pending   = logs.filter((l) => !l.completed_at);
-  const completed = logs.filter((l) =>  l.completed_at);
+  const pending        = logs.filter((l) => !l.completed_at);
+  const waitingApproval = logs.filter((l) => l.completed_at && l.approval_status === 'pending');
+  const completed      = logs.filter((l) => l.completed_at && l.approval_status !== 'pending');
 
   return (
     <div>
@@ -160,7 +162,7 @@ export default function KidChoresPage() {
 
       {!loading && logs.length > 0 && (
         <div className="mb-4">
-          <ChoreProgress done={completed.length} total={logs.length} />
+          <ChoreProgress done={completed.length + waitingApproval.length} total={logs.length} />
         </div>
       )}
 
@@ -172,15 +174,43 @@ export default function KidChoresPage() {
         <LoadingSkeleton rows={5} />
       ) : (
         <div className="space-y-6">
-          {/* Pending */}
+          {/* Pending (todo) */}
           {pending.length > 0 ? (
             <ChoreList logs={pending} onToggle={handleToggle} disabled={actionLoading} />
-          ) : logs.length > 0 ? (
+          ) : logs.length > 0 && waitingApproval.length === 0 ? (
             <p className="text-sm text-green-600 font-medium text-center py-3">
               All done for today! <FontAwesomeIcon icon={faCrown} className="text-yellow-400 ml-1" />
             </p>
-          ) : (
+          ) : logs.length === 0 ? (
             <ChoreList logs={[]} onToggle={handleToggle} disabled={actionLoading} />
+          ) : null}
+
+          {/* Waiting for Approval */}
+          {waitingApproval.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-amber-600 dark:text-amber-400 mb-2">⏳ Waiting for Approval</h3>
+              <div className="space-y-2">
+                {waitingApproval.map((log) => (
+                  <div
+                    key={log.id}
+                    className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-lg"
+                  >
+                    <span className="text-amber-500 text-sm shrink-0">⏳</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{log.name}</p>
+                      <p className="text-xs text-amber-600 dark:text-amber-400">Waiting for parent to approve</p>
+                    </div>
+                    <button
+                      onClick={() => handleToggle(log, false)}
+                      disabled={actionLoading}
+                      className="text-xs text-gray-500 hover:text-red-600 border border-gray-200 dark:border-gray-600 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors shrink-0"
+                    >
+                      Undo
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* Completed */}
@@ -188,7 +218,7 @@ export default function KidChoresPage() {
             <div>
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Completed</h3>
               <ChoreHistoryList
-                logs={logs}
+                logs={completed}
                 onUndo={(log) => handleToggle(log, false)}
                 disabled={actionLoading}
               />

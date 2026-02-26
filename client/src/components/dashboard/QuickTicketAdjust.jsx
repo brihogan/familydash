@@ -88,8 +88,8 @@ export default function QuickTicketAdjust({ userId, ticketBalance = 0, onDone, i
           onClick={handleOpen}
           className={`inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-sm font-medium transition-colors ${
             initialMode === 'add'
-              ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
-              : 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100'
+              ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:border-green-700/50 dark:text-green-300 dark:hover:bg-green-900/50'
+              : 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100 dark:bg-red-900/30 dark:border-red-700/50 dark:text-red-300 dark:hover:bg-red-900/50'
           }`}
         >
           <FontAwesomeIcon icon={initialMode === 'add' ? faPlus : faMinus} className="text-xs" />

@@ -4,6 +4,7 @@ import Avatar from './Avatar.jsx';
 import CurrencyDisplay from './CurrencyDisplay.jsx';
 import { relativeTime } from '../../utils/relativeTime.js';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useFamilySettings } from '../../context/FamilySettingsContext.jsx';
 import { choresApi } from '../../api/chores.api.js';
 import { taskSetsApi } from '../../api/taskSets.api.js';
 
@@ -121,6 +122,7 @@ export function GroupedActivityList({ activity, showAvatar = true, onUndone }) {
 export default function ActivityRow({ item, showAvatar = true, onUndone }) {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { useSets, useTickets } = useFamilySettings();
   const isParent = user?.role === 'parent';
   const [undoing, setUndoing] = useState(false);
   const [undone,  setUndone]  = useState(false);
@@ -144,8 +146,16 @@ export default function ActivityRow({ item, showAvatar = true, onUndone }) {
     }
   };
 
+  const SETS_EVENTS = new Set(['task_step_completed', 'task_step_undone', 'taskset_completed', 'taskset_uncompleted', 'taskset_reset']);
+  if (!useTickets && (item.event_type === 'tickets_added' || item.event_type === 'tickets_removed')) {
+    return null;
+  }
+  if (!useSets && SETS_EVENTS.has(item.event_type)) {
+    return null;
+  }
+
   const showMoney   = BANK_EVENTS.has(item.event_type)   && item.amount_cents != null;
-  const showTickets = TICKET_EVENTS.has(item.event_type) && item.amount_cents != null;
+  const showTickets = useTickets && TICKET_EVENTS.has(item.event_type) && item.amount_cents != null;
   const ticketPos   = item.amount_cents > 0;
 
   return (
@@ -195,7 +205,7 @@ export default function ActivityRow({ item, showAvatar = true, onUndone }) {
             <button
               onClick={handleUndo}
               disabled={undoing}
-              className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-2 py-1 rounded hover:bg-red-50 disabled:opacity-50 transition-colors"
+              className="text-xs text-red-500 hover:text-red-700 border border-red-200 dark:border-red-500 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors"
             >
               {undoing ? '…' : 'Undo'}
             </button>

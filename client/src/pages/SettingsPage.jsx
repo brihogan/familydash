@@ -1,20 +1,118 @@
-import { NavLink } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faGear, faUsers, faClipboardCheck, faTrophy } from '@fortawesome/free-solid-svg-icons';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
+
+const SETTINGS_CARDS = [
+  {
+    to:          '/settings/users',
+    icon:        faUsers,
+    label:       'Family & Chores',
+    description: 'Add or manage parents and kids.',
+  },
+  {
+    to:          '/settings/tasks',
+    icon:        faClipboardCheck,
+    label:       'Manage Sets',
+    description: 'Create and assign task sets and awards.',
+  },
+  {
+    to:          '/rewards',
+    icon:        faTrophy,
+    label:       'Rewards',
+    description: 'Create and edit the rewards catalog.',
+  },
+];
+
+function Toggle({ checked, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 dark:focus:ring-offset-gray-800 ${
+        checked ? 'bg-brand-500' : 'bg-gray-300 dark:bg-gray-600'
+      }`}
+    >
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+        checked ? 'translate-x-6' : 'translate-x-1'
+      }`} />
+    </button>
+  );
+}
 
 export default function SettingsPage() {
+  const navigate = useNavigate();
+  const { useBanking, updateUseBanking, useSets, updateUseSets, useTickets, updateUseTickets } = useFamilySettings();
+
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Settings</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <NavLink to="/settings/users"
-          className="block p-5 bg-white border border-gray-200 rounded-xl hover:border-brand-300 hover:shadow-sm transition-all">
-          <h2 className="font-semibold text-gray-800 mb-1">Family Members</h2>
-          <p className="text-sm text-gray-500">Add or manage parents and kids.</p>
-        </NavLink>
-        <NavLink to="/settings/rewards"
-          className="block p-5 bg-white border border-gray-200 rounded-xl hover:border-brand-300 hover:shadow-sm transition-all">
-          <h2 className="font-semibold text-gray-800 mb-1">Manage Rewards</h2>
-          <p className="text-sm text-gray-500">Create and edit the rewards catalog.</p>
-        </NavLink>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          <FontAwesomeIcon icon={faGear} className="mr-2 text-brand-500" />
+          Settings
+        </h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Manage your family dashboard configuration.
+        </p>
+      </div>
+
+      {/* ── Feature toggles ── */}
+      <div className="mb-6 space-y-3">
+        <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Features</h2>
+        <div className="flex items-start justify-between gap-6 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-gray-900 dark:text-gray-100">Use Tickets &amp; Rewards</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+              Chores and/or Sets can earn tickets that can be redeemed for rewards that the family creates.
+              This gives motivation to complete tasks.
+            </p>
+          </div>
+          <Toggle checked={useTickets} onChange={updateUseTickets} />
+        </div>
+        <div className="flex items-start justify-between gap-6 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-gray-900 dark:text-gray-100">Use Banking</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+              Allows kids to have a virtual checking, savings, and charity accounts.
+              They can transfer money between themselves, spend money, receive allowance, etc.
+            </p>
+          </div>
+          <Toggle checked={useBanking} onChange={updateUseBanking} />
+        </div>
+        <div className="flex items-start justify-between gap-6 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-gray-900 dark:text-gray-100">Use Sets</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+              Sets allow for projects and awards. These are sets of tasks that can be repeated or earned once.
+              They allow for advanced multi-step task sets.
+            </p>
+          </div>
+          <Toggle checked={useSets} onChange={updateUseSets} />
+        </div>
+      </div>
+
+      {/* ── Section links ── */}
+      <div className="space-y-3">
+        <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Sections</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {SETTINGS_CARDS.filter(({ to }) => (useTickets || to !== '/rewards') && (useSets || to !== '/settings/tasks')).map(({ to, icon, label, description }) => (
+            <button
+              key={to}
+              onClick={() => navigate(to)}
+              className="text-left p-5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-brand-300 dark:hover:border-brand-500/50 hover:shadow-sm transition-all"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <span className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-500/20 flex items-center justify-center text-brand-600 dark:text-brand-400">
+                  <FontAwesomeIcon icon={icon} />
+                </span>
+                <h3 className="font-semibold text-gray-900 dark:text-gray-100">{label}</h3>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

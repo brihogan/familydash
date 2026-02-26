@@ -77,3 +77,17 @@
   56%            { transform: translateX( 160%) skewX(-20deg); opacity: 0; }
   82%            { transform: translateX( 160%) skewX(-20deg); opacity: 0; }
 }
+
+/* ── Recently-earned trophy sparkle (< 1 hour) ───────────────────────────── */
+
+/* Pulsing golden ring glow on the card */
+@keyframes trophy-glow {
+  0%, 100% { box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  50%       { box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.75), 0 0 14px 5px rgba(251, 191, 36, 0.3); }
+}
+
+/* Individual sparkle dot twinkle */
+@keyframes trophy-sparkle-dot {
+  0%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); }
+  50%       { opacity: 1; transform: scale(1.2) rotate(72deg); }
+}

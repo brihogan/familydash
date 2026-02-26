@@ -33,7 +33,7 @@ export default function RecurringRuleForm({ accounts, onSave, onCancel, loading 
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">From Account</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{type === 'transfer' ? 'From Account' : 'To Account'}</label>
           <select value={accountId} onChange={(e) => setAccountId(e.target.value)}
             className={INPUT_CLS}>
             {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}

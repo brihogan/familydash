@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBroom, faCrown } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
+import { useFamilySettings } from '../../context/FamilySettingsContext.jsx';
 import Avatar from '../shared/Avatar.jsx';
 import { IconDisplay } from '../shared/IconPicker.jsx';
 import QuickTicketAdjust from './QuickTicketAdjust.jsx';
@@ -35,6 +36,7 @@ function darkenHex(hex, amount = 50) {
 function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
   const { user } = useAuth();
   const { isDark } = useTheme();
+  const { useBanking, useSets, useTickets } = useFamilySettings();
   const navigate = useNavigate();
   const isParent = user?.role === 'parent';
   const isOwnRow = member.id === user?.id;
@@ -82,7 +84,7 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
             <ProgressRing
               pct={chorePct}
               done={choreDone}
-              size={46}
+              size={56}
               trackColor={ringTrackColor}
               progressColor={choreDone ? ringDoneColor : ringProgressColor}
               bgColor={choreDone ? ringDoneColor : ringBgColor}
@@ -92,27 +94,32 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
               <FontAwesomeIcon icon={choreDone ? faCrown : faBroom} className={choreDone ? 'text-yellow-400' : undefined} />
             </ProgressRing>
           </div>
-          {/* Task set rings */}
-          {(member.taskSets || []).map((ts) => {
-            const pct = ts.stepCount > 0 ? Math.round((ts.completedCount / ts.stepCount) * 100) : 0;
-            return (
-              <div key={ts.id} className="rounded-full">
-                <ProgressRing
-                  key={ts.id}
-                  pct={pct}
-                  done={pct === 100}
-                  size={46}
-                  trackColor={ringTrackColor}
-                  progressColor={pct === 100 ? ringDoneColor : ringProgressColor}
-                  bgColor={pct === 100 ? ringDoneColor : ringBgColor}
-                  title={ts.name}
-                  onClick={isInteractiveKidRow ? (e) => { e.stopPropagation(); navigate(`/tasks/${member.id}/${ts.id}`); } : undefined}
-                >
-                  <IconDisplay value={ts.emoji} fallback="📋" />
-                </ProgressRing>
-              </div>
-            );
-          })}
+          {/* Task set rings — half-size, 2 per column, fill vertically first */}
+          {useSets && (member.taskSets || []).length > 0 && (
+            <div
+              className="grid gap-0.5"
+              style={{ gridTemplateRows: 'repeat(2, auto)', gridAutoFlow: 'column' }}
+            >
+              {(member.taskSets || []).map((ts) => {
+                const pct = ts.stepCount > 0 ? Math.round((ts.completedCount / ts.stepCount) * 100) : 0;
+                return (
+                  <ProgressRing
+                    key={ts.id}
+                    pct={pct}
+                    done={pct === 100}
+                    size={27}
+                    trackColor={ringTrackColor}
+                    progressColor={pct === 100 ? ringDoneColor : ringProgressColor}
+                    bgColor={pct === 100 ? ringDoneColor : ringBgColor}
+                    title={ts.name}
+                    onClick={isInteractiveKidRow ? (e) => { e.stopPropagation(); navigate(`/tasks/${member.id}`); } : undefined}
+                  >
+                    <IconDisplay value={ts.emoji} fallback="📋" />
+                  </ProgressRing>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -120,41 +127,49 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
       <div className="p-4">
         <div className="mb-3 pt-1 pb-3 border-b border-gray-100 dark:border-gray-700">
         {/* Row 1: Balance + Tickets + Trophies side by side */}
-        <div className={`grid gap-1 ${member.role === 'kid' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+        <div className={`grid gap-1 ${
+          member.role === 'kid'
+            ? { 3: 'grid-cols-3', 2: 'grid-cols-2', 1: 'grid-cols-1' }[[useBanking, useTickets, true].filter(Boolean).length]
+            : { 2: 'grid-cols-2', 1: 'grid-cols-1', 0: 'grid-cols-1' }[[useBanking, useTickets].filter(Boolean).length]
+        }`}>
           {/* Balance → Bank */}
-          <div className="text-center">
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Balance</p>
-            <div className="flex items-center justify-center gap-1.5">
-              <p
-                className={`text-xl font-mono font-semibold text-gray-800 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
-                onClick={statsClickable ? () => navigate(`/bank/${member.id}`) : undefined}
-              >
-                {showBalance
-                  ? formatCents(member.mainBalanceCents)
-                  : <span className="text-gray-400 dark:text-gray-500 tracking-widest text-base">—</span>
-                }
-              </p>
-              {!readOnly && isParent && member.role === 'kid' && (
-                <QuickBankAdjust userId={member.id} onDone={onRefresh} large />
-              )}
+          {useBanking && (
+            <div className="text-center">
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Balance</p>
+              <div className="flex items-center justify-center gap-1.5">
+                <p
+                  className={`text-xl font-mono font-semibold text-gray-800 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
+                  onClick={statsClickable ? () => navigate(`/bank/${member.id}`) : undefined}
+                >
+                  {showBalance
+                    ? formatCents(member.mainBalanceCents)
+                    : <span className="text-gray-400 dark:text-gray-500 tracking-widest text-base">—</span>
+                  }
+                </p>
+                {!readOnly && isParent && member.role === 'kid' && (
+                  <QuickBankAdjust userId={member.id} onDone={onRefresh} large />
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Tickets → Tickets page */}
-          <div className="text-center">
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Tickets</p>
-            <div className="flex items-center justify-center gap-1.5">
-              <p
-                className={`text-xl font-semibold text-gray-800 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
-                onClick={statsClickable ? () => navigate(`/tickets/${member.id}`) : undefined}
-              >
-                {member.ticketBalance}
-              </p>
-              {!readOnly && isParent && member.role === 'kid' && (
-                <QuickTicketAdjust userId={member.id} ticketBalance={member.ticketBalance} onDone={onRefresh} large />
-              )}
+          {useTickets && (
+            <div className="text-center">
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Tickets</p>
+              <div className="flex items-center justify-center gap-1.5">
+                <p
+                  className={`text-xl font-semibold text-gray-800 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
+                  onClick={statsClickable ? () => navigate(`/tickets/${member.id}`) : undefined}
+                >
+                  {member.ticketBalance} 🎟
+                </p>
+                {!readOnly && isParent && member.role === 'kid' && (
+                  <QuickTicketAdjust userId={member.id} ticketBalance={member.ticketBalance} onDone={onRefresh} large />
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Trophies → Trophies page (kids only) */}
           {member.role === 'kid' && (
@@ -186,6 +201,7 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
 // ── Table + cards ─────────────────────────────────────────────────────────────
 
 export default function DashboardTable({ members, onRefresh, readOnly = false, maskPrivateData = false }) {
+  const { useBanking, useSets, useTickets } = useFamilySettings();
   return (
     <>
       {/* ── Mobile cards (below md) ── */}
@@ -207,9 +223,9 @@ export default function DashboardTable({ members, onRefresh, readOnly = false, m
           <thead>
             <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-100 dark:border-gray-700 text-left">
               <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap w-px">Member</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right whitespace-nowrap w-px">Balance</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right whitespace-nowrap w-px">Tickets</th>
-              <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right whitespace-nowrap w-px">Trophies</th>
+              {useBanking && <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center whitespace-nowrap w-px">Balance</th>}
+              {useTickets && <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center whitespace-nowrap w-px">Tickets</th>}
+              <th className="px-2 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center whitespace-nowrap w-px">🏆</th>
               <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap w-px">Progress</th>
               <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Last Activity</th>
             </tr>

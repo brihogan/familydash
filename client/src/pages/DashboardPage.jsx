@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faExpand, faHouse } from '@fortawesome/free-solid-svg-icons';
 import { dashboardApi } from '../api/dashboard.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import DashboardTable from '../components/dashboard/DashboardTable.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 
@@ -38,6 +39,7 @@ function sortMembers(members, sortKey) {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { useBanking, useTickets } = useFamilySettings();
   const isParent = user?.role === 'parent';
   const navigate = useNavigate();
   const [members, setMembers] = useState([]);
@@ -120,13 +122,13 @@ export default function DashboardPage() {
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value)}
           >
-            {SORT_OPTIONS.map((opt) => (
+            {SORT_OPTIONS.filter((opt) => (useBanking || opt.key !== 'balance') && (useTickets || opt.key !== 'tickets')).map((opt) => (
               <option key={opt.key} value={opt.key}>{opt.label}</option>
             ))}
           </select>
           {/* Desktop: pill buttons */}
           <div className="hidden md:flex items-center gap-2 flex-wrap">
-            {SORT_OPTIONS.map((opt) => (
+            {SORT_OPTIONS.filter((opt) => (useBanking || opt.key !== 'balance') && (useTickets || opt.key !== 'tickets')).map((opt) => (
               <button
                 key={opt.key}
                 onClick={() => setSortKey(opt.key)}

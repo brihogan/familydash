@@ -296,7 +296,7 @@ export default function UnifiedBankDialog({
                   {Object.entries(groupedDest).map(([owner, accs]) => (
                     <optgroup key={owner} label={owner}>
                       {accs.map((a) => (
-                        <option key={a.id} value={a.id}>{a.name}</option>
+                        <option key={a.id} value={a.id}>{a.name} ({a.owner_name})</option>
                       ))}
                     </optgroup>
                   ))}

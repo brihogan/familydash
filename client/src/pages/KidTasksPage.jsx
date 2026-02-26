@@ -7,31 +7,13 @@ import { IconDisplay } from '../components/shared/IconPicker.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
 import { familyApi } from '../api/family.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
-
-const TYPE_OPTIONS = ['Project', 'Award'];
-
-function makeGroups(taskSets) {
-  const sorted = (arr) => [...arr].sort((a, b) => a.name.localeCompare(b.name));
-  const result = [];
-  for (const type of TYPE_OPTIONS) {
-    const typeItems = taskSets.filter((ts) => ts.type === type);
-    if (typeItems.length === 0) continue;
-    const cats = [...new Set(typeItems.map((ts) => ts.category).filter(Boolean))].sort();
-    const subGroups = cats.map((cat) => ({
-      label: cat,
-      items: sorted(typeItems.filter((ts) => ts.category === cat)),
-    }));
-    const uncategorized = sorted(typeItems.filter((ts) => !ts.category));
-    if (uncategorized.length > 0) subGroups.push({ label: 'Uncategorized', items: uncategorized });
-    result.push({ label: type, subGroups });
-  }
-  return result;
-}
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 
 export default function KidTasksPage() {
   const { userId } = useParams();
   const navigate   = useNavigate();
   const { user }   = useAuth();
+  const { useTickets } = useFamilySettings();
   const isParent   = user?.role === 'parent';
 
   const [taskSets,   setTaskSets]   = useState([]);
@@ -60,13 +42,30 @@ export default function KidTasksPage() {
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
-  const activeSets = taskSets.filter((ts) => {
-    const done = ts.step_count > 0 && ts.completed_count === ts.step_count;
-    return !done || ts.type === 'Project';
-  });
-  const grouped    = makeGroups(activeSets);
+  // Filter: keep incomplete sets, completed Projects (stay for the day),
+  // and completed Awards earned today (visible until end of day, then only on Trophy Shelf)
+  const isToday = (dateStr) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr.replace(' ', 'T') + 'Z');
+    const now = new Date();
+    return d.getFullYear() === now.getFullYear() &&
+           d.getMonth()    === now.getMonth()    &&
+           d.getDate()     === now.getDate();
+  };
 
-  // ── Standard card (with circular progress ring) ───────────────────────────
+  const sortedSets = taskSets
+    .filter((ts) => {
+      const done = ts.step_count > 0 && ts.completed_count === ts.step_count;
+      if (!done) return true;
+      if (ts.type === 'Project') return true;
+      return isToday(ts.earned_at);
+    })
+    .sort((a, b) => {
+      const typeOrder = (t) => (t === 'Project' ? 0 : 1);
+      if (typeOrder(a.type) !== typeOrder(b.type)) return typeOrder(a.type) - typeOrder(b.type);
+      return a.name.localeCompare(b.name);
+    });
+
   const renderCard = (ts) => {
     const pct  = ts.step_count > 0 ? Math.round((ts.completed_count / ts.step_count) * 100) : 0;
     const done = ts.step_count > 0 && ts.completed_count === ts.step_count;
@@ -84,6 +83,7 @@ export default function KidTasksPage() {
             : 'border-gray-200 dark:border-gray-700 hover:border-brand-300 dark:hover:border-brand-500/50'
         }`}
       >
+        {/* Progress ring + emoji */}
         <div className="relative mb-3 flex-shrink-0" style={{ width: size, height: size }}>
           <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
             <circle
@@ -107,11 +107,30 @@ export default function KidTasksPage() {
           </div>
         </div>
 
+        {/* Name */}
         <p className="font-medium text-sm text-gray-900 dark:text-gray-100 text-center leading-snug line-clamp-2">
           {ts.name}
         </p>
+
+        {/* Type + category pills */}
+        <div className="flex flex-wrap items-center justify-center gap-1 mt-1.5">
+          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+            ts.type === 'Project'
+              ? 'bg-brand-50 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300'
+              : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+          }`}>
+            {ts.type}
+          </span>
+          {ts.category && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+              {ts.category}
+            </span>
+          )}
+        </div>
+
+        {/* Completion / progress */}
         {done && (
-          <span className="mt-1 text-xs font-medium text-green-600 dark:text-green-400">Complete!</span>
+          <span className="mt-1.5 text-xs font-medium text-green-600 dark:text-green-400">Completed today!</span>
         )}
         {ts.description && (
           <p className="mt-1 text-xs text-gray-400 dark:text-gray-500 text-center line-clamp-2">{ts.description}</p>
@@ -119,54 +138,19 @@ export default function KidTasksPage() {
         {ts.step_count > 0 && !done && (
           <span className="mt-1.5 text-xs text-gray-400 dark:text-gray-500 flex items-center gap-2">
             {ts.completed_count}/{ts.step_count}
-            {ts.ticket_reward > 0 && <span className="text-amber-600 dark:text-amber-400">🎟 {ts.ticket_reward}</span>}
+            {useTickets && ts.ticket_reward > 0 && <span className="text-amber-600 dark:text-amber-400">🎟 {ts.ticket_reward}</span>}
           </span>
         )}
       </div>
     );
   };
 
-  // ── Grouped grid renderer ──────────────────────────────────────────────────
-  const renderGroups = (groups) => (
-    <div className="space-y-6">
-      {groups.map(({ label, subGroups }) => (
-        <div key={label}>
-          <div className="pb-2 px-1">
-            <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-              {label}
-            </span>
-          </div>
-          {subGroups.length === 1 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-              {subGroups[0].items.map(renderCard)}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {subGroups.map(({ label: catLabel, items }) => (
-                <div key={catLabel}>
-                  <div className="pb-1.5 pl-2 mb-2 border-l-2 border-gray-200 dark:border-gray-700">
-                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      {catLabel}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                    {items.map(renderCard)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
           <FontAwesomeIcon icon={faMedal} className="mr-2 text-brand-500" />
-          {isParent ? `${memberName || '…'}'s Tasks` : 'My Tasks'}
+          {isParent ? `${memberName || '…'}'s Sets` : 'My Sets'}
         </h1>
         {isParent && kids.length > 1 && (
           <div className="flex items-center gap-1.5 mt-1.5">
@@ -192,10 +176,12 @@ export default function KidTasksPage() {
 
       {loading ? (
         <LoadingSkeleton rows={3} />
-      ) : grouped.length === 0 ? (
+      ) : sortedSets.length === 0 ? (
         <div className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">No tasks assigned yet.</div>
       ) : (
-        renderGroups(grouped)
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          {sortedSets.map(renderCard)}
+        </div>
       )}
     </div>
   );

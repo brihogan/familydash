@@ -14,6 +14,8 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPen, faTrash } from '@fortawesome/free-solid-svg-icons';
 
 function SortableChoreRow({ template, onEdit, onDelete, selectMode, selected, onToggleSelect }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -53,7 +55,7 @@ function SortableChoreRow({ template, onEdit, onDelete, selectMode, selected, on
         )}
       </div>
 
-      <span className="text-xs bg-brand-50 text-brand-600 px-2 py-0.5 rounded-full shrink-0">
+      <span className="text-xs font-medium text-amber-600 dark:text-amber-300 shrink-0">
         🎟 {template.ticket_reward}
       </span>
 
@@ -61,15 +63,17 @@ function SortableChoreRow({ template, onEdit, onDelete, selectMode, selected, on
         <>
           <button
             onClick={() => onEdit(template)}
-            className="text-xs text-blue-500 hover:underline shrink-0"
+            className="w-7 h-7 flex items-center justify-center rounded-md border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-brand-400 hover:text-brand-600 transition-colors shrink-0"
+            title="Edit chore"
           >
-            Edit
+            <FontAwesomeIcon icon={faPen} className="text-xs" />
           </button>
           <button
             onClick={() => onDelete(template.id)}
-            className="text-xs text-red-500 hover:underline shrink-0"
+            className="w-7 h-7 flex items-center justify-center rounded-md border border-red-200 dark:border-red-800 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
+            title="Delete chore"
           >
-            Delete
+            <FontAwesomeIcon icon={faTrash} className="text-xs" />
           </button>
         </>
       )}

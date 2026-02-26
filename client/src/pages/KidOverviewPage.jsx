@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTachographDigital, faCrown } from '@fortawesome/free-solid-svg-icons';
+import { faTachographDigital, faCrown, faBroom } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { overviewApi } from '../api/overview.api.js';
 import { activityApi } from '../api/activity.api.js';
 import { familyApi } from '../api/family.api.js';
@@ -10,6 +11,8 @@ import { formatCents } from '../utils/formatCents.js';
 import ActivityRow, { GroupedActivityList } from '../components/shared/ActivityRow.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import EmptyState from '../components/shared/EmptyState.jsx';
+import ProgressRing from '../components/dashboard/ProgressRing.jsx';
+import { IconDisplay } from '../components/shared/IconPicker.jsx';
 
 // ─── Activity filter config ───────────────────────────────────────────────────
 
@@ -49,9 +52,10 @@ const SEL = 'border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 
 // ─── Weekly bar chart ─────────────────────────────────────────────────────────
 
 function WeeklyChart({ data }) {
+  const { useTickets } = useFamilySettings();
   const globalMax = Math.max(
     ...data.flatMap((d) => [
-      d.ticketsFromChores + d.ticketsFromParents,
+      useTickets ? d.ticketsFromChores + d.ticketsFromParents : 0,
       d.choresTotal + (d.stepsDone ?? 0),
     ]),
     1,
@@ -71,7 +75,7 @@ function WeeklyChart({ data }) {
           <div key={day.date} className="flex-1 flex flex-col px-1.5 first:pl-0 last:pr-0">
             {/* Number label */}
             <div className="flex justify-center mb-1 h-4">
-              {ticketsTotal > 0 && (
+              {useTickets && ticketsTotal > 0 && (
                 <span className="text-xs text-amber-600 font-medium leading-none">{ticketsTotal}</span>
               )}
             </div>
@@ -81,7 +85,7 @@ function WeeklyChart({ data }) {
               style={{ height: '88px' }}
             >
               {/* Tickets: stacked chores (amber, bottom) + parent (green, top) */}
-              {ticketsTotal > 0 ? (
+              {useTickets && (ticketsTotal > 0 ? (
                 <div
                   className="flex-1 flex flex-col rounded-t-sm overflow-hidden transition-all"
                   style={{ height: `${Math.max((ticketsTotal / globalMax) * 88, 4)}px` }}
@@ -96,7 +100,7 @@ function WeeklyChart({ data }) {
                 </div>
               ) : (
                 <div className="flex-1 min-h-[2px] rounded-t-sm bg-gray-100 dark:bg-gray-700" />
-              )}
+              ))}
               {/* Chores + tasks bar with optional crown */}
               <div className="flex-1 relative flex items-end">
                 {allChoresDone && (
@@ -140,14 +144,18 @@ function WeeklyChart({ data }) {
 
       {/* Legend */}
       <div className="flex gap-3 justify-center mt-3 flex-wrap">
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-sm bg-amber-400" />
-          <span className="text-xs text-gray-500 dark:text-gray-400">Tickets (chores)</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-sm bg-emerald-400" />
-          <span className="text-xs text-gray-500 dark:text-gray-400">Tickets (parent)</span>
-        </div>
+        {useTickets && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-amber-400" />
+            <span className="text-xs text-gray-500 dark:text-gray-400">Tickets (chores)</span>
+          </div>
+        )}
+        {useTickets && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-emerald-400" />
+            <span className="text-xs text-gray-500 dark:text-gray-400">Tickets (parent)</span>
+          </div>
+        )}
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-sm bg-blue-400" />
           <span className="text-xs text-gray-500 dark:text-gray-400">Chores done</span>
@@ -192,6 +200,7 @@ function StatCard({ onClick, children, accent = 'brand' }) {
 export default function KidOverviewPage() {
   const { userId } = useParams();
   const { user }   = useAuth();
+  const { useBanking, useSets, useTickets } = useFamilySettings();
   const navigate   = useNavigate();
   const isParent   = user?.role === 'parent';
 
@@ -253,12 +262,14 @@ export default function KidOverviewPage() {
   );
   if (!overview) return null;
 
-  const { memberName, ticketBalance, accounts, choreProgressToday, last7Days } = overview;
-  const mainAccount    = accounts.find((a) => a.type === 'main');
-  const subAccounts    = accounts.filter((a) => a.type !== 'main');
-  const chorePct       = choreProgressToday.total > 0
+  const { memberName, ticketBalance, accounts, choreProgressToday, last7Days,
+          taskSets = [], trophyCount = 0, trophyCategories = [] } = overview;
+  const mainAccount = accounts.find((a) => a.type === 'main');
+  const subAccounts = accounts.filter((a) => a.type !== 'main');
+  const chorePct    = choreProgressToday.total > 0
     ? Math.round((choreProgressToday.done / choreProgressToday.total) * 100)
     : 0;
+  const choreDone   = choreProgressToday.total > 0 && choreProgressToday.done === choreProgressToday.total;
 
   return (
     <div className="space-y-5">
@@ -302,60 +313,108 @@ export default function KidOverviewPage() {
       </div>
 
       {/* ── Stat cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className={`grid gap-4 ${{ 1: 'grid-cols-1', 2: 'grid-cols-2', 3: 'grid-cols-2 sm:grid-cols-3', 4: 'grid-cols-2 sm:grid-cols-4' }[[useBanking, useTickets, true, true].filter(Boolean).length]}`}>
 
         {/* Bank */}
-        <StatCard onClick={() => navigate(`/bank/${userId}`)} accent="green">
-          <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Bank</p>
-          {mainAccount && (
-            <p className="text-2xl font-mono font-bold text-gray-900 dark:text-gray-100 mb-2">
-              {formatCents(mainAccount.balance_cents)}
+        {useBanking && (
+          <StatCard onClick={() => navigate(`/bank/${userId}`)} accent="green">
+            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Bank</p>
+            {mainAccount && (
+              <p className="text-2xl font-mono font-bold text-gray-900 dark:text-gray-100 mb-2">
+                {formatCents(mainAccount.balance_cents)}
+              </p>
+            )}
+            {subAccounts.length > 0 && (
+              <div className="space-y-1 border-t border-gray-100 dark:border-gray-700 pt-2">
+                {subAccounts.map((a) => (
+                  <div key={a.id} className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <span className="truncate">{a.name}</span>
+                    <span className="font-mono">{formatCents(a.balance_cents)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-brand-500 mt-3">View bank →</p>
+          </StatCard>
+        )}
+
+        {/* Tickets */}
+        {useTickets && (
+          <StatCard onClick={() => navigate(`/tickets/${userId}`)} accent="amber">
+            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Tickets</p>
+            <p className="text-2xl font-bold text-amber-600 mb-1">
+              {ticketBalance} <span className="text-lg">🎟</span>
             </p>
-          )}
-          {subAccounts.length > 0 && (
+            <p className="text-xs text-gray-400 dark:text-gray-500">current balance</p>
+            <p className="text-xs text-brand-500 mt-3">View history →</p>
+          </StatCard>
+        )}
+
+        {/* Trophies */}
+        <StatCard onClick={() => navigate(`/trophies/${userId}`)} accent="amber">
+          <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Trophies</p>
+          <p className="text-2xl font-bold text-amber-500 dark:text-amber-400 mb-1">
+            🏆 {trophyCount}
+          </p>
+          {trophyCategories.length > 0 ? (
             <div className="space-y-1 border-t border-gray-100 dark:border-gray-700 pt-2">
-              {subAccounts.map((a) => (
-                <div key={a.id} className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                  <span className="truncate">{a.name}</span>
-                  <span className="font-mono">{formatCents(a.balance_cents)}</span>
+              {trophyCategories.map(({ name, count }) => (
+                <div key={name} className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                  <span className="truncate">{name}</span>
+                  <span className="font-medium text-amber-600 dark:text-amber-400">{count}</span>
                 </div>
               ))}
             </div>
-          )}
-          <p className="text-xs text-brand-500 mt-3">View bank →</p>
-        </StatCard>
-
-        {/* Tickets */}
-        <StatCard onClick={() => navigate(`/tickets/${userId}`)} accent="amber">
-          <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Tickets</p>
-          <p className="text-2xl font-bold text-amber-600 mb-1">
-            {ticketBalance} <span className="text-lg">🎟</span>
-          </p>
-          <p className="text-xs text-gray-400 dark:text-gray-500">current balance</p>
-          <p className="text-xs text-brand-500 mt-3">View history →</p>
-        </StatCard>
-
-        {/* Chores */}
-        <StatCard onClick={() => navigate(`/chores/${userId}`)} accent="brand">
-          <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Chores Today</p>
-          {choreProgressToday.total > 0 ? (
-            <>
-              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-                {choreProgressToday.done}
-                <span className="text-base font-normal text-gray-400 dark:text-gray-500">/{choreProgressToday.total}</span>
-              </p>
-              <div className="bg-gray-100 dark:bg-gray-700 rounded-full h-2 mb-1">
-                <div
-                  className="bg-brand-500 h-2 rounded-full transition-all"
-                  style={{ width: `${chorePct}%` }}
-                />
-              </div>
-              <p className="text-xs text-gray-400 dark:text-gray-500">{chorePct}% complete</p>
-            </>
           ) : (
-            <p className="text-sm text-gray-400 dark:text-gray-500 italic">No chores today</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 italic">No achievements yet</p>
           )}
-          <p className="text-xs text-brand-500 mt-3">View chores →</p>
+          <p className="text-xs text-brand-500 mt-3">View shelf →</p>
+        </StatCard>
+
+        {/* Today's Progress (chore + task set rings) */}
+        <StatCard onClick={() => navigate(`/chores/${userId}`)} accent="brand">
+          <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Today's Progress</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Chore ring */}
+            <ProgressRing
+              pct={chorePct}
+              done={choreDone}
+              size={56}
+              title={`Chores: ${choreProgressToday.done}/${choreProgressToday.total}`}
+              onClick={(e) => { e.stopPropagation(); navigate(`/chores/${userId}`); }}
+            >
+              <FontAwesomeIcon icon={choreDone ? faCrown : faBroom} className={choreDone ? 'text-yellow-400' : undefined} />
+            </ProgressRing>
+            {/* Task set rings — 2 per column, fill vertically first */}
+            {useSets && taskSets.length > 0 && (
+              <div
+                className="grid gap-0.5"
+                style={{ gridTemplateRows: 'repeat(2, auto)', gridAutoFlow: 'column' }}
+              >
+                {taskSets.map((ts) => {
+                  const pct = ts.stepCount > 0 ? Math.round((ts.completedCount / ts.stepCount) * 100) : 0;
+                  return (
+                    <ProgressRing
+                      key={ts.id}
+                      pct={pct}
+                      done={pct === 100}
+                      size={27}
+                      title={ts.name}
+                      onClick={(e) => { e.stopPropagation(); navigate(`/tasks/${userId}`); }}
+                    >
+                      <IconDisplay value={ts.emoji} fallback="📋" />
+                    </ProgressRing>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {choreProgressToday.total > 0 ? (
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">{chorePct}% of chores done</p>
+          ) : (
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-3 italic">No chores today</p>
+          )}
+          <p className="text-xs text-brand-500 mt-1">View chores →</p>
         </StatCard>
 
       </div>
@@ -381,8 +440,19 @@ export default function KidOverviewPage() {
                 {DATE_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
               </select>
             </div>
-            <div className="flex items-center gap-1">
-              {TYPE_OPTIONS.map((o) => (
+            {/* Mobile: dropdown */}
+            <select
+              className={`sm:hidden ${SEL}`}
+              value={actTypeKey}
+              onChange={(e) => setActTypeKey(e.target.value)}
+            >
+              {TYPE_OPTIONS.filter((o) => (useBanking || o.key !== 'bank') && (useSets || o.key !== 'tasks') && (useTickets || (o.key !== 'rewards' && o.key !== 'tickets'))).map((o) => (
+                <option key={o.key} value={o.key}>{o.label}</option>
+              ))}
+            </select>
+            {/* Desktop: pills */}
+            <div className="hidden sm:flex items-center gap-1">
+              {TYPE_OPTIONS.filter((o) => (useBanking || o.key !== 'bank') && (useSets || o.key !== 'tasks') && (useTickets || (o.key !== 'rewards' && o.key !== 'tickets'))).map((o) => (
                 <button
                   key={o.key}
                   onClick={() => setActTypeKey(o.key)}

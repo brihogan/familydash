@@ -94,6 +94,45 @@ router.get('/:id/overview', authenticate, requireOwnOrParent, (req, res, next) =
       });
     }
 
+    // ── Active task sets for progress rings (same filter as dashboard) ─────────
+    const taskSetRows = db.prepare(`
+      SELECT id, name, emoji, type, step_count, completed_count FROM (
+        SELECT
+          ts.id, ts.name, ts.emoji, ts.type,
+          (SELECT COUNT(*) FROM task_steps s WHERE s.task_set_id = ts.id AND s.is_active = 1) AS step_count,
+          (SELECT COUNT(*) FROM task_step_completions c WHERE c.task_set_id = ts.id AND c.user_id = ta.user_id) AS completed_count,
+          (SELECT MAX(completed_at) FROM task_step_completions c WHERE c.task_set_id = ts.id AND c.user_id = ta.user_id) AS earned_at
+        FROM task_assignments ta
+        JOIN task_sets ts ON ts.id = ta.task_set_id
+        WHERE ta.user_id = ? AND ta.is_active = 1 AND ts.is_active = 1
+      ) WHERE NOT (
+        step_count > 0 AND completed_count = step_count
+        AND type = 'Award'
+        AND date(earned_at) < date('now')
+      )
+      ORDER BY CASE type WHEN 'Project' THEN 0 ELSE 1 END, name
+    `).all(userId);
+
+    // ── Trophies: completed Awards with category breakdown ───────────────────
+    const trophyRows = db.prepare(`
+      SELECT ts.category
+      FROM task_assignments ta
+      JOIN task_sets ts ON ts.id = ta.task_set_id
+      WHERE ta.user_id = ? AND ts.type = 'Award' AND ts.is_active = 1 AND ta.is_active = 1
+        AND (SELECT COUNT(*) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1) > 0
+        AND (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ta.user_id)
+            = (SELECT COUNT(*) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)
+    `).all(userId);
+
+    const trophyCategoryMap = {};
+    for (const row of trophyRows) {
+      const cat = row.category || 'Uncategorized';
+      trophyCategoryMap[cat] = (trophyCategoryMap[cat] || 0) + 1;
+    }
+    const trophyCategories = Object.entries(trophyCategoryMap)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count }));
+
     res.json({
       memberName:            member.name,
       ticketBalance:         member.ticket_balance,
@@ -101,6 +140,16 @@ router.get('/:id/overview', authenticate, requireOwnOrParent, (req, res, next) =
       choreProgressToday:    choresToday,
       potentialTicketsPerDay: potential.total,
       last7Days,
+      taskSets: taskSetRows.map((r) => ({
+        id:             r.id,
+        name:           r.name,
+        emoji:          r.emoji,
+        type:           r.type,
+        stepCount:      r.step_count,
+        completedCount: r.completed_count,
+      })),
+      trophyCount:      trophyRows.length,
+      trophyCategories,
     });
   } catch (err) {
     next(err);

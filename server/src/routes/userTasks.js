@@ -91,7 +91,9 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
 
     const steps = db.prepare(`
       SELECT ts.*,
-        CASE WHEN tsc.id IS NOT NULL THEN 1 ELSE 0 END AS completed
+        CASE WHEN tsc.id IS NOT NULL THEN 1 ELSE 0 END AS completed,
+        tsc.approval_status,
+        tsc.id AS completion_id
       FROM task_steps ts
       LEFT JOIN task_step_completions tsc ON tsc.task_step_id = ts.id AND tsc.user_id = ?
       WHERE ts.task_set_id = ? AND ts.is_active = 1
@@ -128,13 +130,21 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
     const taskSet = db.prepare('SELECT id, name, ticket_reward FROM task_sets WHERE id = ? AND is_active = 1').get(taskSetId);
     if (!taskSet) return res.status(404).json({ error: 'Task set not found.' });
 
-    const user = db.prepare('SELECT family_id FROM users WHERE id = ?').get(userId);
+    const user = db.prepare('SELECT family_id, require_task_approval FROM users WHERE id = ?').get(userId);
+    const family = db.prepare('SELECT use_tickets FROM families WHERE id = ?').get(user.family_id);
+    const useTickets = family?.use_tickets !== 0;
 
     const existing = db.prepare(
-      'SELECT id FROM task_step_completions WHERE task_step_id = ? AND user_id = ?'
+      'SELECT id, approval_status FROM task_step_completions WHERE task_step_id = ? AND user_id = ?'
     ).get(stepId, userId);
 
     if (existing) {
+      // If pending approval, just cancel without ticket reversal
+      if (existing.approval_status === 'pending') {
+        db.prepare('DELETE FROM task_step_completions WHERE task_step_id = ? AND user_id = ?').run(stepId, userId);
+        return res.json({ completed: false });
+      }
+
       // Check if the set was fully completed before this undo — if so, reverse the ticket reward
       const totalSteps = db.prepare(
         'SELECT COUNT(*) AS cnt FROM task_steps WHERE task_set_id = ? AND is_active = 1'
@@ -148,7 +158,7 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
 
       // Reverse ticket reward if the set was complete before this undo
       const ticketReward = taskSet.ticket_reward ?? 0;
-      if (wasCompleted && ticketReward > 0) {
+      if (wasCompleted && useTickets && ticketReward > 0) {
         db.prepare('UPDATE users SET ticket_balance = ticket_balance - ? WHERE id = ?')
           .run(ticketReward, userId);
         db.prepare(`INSERT INTO ticket_ledger (user_id, amount, type, description, reference_id, reference_type)
@@ -175,11 +185,18 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
           description: `${taskSet.name} marked as incomplete`,
           referenceId: taskSetId,
           referenceType: 'task_set',
-          amountCents: ticketReward > 0 ? -ticketReward : null,
+          amountCents: useTickets && ticketReward > 0 ? -ticketReward : null,
         });
       }
       res.json({ completed: false });
     } else {
+      if (user.require_task_approval) {
+        db.prepare(
+          'INSERT INTO task_step_completions (task_step_id, task_set_id, user_id, approval_status) VALUES (?, ?, ?, ?)'
+        ).run(stepId, taskSetId, userId, 'pending');
+        return res.json({ completed: true, approval_status: 'pending' });
+      }
+
       db.prepare(
         'INSERT INTO task_step_completions (task_step_id, task_set_id, user_id) VALUES (?, ?, ?)'
       ).run(stepId, taskSetId, userId);
@@ -202,7 +219,7 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
       ).get(taskSetId, userId).cnt;
       if (totalSteps > 0 && doneSteps >= totalSteps) {
         const ticketReward = taskSet.ticket_reward ?? 0;
-        if (ticketReward > 0) {
+        if (useTickets && ticketReward > 0) {
           db.prepare('UPDATE users SET ticket_balance = ticket_balance + ? WHERE id = ?')
             .run(ticketReward, userId);
           db.prepare(`INSERT INTO ticket_ledger (user_id, amount, type, description, reference_id, reference_type)
@@ -217,7 +234,7 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
           description: `Completed all steps in: ${taskSet.name} 🎯`,
           referenceId: taskSetId,
           referenceType: 'task_set',
-          amountCents: ticketReward > 0 ? ticketReward : null,
+          amountCents: useTickets && ticketReward > 0 ? ticketReward : null,
         });
       }
       res.json({ completed: true });

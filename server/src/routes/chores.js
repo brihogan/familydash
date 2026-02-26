@@ -57,29 +57,43 @@ router.post('/:id/chores/:cid/complete', authenticate, requireOwnOrParent, requi
     if (!log) return res.status(404).json({ error: 'Chore log not found.' });
     if (log.completed_at) return res.status(409).json({ error: 'Chore already completed.' });
 
-    const user = db.prepare('SELECT family_id FROM users WHERE id = ?').get(userId);
+    const user = db.prepare('SELECT family_id, require_task_approval FROM users WHERE id = ?').get(userId);
+    const family = db.prepare('SELECT use_tickets FROM families WHERE id = ?').get(user.family_id);
+    const useTickets = family?.use_tickets !== 0;
+
+    // If approval is required: mark pending, no tickets yet
+    if (user.require_task_approval) {
+      db.prepare(`UPDATE chore_logs SET completed_at = datetime('now'), approval_status = 'pending' WHERE id = ?`).run(logId);
+      const updated = db.prepare('SELECT * FROM chore_logs WHERE id = ?').get(logId);
+      const balance = db.prepare('SELECT ticket_balance FROM users WHERE id = ?').get(userId).ticket_balance;
+      return res.json({ log: updated, ticketBalance: balance });
+    }
 
     const completeTx = db.transaction(() => {
       db.prepare(`UPDATE chore_logs SET completed_at = datetime('now') WHERE id = ?`).run(logId);
 
       if (log.ticket_reward_at_time > 0) {
-        db.prepare('UPDATE users SET ticket_balance = ticket_balance + ? WHERE id = ?')
-          .run(log.ticket_reward_at_time, userId);
+        if (useTickets) {
+          db.prepare('UPDATE users SET ticket_balance = ticket_balance + ? WHERE id = ?')
+            .run(log.ticket_reward_at_time, userId);
 
-        db.prepare(`
-          INSERT INTO ticket_ledger (user_id, amount, type, description, reference_id, reference_type)
-          VALUES (?, ?, 'chore_reward', ?, ?, 'chore_log')
-        `).run(userId, log.ticket_reward_at_time, `Completed: ${log.chore_name}`, logId);
+          db.prepare(`
+            INSERT INTO ticket_ledger (user_id, amount, type, description, reference_id, reference_type)
+            VALUES (?, ?, 'chore_reward', ?, ?, 'chore_log')
+          `).run(userId, log.ticket_reward_at_time, `Completed: ${log.chore_name}`, logId);
+        }
 
         insertActivity({
           familyId: user.family_id,
           subjectUserId: userId,
           actorUserId: req.user.userId,
           eventType: 'chore_completed',
-          description: `Completed chore: ${log.chore_name} (+${log.ticket_reward_at_time} tickets)`,
+          description: useTickets
+            ? `Completed chore: ${log.chore_name} (+${log.ticket_reward_at_time} tickets)`
+            : `Completed chore: ${log.chore_name}`,
           referenceId: logId,
           referenceType: 'chore_log',
-          amountCents: log.ticket_reward_at_time,
+          amountCents: useTickets ? log.ticket_reward_at_time : null,
         });
       }
     });
@@ -143,28 +157,44 @@ router.post('/:id/chores/:cid/uncomplete', authenticate, requireOwnOrParent, req
     if (!log) return res.status(404).json({ error: 'Chore log not found.' });
     if (!log.completed_at) return res.status(409).json({ error: 'Chore not yet completed.' });
 
+    // If pending approval, just cancel without ticket reversal
+    if (log.approval_status === 'pending') {
+      db.prepare('UPDATE chore_logs SET completed_at = NULL, approval_status = NULL WHERE id = ?').run(logId);
+      const updated = db.prepare('SELECT * FROM chore_logs WHERE id = ?').get(logId);
+      const balance = db.prepare('SELECT ticket_balance FROM users WHERE id = ?').get(userId).ticket_balance;
+      return res.json({ log: updated, ticketBalance: balance });
+    }
+
+    const undoUserRow = db.prepare('SELECT family_id FROM users WHERE id = ?').get(userId);
+    const undoFamily = db.prepare('SELECT use_tickets FROM families WHERE id = ?').get(undoUserRow.family_id);
+    const useTickets = undoFamily?.use_tickets !== 0;
+
     const uncompleteTx = db.transaction(() => {
       db.prepare('UPDATE chore_logs SET completed_at = NULL WHERE id = ?').run(logId);
 
       if (log.ticket_reward_at_time > 0) {
-        const user = db.prepare('SELECT ticket_balance, family_id FROM users WHERE id = ?').get(userId);
-        const newBalance = Math.max(0, user.ticket_balance - log.ticket_reward_at_time);
-        db.prepare('UPDATE users SET ticket_balance = ? WHERE id = ?').run(newBalance, userId);
+        if (useTickets) {
+          const currentUser = db.prepare('SELECT ticket_balance FROM users WHERE id = ?').get(userId);
+          const newBalance = Math.max(0, currentUser.ticket_balance - log.ticket_reward_at_time);
+          db.prepare('UPDATE users SET ticket_balance = ? WHERE id = ?').run(newBalance, userId);
 
-        db.prepare(`
-          INSERT INTO ticket_ledger (user_id, amount, type, description, reference_id, reference_type)
-          VALUES (?, ?, 'chore_reward', ?, ?, 'chore_log')
-        `).run(userId, -log.ticket_reward_at_time, `Undone: ${log.chore_name}`, logId);
+          db.prepare(`
+            INSERT INTO ticket_ledger (user_id, amount, type, description, reference_id, reference_type)
+            VALUES (?, ?, 'chore_reward', ?, ?, 'chore_log')
+          `).run(userId, -log.ticket_reward_at_time, `Undone: ${log.chore_name}`, logId);
+        }
 
         insertActivity({
-          familyId: user.family_id,
+          familyId: undoUserRow.family_id,
           subjectUserId: userId,
           actorUserId: req.user.userId,
           eventType: 'chore_undone',
-          description: `Undid chore: ${log.chore_name} (-${log.ticket_reward_at_time} tickets)`,
+          description: useTickets
+            ? `Undid chore: ${log.chore_name} (-${log.ticket_reward_at_time} tickets)`
+            : `Undid chore: ${log.chore_name}`,
           referenceId: logId,
           referenceType: 'chore_log',
-          amountCents: -log.ticket_reward_at_time,
+          amountCents: useTickets ? -log.ticket_reward_at_time : null,
         });
       }
     });

@@ -17,6 +17,7 @@ import activityRouter from './src/routes/activity.js';
 import overviewRouter from './src/routes/overview.js';
 import taskSetsRouter from './src/routes/taskSets.js';
 import userTasksRouter from './src/routes/userTasks.js';
+import inboxRouter from './src/routes/inbox.js';
 import { errorHandler } from './src/middleware/errorHandler.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -71,6 +72,7 @@ app.use('/api/users', rewardsRouter);
 app.use('/api/users', activityRouter);
 app.use('/api/users', overviewRouter);
 app.use('/api/users', userTasksRouter);
+app.use('/api/inbox', inboxRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

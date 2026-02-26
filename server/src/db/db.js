@@ -76,6 +76,36 @@ try {
   db.exec(`ALTER TABLE task_sets ADD COLUMN ticket_reward INTEGER NOT NULL DEFAULT 0`);
 } catch (_) { /* column already exists */ }
 
+// v12: use_banking on families — toggle to hide banking features family-wide
+try {
+  db.exec(`ALTER TABLE families ADD COLUMN use_banking INTEGER NOT NULL DEFAULT 1`);
+} catch (_) { /* column already exists */ }
+
+// v13: use_sets on families — toggle to hide task sets features family-wide
+try {
+  db.exec(`ALTER TABLE families ADD COLUMN use_sets INTEGER NOT NULL DEFAULT 1`);
+} catch (_) { /* column already exists */ }
+
+// v14: use_tickets on families — toggle to hide tickets & rewards features family-wide
+try {
+  db.exec(`ALTER TABLE families ADD COLUMN use_tickets INTEGER NOT NULL DEFAULT 1`);
+} catch (_) { /* column already exists */ }
+
+// v15: require_task_approval on users — kids' completions require parent approval before tickets are awarded
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN require_task_approval INTEGER NOT NULL DEFAULT 0`);
+} catch (_) { /* column already exists */ }
+
+// v16: approval_status on chore_logs — NULL=no approval needed, 'pending', 'approved'
+try {
+  db.exec(`ALTER TABLE chore_logs ADD COLUMN approval_status TEXT DEFAULT NULL`);
+} catch (_) { /* column already exists */ }
+
+// v17: approval_status on task_step_completions — NULL=no approval needed, 'pending', 'approved'
+try {
+  db.exec(`ALTER TABLE task_step_completions ADD COLUMN approval_status TEXT DEFAULT NULL`);
+} catch (_) { /* column already exists */ }
+
 // v8: rename account type 'tithing' → 'charity'
 // SQLite can't ALTER a CHECK constraint, so we recreate the accounts table.
 const hasTithing = db.prepare(`SELECT COUNT(*) AS n FROM accounts WHERE type = 'tithing'`).get().n;

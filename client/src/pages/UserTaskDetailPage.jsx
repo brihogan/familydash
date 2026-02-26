@@ -6,6 +6,7 @@ import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import Fireworks from '../components/shared/Fireworks.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { playChoreCheck, playVictory } from '../utils/sounds.js';
 
 // ── Duration formatter ────────────────────────────────────────────────────────
@@ -58,7 +59,7 @@ function ProjectCompletionModal({ taskSet, stepCount, assignedAt, completedAt, o
           </span>
         )}
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Steps completed: {stepCount}</p>
-        {taskSet.ticket_reward > 0 && (
+        {useTickets && taskSet.ticket_reward > 0 && (
           <p className="text-sm font-medium text-amber-600 dark:text-amber-400 mt-1">🎟 +{taskSet.ticket_reward} tickets earned!</p>
         )}
         {assignedAt && completedAt && (
@@ -445,6 +446,7 @@ function StepItem({ step, onToggle, disabled }) {
 export default function UserTaskDetailPage() {
   const { userId, taskSetId } = useParams();
   const navigate = useNavigate();
+  const { useTickets } = useFamilySettings();
 
   const [taskSet,       setTaskSet]       = useState(null);
   const [steps,         setSteps]         = useState([]);
@@ -481,10 +483,13 @@ export default function UserTaskDetailPage() {
     const prev = prevDoneCountRef.current;
     if (prev !== null && doneCount > prev && doneCount === steps.length) {
       completedAtRef.current = new Date();
+      const hasPending = steps.some((s) => s.approval_status === 'pending');
       setShowFireworks(true);
       playVictory();
-      if (taskSet?.type === 'Award')   setShowAwardModal(true);
-      if (taskSet?.type === 'Project') setShowProjectModal(true);
+      if (!hasPending) {
+        if (taskSet?.type === 'Award')   setShowAwardModal(true);
+        if (taskSet?.type === 'Project') setShowProjectModal(true);
+      }
     }
     prevDoneCountRef.current = doneCount;
   }, [steps]);
@@ -496,7 +501,9 @@ export default function UserTaskDetailPage() {
     setSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, completed: s.completed ? 0 : 1 } : s));
     try {
       const result = await taskSetsApi.toggleStep(userId, taskSetId, step.id);
-      setSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, completed: result.completed ? 1 : 0 } : s));
+      setSteps((prev) => prev.map((s) => s.id === step.id
+        ? { ...s, completed: result.completed ? 1 : 0, approval_status: result.approval_status ?? null }
+        : s));
     } catch {
       // Revert on failure
       setSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, completed: step.completed } : s));
@@ -527,13 +534,14 @@ export default function UserTaskDetailPage() {
     );
   }
 
-  const pending        = steps.filter((s) => !s.completed);
-  const completed      = steps.filter((s) =>  s.completed);
-  const completedCount = completed.length;
-  const totalCount     = steps.length;
-  const allDone        = totalCount > 0 && completedCount === totalCount;
-  const pct            = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-  const anyBusy        = toggling.size > 0;
+  const todo            = steps.filter((s) => !s.completed);
+  const waitingApproval = steps.filter((s) => s.completed && s.approval_status === 'pending');
+  const completedSteps  = steps.filter((s) => s.completed && s.approval_status !== 'pending');
+  const completedCount  = steps.filter((s) => s.completed).length; // all submitted (for progress)
+  const totalCount      = steps.length;
+  const allDone         = totalCount > 0 && completedCount === totalCount;
+  const pct             = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const anyBusy         = toggling.size > 0;
 
   return (
     <div>
@@ -611,10 +619,10 @@ export default function UserTaskDetailPage() {
         <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">No steps in this task set yet.</p>
       ) : (
         <div className="space-y-6">
-          {/* ── Pending steps ── */}
-          {pending.length > 0 && (
+          {/* ── Todo steps ── */}
+          {todo.length > 0 && (
             <div className="space-y-2">
-              {pending.map((step) => (
+              {todo.map((step) => (
                 <StepItem
                   key={step.id}
                   step={step}
@@ -625,16 +633,47 @@ export default function UserTaskDetailPage() {
             </div>
           )}
 
-          {allDone && (
+          {allDone && waitingApproval.length === 0 && (
             <p className="text-sm text-green-600 dark:text-green-400 font-medium text-center py-2">All done! 🎉</p>
           )}
 
+          {/* ── Waiting for Approval ── */}
+          {waitingApproval.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-amber-600 dark:text-amber-400 mb-2">⏳ Waiting for Approval</h3>
+              <div className="space-y-2">
+                {waitingApproval.map((step) => (
+                  <div
+                    key={step.id}
+                    className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl"
+                    style={{ animation: 'chore-enter 350ms ease-out both' }}
+                  >
+                    <span className="w-5 h-5 rounded-full bg-amber-200 dark:bg-amber-700 flex items-center justify-center shrink-0 text-xs">⏳</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{step.name}</p>
+                      {step.description && (
+                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{step.description}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleToggle(step)}
+                      disabled={anyBusy}
+                      className="text-xs text-gray-500 hover:text-red-600 border border-gray-200 dark:border-gray-600 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors shrink-0"
+                    >
+                      Undo
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* ── Completed steps ── */}
-          {completed.length > 0 && (
+          {completedSteps.length > 0 && (
             <div>
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Completed</h3>
               <div className="space-y-2">
-                {completed.map((step) => (
+                {completedSteps.map((step) => (
                   <div
                     key={step.id}
                     className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-xl"
@@ -654,7 +693,7 @@ export default function UserTaskDetailPage() {
                     <button
                       onClick={() => handleToggle(step)}
                       disabled={anyBusy}
-                      className="text-xs text-red-500 hover:text-red-700 border border-red-200 dark:border-red-800 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors shrink-0"
+                      className="text-xs text-red-500 hover:text-red-700 border border-red-200 dark:border-red-500 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors shrink-0"
                     >
                       Undo
                     </button>

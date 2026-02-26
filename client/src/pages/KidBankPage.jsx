@@ -31,9 +31,9 @@ function localMidnightUTC(offsetDays = 0) {
 
 const TX_TYPE_OPTIONS = [
   { key: 'all',         label: 'All' },
-  { key: 'transfers',   label: 'Transfers' },
   { key: 'deposits',    label: 'Deposits' },
   { key: 'withdrawals', label: 'Withdrawals' },
+  { key: 'transfers',   label: 'Transfers' },
 ];
 
 const TX_TYPE_GROUPS = {
@@ -419,6 +419,7 @@ export default function KidBankPage() {
         onSuccess={async () => {
           await fetchAccounts();
           await fetchTransactions();
+          window.dispatchEvent(new CustomEvent('kid-stats-updated'));
         }}
       />
 

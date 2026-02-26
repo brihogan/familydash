@@ -67,15 +67,37 @@ export default function KidTrophiesPage() {
 
   useEffect(() => { fetchTrophies(); }, [fetchTrophies]);
 
+  const SPARKLE_POSITIONS = [
+    { top: '6%',  left: '10%', delay: '0s',   dur: '1.4s' },
+    { top: '4%',  left: '72%', delay: '0.5s', dur: '1.1s' },
+    { top: '25%', left: '88%', delay: '0.9s', dur: '1.6s' },
+    { top: '14%', left: '48%', delay: '0.3s', dur: '1.2s' },
+  ];
+
   const renderBadgeCard = (ts) => {
     const earnedDate = ts.earned_at ? formatDate(ts.earned_at.slice(0, 10)) : null;
     const shimmerDelay    = `${((ts.id * 1_234_567) % 5000) / 1000}s`;
     const shimmerDuration = `${9 + ((ts.id * 9_876_543) % 5000) / 1000}s`;
+    const isRecent = !!ts.earned_at && (() => {
+      const d = new Date(ts.earned_at.replace(' ', 'T') + 'Z');
+      return Date.now() - d.getTime() < 60 * 60 * 1000;
+    })();
     return (
       <div
         key={ts.id}
-        className="flex flex-col items-center p-2.5 bg-gradient-to-b from-amber-50 to-white dark:from-amber-900/20 dark:to-gray-800 border-2 border-amber-300 dark:border-amber-500/40 rounded-xl shadow-sm"
+        className={`relative flex flex-col items-center p-2.5 bg-gradient-to-b from-amber-50 to-white dark:from-amber-900/20 dark:to-gray-800 border-2 rounded-xl shadow-sm ${
+          isRecent ? 'border-amber-400 dark:border-amber-400/70' : 'border-amber-300 dark:border-amber-500/40'
+        }`}
+        style={isRecent ? { animation: 'trophy-glow 2s ease-in-out infinite' } : undefined}
       >
+        {isRecent && SPARKLE_POSITIONS.map((sp, i) => (
+          <span
+            key={i}
+            className="absolute text-yellow-400 text-[9px] leading-none pointer-events-none select-none"
+            style={{ top: sp.top, left: sp.left, animation: `trophy-sparkle-dot ${sp.dur} ease-in-out ${sp.delay} infinite` }}
+            aria-hidden="true"
+          >✦</span>
+        ))}
         <div
           className="relative mb-2 flex-shrink-0"
           style={{ width: 56, height: 56 }}
@@ -124,9 +146,12 @@ export default function KidTrophiesPage() {
             <div className="space-y-4">
               {subGroups.map(({ label: catLabel, items }) => (
                 <div key={catLabel}>
-                  <div className="pb-1.5 pl-2 mb-2 border-l-2 border-gray-200 dark:border-gray-700">
+                  <div className="pb-1.5 pl-2 mb-2 border-l-2 border-gray-200 dark:border-gray-700 flex items-center gap-2">
                     <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       {catLabel}
+                    </span>
+                    <span className="text-[10px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-full px-1.5 py-0.5 leading-none">
+                      {items.length}
                     </span>
                   </div>
                   <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">

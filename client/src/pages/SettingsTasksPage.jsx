@@ -7,6 +7,7 @@ import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import IconPicker, { IconDisplay } from '../components/shared/IconPicker.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
 import { familyApi } from '../api/family.api.js';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 
 const TYPE_OPTIONS = ['Project', 'Award'];
 
@@ -15,6 +16,7 @@ const EMPTY_FORM = { name: '', type: 'Project', emoji: '', description: '', cate
 const INPUT_CLS = 'w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
 export default function SettingsTasksPage() {
+  const { useTickets } = useFamilySettings();
   const navigate = useNavigate();
   const [taskSets,   setTaskSets]   = useState([]);
   const [loading,    setLoading]    = useState(true);
@@ -278,8 +280,8 @@ export default function SettingsTasksPage() {
                         {ts.step_count} {ts.step_count === 1 ? 'step' : 'steps'}
                       </span>
                     )}
-                    {ts.ticket_reward > 0 && (
-                      <span className="text-xs text-amber-600 dark:text-amber-400 flex-shrink-0">🎟 {ts.ticket_reward}</span>
+                    {useTickets && ts.ticket_reward > 0 && (
+                      <span className="text-xs font-medium text-amber-600 dark:text-amber-300 flex-shrink-0">🎟 {ts.ticket_reward}</span>
                     )}
                   </div>
                   {ts.description && (
@@ -307,17 +309,17 @@ export default function SettingsTasksPage() {
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); openEdit(ts); }}
-                    className="text-xs px-2.5 py-1 rounded-md border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-brand-400 hover:text-brand-600 transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-md border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-brand-400 hover:text-brand-600 transition-colors"
+                    title="Edit set"
                   >
-                    <FontAwesomeIcon icon={faPen} className="mr-1" />
-                    Edit
+                    <FontAwesomeIcon icon={faPen} className="text-xs" />
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); openDeleteConfirm(ts); }}
-                    className="text-xs px-2.5 py-1 rounded-md border border-red-200 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-md border border-red-200 dark:border-red-800 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    title="Delete set"
                   >
-                    <FontAwesomeIcon icon={faTrash} className="mr-1" />
-                    Delete
+                    <FontAwesomeIcon icon={faTrash} className="text-xs" />
                   </button>
                 </div>
               </div>
@@ -464,19 +466,21 @@ export default function SettingsTasksPage() {
             </datalist>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Ticket Reward <span className="text-xs text-gray-400 dark:text-gray-500">(optional)</span>
-            </label>
-            <input
-              type="number"
-              value={form.ticket_reward}
-              onChange={(e) => setForm((f) => ({ ...f, ticket_reward: e.target.value }))}
-              min="0"
-              className={INPUT_CLS}
-            />
-            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Tickets awarded when all steps are completed.</p>
-          </div>
+          {useTickets && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Ticket Reward <span className="text-xs text-gray-400 dark:text-gray-500">(optional)</span>
+              </label>
+              <input
+                type="number"
+                value={form.ticket_reward}
+                onChange={(e) => setForm((f) => ({ ...f, ticket_reward: e.target.value }))}
+                min="0"
+                className={INPUT_CLS}
+              />
+              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Tickets awarded when all steps are completed.</p>
+            </div>
+          )}
 
           {formError && <p className="text-sm text-red-500">{formError}</p>}
 
@@ -620,12 +624,21 @@ export default function SettingsTasksPage() {
                       <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{u.name}</span>
                       <span className="block text-xs text-gray-400 dark:text-gray-500 capitalize">{u.role}</span>
                     </span>
-                    {/* Step completion count */}
-                    {count > 0 && (
-                      <span className="text-xs text-brand-600 dark:text-brand-400 font-medium flex-shrink-0">
-                        {count} step{count !== 1 ? 's' : ''}
-                      </span>
-                    )}
+                    {/* Step completion % */}
+                    {(() => {
+                      const total = assignTarget?.step_count ?? 0;
+                      const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                      const isDone = total > 0 && count >= total;
+                      return pct > 0 ? (
+                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full leading-none flex-shrink-0 ${
+                          isDone
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                            : 'bg-brand-100 dark:bg-brand-500/20 text-brand-700 dark:text-brand-300'
+                        }`}>
+                          {isDone ? '✓' : `${pct}%`}
+                        </span>
+                      ) : null;
+                    })()}
                     {/* Checkbox indicator */}
                     <span className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                       selected

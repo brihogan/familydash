@@ -6,6 +6,7 @@ import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSe
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import Modal from '../components/shared/Modal.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import IconPicker, { IconDisplay } from '../components/shared/IconPicker.jsx';
@@ -71,6 +72,7 @@ export default function TaskSetDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { useTickets } = useFamilySettings();
   const isParent = user?.role === 'parent';
 
   // ── Data ──────────────────────────────────────────────────────────────────
@@ -357,7 +359,7 @@ export default function TaskSetDetailPage() {
             {taskSet.description}
           </p>
         )}
-        {taskSet.ticket_reward > 0 && (
+        {useTickets && taskSet.ticket_reward > 0 && (
           <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 ml-9">
             🎟 {taskSet.ticket_reward} tickets on completion
           </p>
@@ -546,7 +548,7 @@ export default function TaskSetDetailPage() {
                     <span className="font-medium text-gray-900 dark:text-gray-100">{item.user_name}</span>
                     <span className="text-gray-500 dark:text-gray-400"> {label}</span>
                   </span>
-                  {item.amount_cents != null && (
+                  {useTickets && item.amount_cents != null && (
                     <span className={`text-xs font-medium tabular-nums flex-shrink-0 ${
                       item.amount_cents > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'
                     }`}>
@@ -620,11 +622,20 @@ export default function TaskSetDetailPage() {
                     <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{u.name}</span>
                     <span className="block text-xs text-gray-400 dark:text-gray-500 capitalize">{u.role}</span>
                   </span>
-                  {count > 0 && (
-                    <span className="text-xs text-brand-600 dark:text-brand-400 font-medium flex-shrink-0">
-                      {count} step{count !== 1 ? 's' : ''}
-                    </span>
-                  )}
+                  {(() => {
+                    const total = steps.length;
+                    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                    const isDone = total > 0 && count >= total;
+                    return pct > 0 ? (
+                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full leading-none flex-shrink-0 ${
+                        isDone
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                          : 'bg-brand-100 dark:bg-brand-500/20 text-brand-700 dark:text-brand-300'
+                      }`}>
+                        {isDone ? '✓' : `${pct}%`}
+                      </span>
+                    ) : null;
+                  })()}
                   <span className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                     selected ? 'bg-brand-500 border-brand-500' : 'border-gray-300 dark:border-gray-600'
                   }`}>

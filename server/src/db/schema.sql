@@ -2,9 +2,12 @@ PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS families (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  name       TEXT    NOT NULL,
-  created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT    NOT NULL,
+  use_banking INTEGER NOT NULL DEFAULT 1,
+  use_sets    INTEGER NOT NULL DEFAULT 1,
+  use_tickets INTEGER NOT NULL DEFAULT 1,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS users (

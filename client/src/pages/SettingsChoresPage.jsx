@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBroom } from '@fortawesome/free-solid-svg-icons';
+import { faBroom, faChevronLeft } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { choresApi } from '../api/chores.api.js';
 import { familyApi } from '../api/family.api.js';
@@ -279,9 +279,9 @@ export default function SettingsChoresPage() {
                   isSelected
                     ? 'bg-brand-500 border-brand-500 text-white'
                     : isToday
-                      ? 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100 ring-2 ring-brand-400 ring-offset-1'
+                      ? 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100 ring-2 ring-brand-400 ring-offset-1 dark:bg-amber-900/30 dark:border-amber-600/50 dark:text-amber-300 dark:hover:bg-amber-900/50 dark:ring-offset-gray-800'
                       : showCounts
-                        ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
+                        ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:border-amber-700/40 dark:text-amber-300 dark:hover:bg-amber-900/50'
                         : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
                 }`}
               >
@@ -328,12 +328,23 @@ export default function SettingsChoresPage() {
       {/* ── Header ── */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            <FontAwesomeIcon icon={faBroom} className="mr-2 text-brand-500" />
-            {isEveryone
-              ? 'Chore Templates — Everyone'
-              : (kidName ? `${kidName}'s Chore Templates` : 'Chore Templates')}
-          </h1>
+          <div className="flex items-center gap-2">
+            {!isEveryone && (
+              <button
+                onClick={() => navigate(`/settings/users/${userId}`)}
+                className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                aria-label="Back"
+              >
+                <FontAwesomeIcon icon={faChevronLeft} />
+              </button>
+            )}
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              <FontAwesomeIcon icon={faBroom} className="mr-2 text-brand-500" />
+              {isEveryone
+                ? 'Chore Templates — Everyone'
+                : (kidName ? `${kidName}'s Chore Templates` : 'Chore Templates')}
+            </h1>
+          </div>
           <KidSwitcher />
         </div>
 

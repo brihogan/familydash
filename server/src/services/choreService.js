@@ -23,6 +23,7 @@ const getLogsStmt = db.prepare(`
     cl.user_id,
     cl.log_date,
     cl.completed_at,
+    cl.approval_status,
     cl.ticket_reward_at_time,
     ct.name,
     ct.description,

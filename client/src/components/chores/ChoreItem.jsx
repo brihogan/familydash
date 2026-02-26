@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { playChoreCheck } from '../../utils/sounds.js';
+import { useFamilySettings } from '../../context/FamilySettingsContext.jsx';
 
 // Burst particle colours + angles (degrees)
 const BURST = [
@@ -14,6 +15,7 @@ const RAD  = Math.PI / 180;
 const DIST = 26; // px each particle travels
 
 export default function ChoreItem({ log, onToggle, disabled }) {
+  const { useTickets } = useFamilySettings();
   const done = !!log.completed_at;
   // 'idle' → 'pop' (checkbox + burst) → 'exit' (card fades out) → onToggle called
   const [phase, setPhase] = useState('idle');
@@ -123,10 +125,8 @@ export default function ChoreItem({ log, onToggle, disabled }) {
       </div>
 
       {/* Ticket badge */}
-      {log.ticket_reward_at_time > 0 && (
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 transition-colors ${
-          showDone ? 'bg-green-100 text-green-700' : 'bg-brand-50 text-brand-600'
-        }`}>
+      {useTickets && log.ticket_reward_at_time > 0 && (
+        <span className="text-xs font-medium text-amber-600 dark:text-amber-300 shrink-0">
           🎟 {log.ticket_reward_at_time}
         </span>
       )}

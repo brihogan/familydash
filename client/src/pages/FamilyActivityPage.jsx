@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faScroll } from '@fortawesome/free-solid-svg-icons';
 import { activityApi } from '../api/activity.api.js';
 import { familyApi } from '../api/family.api.js';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import ActivityRow, { GroupedActivityList } from '../components/shared/ActivityRow.jsx';
 import EmptyState from '../components/shared/EmptyState.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
@@ -53,6 +54,7 @@ const PAGE_SIZE = 30;
 
 export default function FamilyActivityPage() {
   const location = useLocation();
+  const { useBanking, useSets, useTickets } = useFamilySettings();
 
   // filter state — pre-populate userId from ?userId= query param if present
   const [dateKey, setDateKey]   = useState('today');
@@ -137,10 +139,21 @@ export default function FamilyActivityPage() {
             </select>
           </div>
 
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1.5">
             <span className="text-xs text-gray-400 dark:text-gray-500">Type</span>
-            <div className="flex items-center gap-1">
-              {TYPE_OPTIONS.map(opt => (
+            {/* Mobile: dropdown */}
+            <select
+              className={`sm:hidden ${SELECT_CLS}`}
+              value={typeKey}
+              onChange={(e) => setTypeKey(e.target.value)}
+            >
+              {TYPE_OPTIONS.filter(o => (useBanking || o.key !== 'bank') && (useSets || o.key !== 'tasks') && (useTickets || (o.key !== 'rewards' && o.key !== 'tickets'))).map(opt => (
+                <option key={opt.key} value={opt.key}>{opt.label}</option>
+              ))}
+            </select>
+            {/* Desktop: pills */}
+            <div className="hidden sm:flex items-center gap-1">
+              {TYPE_OPTIONS.filter(o => (useBanking || o.key !== 'bank') && (useSets || o.key !== 'tasks') && (useTickets || (o.key !== 'rewards' && o.key !== 'tickets'))).map(opt => (
                 <button
                   key={opt.key}
                   onClick={() => setTypeKey(opt.key)}

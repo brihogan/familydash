@@ -1,6 +1,8 @@
 import { relativeTime } from '../../utils/relativeTime.js';
+import { useFamilySettings } from '../../context/FamilySettingsContext.jsx';
 
 export default function ChoreHistoryList({ logs, onUndo, disabled }) {
+  const { useTickets } = useFamilySettings();
   const completed = logs.filter((l) => l.completed_at);
   if (!completed.length) {
     return <p className="text-sm text-gray-400 dark:text-gray-500 italic">No completed chores for this date.</p>;
@@ -18,15 +20,15 @@ export default function ChoreHistoryList({ logs, onUndo, disabled }) {
             <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{log.name}</p>
             <p className="text-xs text-gray-400 dark:text-gray-500">Completed {relativeTime(log.completed_at)}</p>
           </div>
-          {log.ticket_reward_at_time > 0 && (
-            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+          {useTickets && log.ticket_reward_at_time > 0 && (
+            <span className="text-xs font-medium text-green-600 dark:text-green-400">
               🎟 {log.ticket_reward_at_time}
             </span>
           )}
           <button
             onClick={() => onUndo(log)}
             disabled={disabled}
-            className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-2 py-1 rounded hover:bg-red-50 disabled:opacity-50 transition-colors"
+            className="text-xs text-red-500 hover:text-red-700 border border-red-200 dark:border-red-500 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors"
           >
             Undo
           </button>
