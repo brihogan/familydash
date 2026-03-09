@@ -331,7 +331,7 @@ export default function SettingsChoresPage() {
           <div className="flex items-center gap-2">
             {!isEveryone && (
               <button
-                onClick={() => navigate(`/settings/users/${userId}`)}
+                onClick={() => navigate(-1)}
                 className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 aria-label="Back"
               >
@@ -488,6 +488,7 @@ export default function SettingsChoresPage() {
               selectMode={selectMode}
               selectedIds={selectedIds}
               onToggleSelect={handleToggleSelect}
+              onCommonEdit={() => navigate('/settings/common-chores')}
             />
           )}
 

@@ -215,8 +215,11 @@ router.get('/:id/chore-templates', authenticate, requireOwnOrParent, (req, res, 
     const userId = parseInt(req.params.id, 10);
     assertSameFamily(userId, req.user.familyId);
     const templates = db.prepare(`
-      SELECT * FROM chore_templates WHERE user_id = ? AND is_active = 1
-      ORDER BY sort_order ASC, id ASC
+      SELECT ct.*, cca.common_chore_template_id AS common_chore_id
+      FROM chore_templates ct
+      LEFT JOIN common_chore_assignments cca ON cca.chore_template_id = ct.id
+      WHERE ct.user_id = ? AND ct.is_active = 1
+      ORDER BY ct.sort_order ASC, ct.id ASC
     `).all(userId);
     res.json({ templates });
   } catch (err) {

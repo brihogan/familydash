@@ -27,6 +27,7 @@ import FamilyActivityPage from './pages/FamilyActivityPage.jsx';
 import DisplayPage from './pages/DisplayPage.jsx';
 import InboxPage from './pages/InboxPage.jsx';
 import InboxKidPage from './pages/InboxKidPage.jsx';
+import SettingsCommonChoresPage from './pages/SettingsCommonChoresPage.jsx';
 
 export default function App() {
   return (
@@ -64,6 +65,7 @@ export default function App() {
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/users" element={<SettingsUsersPage />} />
                 <Route path="/settings/users/:userId" element={<SettingsUserDetailPage />} />
+                <Route path="/settings/common-chores" element={<SettingsCommonChoresPage />} />
                 <Route path="/settings/chores" element={<SettingsChoresPage />} />
                 <Route path="/settings/chores/:userId" element={<SettingsChoresPage />} />
                 <Route path="/settings/tasks" element={<SettingsTasksPage />} />

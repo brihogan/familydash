@@ -368,10 +368,16 @@ export default function SettingsUsersPage() {
           </h1>
           <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">Drag to set the display order</p>
         </div>
-        <button onClick={() => setAddModal(true)}
-          className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium transition-colors">
-          + Add Member
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => navigate('/settings/common-chores')}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm rounded-lg font-medium transition-colors">
+            Common Chores
+          </button>
+          <button onClick={() => setAddModal(true)}
+            className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium transition-colors">
+            + Add Member
+          </button>
+        </div>
       </div>
 
       {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-4 py-3 mb-4 text-sm">{error}</div>}

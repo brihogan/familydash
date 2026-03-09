@@ -18,6 +18,7 @@ import overviewRouter from './src/routes/overview.js';
 import taskSetsRouter from './src/routes/taskSets.js';
 import userTasksRouter from './src/routes/userTasks.js';
 import inboxRouter from './src/routes/inbox.js';
+import commonChoresRouter from './src/routes/commonChores.js';
 import { errorHandler } from './src/middleware/errorHandler.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -63,6 +64,7 @@ app.use('/api/family', familyRouter);
 app.use('/api/family', rewardsRouter);
 app.use('/api/family', activityRouter);
 app.use('/api/family', taskSetsRouter);
+app.use('/api/family', commonChoresRouter);
 
 // Dashboard
 app.use('/api/dashboard', dashboardRouter);

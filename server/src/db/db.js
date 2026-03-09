@@ -160,6 +160,36 @@ try {
   db.exec(`ALTER TABLE users ADD COLUMN allow_withdraws INTEGER NOT NULL DEFAULT 1`);
 } catch (_) { /* column already exists */ }
 
+// v27: common chore templates — family-level chores assignable to multiple kids
+db.exec(`
+  CREATE TABLE IF NOT EXISTS common_chore_templates (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    family_id     INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+    name          TEXT    NOT NULL,
+    description   TEXT    NOT NULL DEFAULT '',
+    ticket_reward INTEGER NOT NULL DEFAULT 1 CHECK (ticket_reward >= 0),
+    days_of_week  INTEGER NOT NULL DEFAULT 127,
+    sort_order    INTEGER NOT NULL DEFAULT 0,
+    is_active     INTEGER NOT NULL DEFAULT 1,
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_common_chore_templates_family ON common_chore_templates(family_id)`);
+
+// Junction: links a common chore to a per-kid chore_templates row
+db.exec(`
+  CREATE TABLE IF NOT EXISTS common_chore_assignments (
+    id                        INTEGER PRIMARY KEY AUTOINCREMENT,
+    common_chore_template_id  INTEGER NOT NULL REFERENCES common_chore_templates(id) ON DELETE CASCADE,
+    user_id                   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    chore_template_id         INTEGER NOT NULL REFERENCES chore_templates(id) ON DELETE CASCADE,
+    UNIQUE(common_chore_template_id, user_id)
+  )
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_common_chore_assignments_common ON common_chore_assignments(common_chore_template_id)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_common_chore_assignments_user ON common_chore_assignments(user_id)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_common_chore_assignments_template ON common_chore_assignments(chore_template_id)`);
+
 // v8: rename account type 'tithing' → 'charity'
 // SQLite can't ALTER a CHECK constraint, so we recreate the accounts table.
 const hasTithing = db.prepare(`SELECT COUNT(*) AS n FROM accounts WHERE type = 'tithing'`).get().n;
