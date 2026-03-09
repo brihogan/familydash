@@ -86,19 +86,11 @@ docker compose up --build
 
 ### Local Development
 
-**Terminal 1 — Server:**
 ```bash
-cd server
-npm install
-cp ../.env.example ../.env   # fill in secrets (see above)
-node --env-file=../.env --watch index.js
-```
-
-**Terminal 2 — Client:**
-```bash
-cd client
-npm install
-npm run dev
+cp .env.example .env         # fill in secrets (see above)
+npm install                  # installs concurrently
+npm run install:all          # installs server + client deps
+npm run dev                  # starts both server and client
 # Open http://localhost:5173  (proxies /api → :3001)
 ```
 
