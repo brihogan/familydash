@@ -352,12 +352,20 @@ export default function SettingsChoresPage() {
         {!isEveryone && (
           <div className="flex items-center gap-2">
             {!selectMode && (
-              <button
-                onClick={() => setAddModal(true)}
-                className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium transition-colors"
-              >
-                + Add Chore
-              </button>
+              <>
+                <button
+                  onClick={() => navigate('/settings/common-chores')}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm rounded-lg font-medium transition-colors"
+                >
+                  Common Chores
+                </button>
+                <button
+                  onClick={() => setAddModal(true)}
+                  className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium transition-colors"
+                >
+                  + Add Chore
+                </button>
+              </>
             )}
             {templates.length > 0 && (
               <button

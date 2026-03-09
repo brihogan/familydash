@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBroom, faChevronLeft, faPen, faTrash } from '@fortawesome/free-solid-svg-icons';
 import {
@@ -249,20 +249,20 @@ export default function SettingsCommonChoresPage() {
           <p className="text-sm">No common chores yet. Add one to get started.</p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-x-auto">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-clip">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-white dark:bg-gray-800">
                 <tr className="border-b border-gray-200 dark:border-gray-700">
                   <th className="text-left px-4 py-3 font-semibold text-gray-700 dark:text-gray-300 min-w-[180px]">
                     Chore
                   </th>
                   {kids.map((k) => (
                     <th key={k.id} className="px-3 py-3 text-center min-w-[80px]">
-                      <div className="flex flex-col items-center gap-1">
+                      <Link to={`/settings/chores/${k.id}`} className="flex flex-col items-center gap-1 hover:opacity-80 transition-opacity">
                         <Avatar name={k.name} color={k.avatar_color} emoji={k.avatar_emoji} size="sm" />
-                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{k.name}</span>
-                      </div>
+                        <span className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:underline">{k.name}</span>
+                      </Link>
                     </th>
                   ))}
                   <th className="px-3 py-3 w-20" />
