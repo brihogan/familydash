@@ -157,7 +157,7 @@ export default function SettingsTasksPage() {
         familyApi.getFamily(),
         taskSetsApi.getAssignments(ts.id),
       ]);
-      setAllUsers(familyData.members.filter((u) => u.is_active));
+      setAllUsers(familyData.members.filter((u) => u.is_active && (u.role === 'kid' || !!u.chores_enabled)));
       setAssignedIds(new Set(assignData.assignedUserIds));
       setCompletionCounts(assignData.completionCounts ?? {});
       setConfirmUnassign(null);
@@ -293,7 +293,7 @@ export default function SettingsTasksPage() {
                     onClick={(e) => { e.stopPropagation(); openAssign(ts); }}
                     disabled={!ts.step_count}
                     title={!ts.step_count ? 'Add steps before assigning' : undefined}
-                    className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border transition-colors ${
+                    className={`hidden lg:inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border transition-colors ${
                       ts.step_count
                         ? 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-brand-400 hover:text-brand-600'
                         : 'border-gray-100 dark:border-gray-700 text-gray-300 dark:text-gray-600 cursor-not-allowed'

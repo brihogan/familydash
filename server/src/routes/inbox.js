@@ -63,14 +63,16 @@ router.get('/count', authenticate, requireRole('parent'), (req, res, next) => {
       SELECT COUNT(*) AS cnt
       FROM chore_logs cl
       JOIN users u ON u.id = cl.user_id
-      WHERE u.family_id = ? AND cl.approval_status = 'pending'
+      WHERE u.family_id = ? AND u.role = 'kid' AND u.is_active = 1
+        AND cl.approval_status = 'pending'
     `).get(familyId).cnt;
 
     const stepCount = db.prepare(`
       SELECT COUNT(*) AS cnt
       FROM task_step_completions tsc
       JOIN users u ON u.id = tsc.user_id
-      WHERE u.family_id = ? AND tsc.approval_status = 'pending'
+      WHERE u.family_id = ? AND u.role = 'kid' AND u.is_active = 1
+        AND tsc.approval_status = 'pending'
     `).get(familyId).cnt;
 
     res.json({ count: choreCount + stepCount });

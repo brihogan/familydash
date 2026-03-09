@@ -17,4 +17,9 @@ export const accountsApi = {
     client.put(`/users/${userId}/recurring/${ruleId}`, data).then((r) => r.data),
   deleteRecurringRule: (userId, ruleId) =>
     client.delete(`/users/${userId}/recurring/${ruleId}`).then((r) => r.data),
+
+  getPendingDeposits: (userId) =>
+    client.get(`/users/${userId}/pending-deposits`).then((r) => r.data),
+  claimPendingDeposit: (userId, pdId, amount_cents, allocations) =>
+    client.post(`/users/${userId}/pending-deposits/${pdId}/claim`, { amount_cents, allocations }).then((r) => r.data),
 };

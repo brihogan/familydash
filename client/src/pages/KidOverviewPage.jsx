@@ -210,17 +210,22 @@ export default function KidOverviewPage() {
   const [actLoading, setActLoading] = useState(true);
   const [error,      setError]      = useState('');
 
-  const [actDateKey, setActDateKey] = useState('today');
-  const [actTypeKey, setActTypeKey] = useState('all');
-  const [kids,       setKids]       = useState([]);
+  const [actDateKey,  setActDateKey]  = useState('today');
+  const [actTypeKey,  setActTypeKey]  = useState('all');
+  const [kids,        setKids]        = useState([]);
+  const [memberRole,  setMemberRole]  = useState(null);
 
   // Fetch kid list for the switcher (parent only, once)
   useEffect(() => {
     if (!isParent) return;
     familyApi.getFamily()
-      .then(({ members }) => setKids(members.filter((m) => m.role === 'kid' && m.is_active)))
+      .then(({ members }) => {
+        setKids(members.filter((m) => (m.role === 'kid' || !!m.chores_enabled) && m.is_active));
+        const viewed = members.find((m) => m.id === parseInt(userId, 10));
+        if (viewed) setMemberRole(viewed.role);
+      })
       .catch(() => {});
-  }, [isParent]);
+  }, [isParent, userId]);
 
   // Fetch overview once per userId change
   useEffect(() => {
@@ -270,6 +275,8 @@ export default function KidOverviewPage() {
     ? Math.round((choreProgressToday.done / choreProgressToday.total) * 100)
     : 0;
   const choreDone   = choreProgressToday.total > 0 && choreProgressToday.done === choreProgressToday.total;
+  const viewingParent = memberRole === 'parent';
+  const showBanking = useBanking && !viewingParent;
 
   return (
     <div className="space-y-5">
@@ -313,10 +320,10 @@ export default function KidOverviewPage() {
       </div>
 
       {/* ── Stat cards ── */}
-      <div className={`grid gap-4 ${{ 1: 'grid-cols-1', 2: 'grid-cols-2', 3: 'grid-cols-2 sm:grid-cols-3', 4: 'grid-cols-2 sm:grid-cols-4' }[[useBanking, useTickets, true, true].filter(Boolean).length]}`}>
+      <div className={`grid gap-4 ${{ 1: 'grid-cols-1', 2: 'grid-cols-2', 3: 'grid-cols-2 sm:grid-cols-3', 4: 'grid-cols-2 sm:grid-cols-4' }[[showBanking, useTickets, true, true].filter(Boolean).length]}`}>
 
         {/* Bank */}
-        {useBanking && (
+        {showBanking && (
           <StatCard onClick={() => navigate(`/bank/${userId}`)} accent="green">
             <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Bank</p>
             {mainAccount && (
@@ -446,13 +453,13 @@ export default function KidOverviewPage() {
               value={actTypeKey}
               onChange={(e) => setActTypeKey(e.target.value)}
             >
-              {TYPE_OPTIONS.filter((o) => (useBanking || o.key !== 'bank') && (useSets || o.key !== 'tasks') && (useTickets || (o.key !== 'rewards' && o.key !== 'tickets'))).map((o) => (
+              {TYPE_OPTIONS.filter((o) => (showBanking || o.key !== 'bank') && (useSets || o.key !== 'tasks') && (useTickets || (o.key !== 'rewards' && o.key !== 'tickets'))).map((o) => (
                 <option key={o.key} value={o.key}>{o.label}</option>
               ))}
             </select>
             {/* Desktop: pills */}
             <div className="hidden sm:flex items-center gap-1">
-              {TYPE_OPTIONS.filter((o) => (useBanking || o.key !== 'bank') && (useSets || o.key !== 'tasks') && (useTickets || (o.key !== 'rewards' && o.key !== 'tickets'))).map((o) => (
+              {TYPE_OPTIONS.filter((o) => (showBanking || o.key !== 'bank') && (useSets || o.key !== 'tasks') && (useTickets || (o.key !== 'rewards' && o.key !== 'tickets'))).map((o) => (
                 <button
                   key={o.key}
                   onClick={() => setActTypeKey(o.key)}

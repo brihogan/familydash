@@ -42,6 +42,7 @@ function AddUserForm({ onSave, onCancel, loading }) {
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
+  const [allowLogin, setAllowLogin] = useState(false);
   const [avatarColor, setAvatarColor] = useState(AVATAR_COLORS[0]);
   const [avatarEmoji, setAvatarEmoji] = useState(null);
   const [error, setError] = useState('');
@@ -51,7 +52,7 @@ function AddUserForm({ onSave, onCancel, loading }) {
     setError('');
     try {
       const data = role === 'kid'
-        ? { role: 'kid', name, username, pin, avatarColor, avatarEmoji }
+        ? { role: 'kid', name, allowLogin, ...(allowLogin ? { username, pin } : {}), avatarColor, avatarEmoji }
         : { role: 'parent', name, email, password, avatarColor, avatarEmoji };
       await onSave(data);
     } catch (err) {
@@ -76,17 +77,37 @@ function AddUserForm({ onSave, onCancel, loading }) {
       </div>
       {role === 'kid' ? (
         <>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
-            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-200" />
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Allow login for child</label>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={allowLogin}
+              onClick={() => setAllowLogin(!allowLogin)}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 dark:focus:ring-offset-gray-800 ${
+                allowLogin ? 'bg-brand-500' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                allowLogin ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PIN (4 digits)</label>
-            <input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              required maxLength={4} placeholder="••••"
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-200" />
-          </div>
+          {allowLogin && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
+                <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-200" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PIN (4 digits)</label>
+                <input type="password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  required maxLength={4} placeholder="••••"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-200" />
+              </div>
+            </>
+          )}
         </>
       ) : (
         <>
@@ -202,14 +223,16 @@ function SortableMemberRow({ member, onNavigate, onDeactivate, onEmojiClick }) {
           <p className="font-medium text-sm">{member.name}</p>
           <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">
             {member.role} · {member.email || member.username || '—'}
-            {!member.is_active && <span className="ml-2 text-xs text-red-400">Inactive</span>}
           </p>
         </div>
       </div>
 
       {/* Right: kid info + deactivate + chevron */}
       <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
-        {member.role === 'kid' && (
+        {!member.is_active && (
+          <span className="text-xs font-medium text-red-400 dark:text-red-500">Inactive</span>
+        )}
+        {member.role === 'kid' && !!member.is_active && (
           <>
             {useTickets && (
               <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
@@ -218,16 +241,16 @@ function SortableMemberRow({ member, onNavigate, onDeactivate, onEmojiClick }) {
             )}
             <button
               onClick={(e) => { e.stopPropagation(); onNavigate(`/settings/chores/${member.id}`); }}
-              className="text-xs font-medium px-2.5 py-1 rounded-md border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-brand-400 hover:text-brand-600 transition-colors"
+              className="hidden lg:inline-flex text-xs font-medium px-2.5 py-1 rounded-md border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-brand-400 hover:text-brand-600 transition-colors"
             >
               Chores
             </button>
           </>
         )}
-        {member.is_active && (
+        {!!member.is_active && (
           <button
             onClick={(e) => { e.stopPropagation(); onDeactivate(member.id); }}
-            className="text-xs font-medium px-2.5 py-1 rounded-md border border-red-200 dark:border-red-500/40 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+            className="hidden lg:inline-flex text-xs font-medium px-2.5 py-1 rounded-md border border-red-200 dark:border-red-500/40 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
           >
             Deactivate
           </button>

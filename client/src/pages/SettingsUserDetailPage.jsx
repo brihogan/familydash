@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faListCheck, faPen, faTrash } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faListCheck, faPen, faTrash, faKey } from '@fortawesome/free-solid-svg-icons';
+import Modal from '../components/shared/Modal.jsx';
 import { familyApi } from '../api/family.api.js';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -43,6 +44,12 @@ export default function SettingsUserDetailPage() {
   const [deleteModal,     setDeleteModal]     = useState(false);
   const [deleteConfirm,   setDeleteConfirm]   = useState('');
   const [deleting,        setDeleting]        = useState(false);
+  const [credOpen,        setCredOpen]        = useState(false);
+  const [credLogin,       setCredLogin]       = useState(false);
+  const [credUsername,    setCredUsername]     = useState('');
+  const [credPin,         setCredPin]         = useState('');
+  const [credSaving,      setCredSaving]      = useState(false);
+  const [credError,       setCredError]       = useState('');
   const nameInputRef = useRef(null);
 
   useEffect(() => {
@@ -119,6 +126,41 @@ export default function SettingsUserDetailPage() {
     if (e.key === 'Escape') cancelEditName();
   };
 
+  const openCredentials = () => {
+    setCredLogin(!!member.allow_login);
+    setCredUsername(member.username || '');
+    setCredPin('');
+    setCredError('');
+    setCredOpen(true);
+  };
+
+  const saveCredentials = async () => {
+    setCredError('');
+    const payload = { allow_login: credLogin };
+    if (credLogin) {
+      if (!credUsername.trim()) { setCredError('Username is required.'); return; }
+      payload.username = credUsername.trim();
+      if (credPin) {
+        if (!/^\d{4}$/.test(credPin)) { setCredError('PIN must be 4 digits.'); return; }
+        payload.pin = credPin;
+      }
+    }
+    setCredSaving(true);
+    try {
+      await familyApi.updateUser(Number(userId), payload);
+      setMember((prev) => ({
+        ...prev,
+        allow_login: credLogin ? 1 : 0,
+        username: credLogin ? credUsername.trim() : prev.username,
+      }));
+      setCredOpen(false);
+    } catch (err) {
+      setCredError(err.response?.data?.error || 'Failed to save credentials.');
+    } finally {
+      setCredSaving(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (deleteConfirm !== 'YES') return;
     setDeleting(true);
@@ -153,24 +195,25 @@ export default function SettingsUserDetailPage() {
   const isKid = member.role === 'kid';
 
   const toggles = [
-    {
+    isKid && {
       field:       'show_on_dashboard',
       label:       'Show on Dashboard',
-      description: isKid
-        ? `Show ${member.name} on the family dashboard.`
-        : 'Display this parent on the family dashboard.',
+      description: `Show ${member.name} on the family dashboard.`,
     },
-    useBanking && {
+    isKid && useBanking && {
       field:       'show_balance_on_dashboard',
       label:       'Show Balance on Dashboard',
-      description: isKid
-        ? `Display ${member.name}'s bank balance on the family dashboard.`
-        : "Display this parent's bank balance on the family dashboard.",
+      description: `Display ${member.name}'s bank balance on the family dashboard.`,
     },
     isKid && {
       field:       'require_task_approval',
       label:       'Require Task Approval',
       description: "Kids can check off chores and steps but they'll show up under the parent's inbox before tickets are awarded.",
+    },
+    !isKid && {
+      field:       'chores_enabled',
+      label:       'Enable Chores',
+      description: 'Allow this parent to have their own chore list and appear on the dashboard.',
     },
   ].filter(Boolean);
 
@@ -230,6 +273,42 @@ export default function SettingsUserDetailPage() {
         <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-4 py-3 text-sm">{error}</div>
       )}
 
+      {/* ── Chores & Tickets ── */}
+      {(isKid || !!member.chores_enabled) && (
+        <div className="mb-6 space-y-3">
+          <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Chores {isKid ? '& Tickets' : ''}</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+            <button
+              onClick={() => navigate(`/settings/chores/${userId}`)}
+              className="text-left p-5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-brand-300 dark:hover:border-brand-500/50 hover:shadow-sm transition-all"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <span className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-500/20 flex items-center justify-center text-brand-600 dark:text-brand-400">
+                  <FontAwesomeIcon icon={faListCheck} />
+                </span>
+                <h3 className="font-semibold text-gray-900 dark:text-gray-100">Chores</h3>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Manage {member.name}'s chore list and schedule.</p>
+            </button>
+
+            {isKid && useTickets && (
+              <div className="p-5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 text-base leading-none">
+                    🎟
+                  </span>
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">Tickets / Day</h3>
+                </div>
+                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{member.daily_ticket_potential ?? 0}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Maximum tickets earnable per day from chores.</p>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+
       {/* ── Display toggles ── */}
       {toggles.length > 0 && (
         <div className="mb-6 space-y-3">
@@ -249,41 +328,115 @@ export default function SettingsUserDetailPage() {
         </div>
       )}
 
-      {/* ── Cards ── */}
+      {/* ── Login Credentials (kids only) ── */}
       {isKid && (
-        <div className="space-y-3">
-          <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Sections</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
+        <div className="mb-6 space-y-3">
+          <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Login Credentials</h2>
+          <div className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-gray-900 dark:text-gray-100">
+                {member.allow_login ? 'Login enabled' : 'Login disabled'}
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                {member.allow_login ? `Username: ${member.username || '—'}` : `${member.name} cannot log in to the app.`}
+              </p>
+            </div>
             <button
-              onClick={() => navigate(`/settings/chores/${userId}`)}
-              className="text-left p-5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-brand-300 dark:hover:border-brand-500/50 hover:shadow-sm transition-all"
+              onClick={openCredentials}
+              className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 text-sm font-medium hover:border-brand-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
             >
-              <div className="flex items-center gap-3 mb-2">
-                <span className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-500/20 flex items-center justify-center text-brand-600 dark:text-brand-400">
-                  <FontAwesomeIcon icon={faListCheck} />
-                </span>
-                <h3 className="font-semibold text-gray-900 dark:text-gray-100">Chores</h3>
-              </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Manage {member.name}'s chore list and schedule.</p>
+              <FontAwesomeIcon icon={faKey} className="mr-1.5 text-xs" />
+              Edit
             </button>
-
-            {useTickets && (
-              <div className="p-5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 text-base leading-none">
-                    🎟
-                  </span>
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">Tickets / Day</h3>
-                </div>
-                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{member.daily_ticket_potential ?? 0}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Maximum tickets earnable per day from chores.</p>
-              </div>
-            )}
-
           </div>
         </div>
       )}
+
+      {/* ── Banking toggles (kids only, when banking is enabled) ── */}
+      {isKid && useBanking && (() => {
+        const bankingToggles = [
+          {
+            field:       'require_currency_work',
+            label:       'Require Working with Currency',
+            description: 'The only way to receive, transfer, or withdraw is by using the money visualizer.',
+          },
+          {
+            field:       'allow_withdraws',
+            label:       'Allow Withdraws',
+            description: `Let ${member.name} withdraw money from their accounts.`,
+          },
+          {
+            field:       'allow_transfers',
+            label:       'Allow Transfers',
+            description: `Let ${member.name} transfer money between accounts.`,
+          },
+        ];
+        return (
+          <div className="mb-6 space-y-3">
+            <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Banking</h2>
+            {bankingToggles.map(({ field, label, description }) => (
+              <div
+                key={field}
+                className="flex items-start justify-between gap-6 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 dark:text-gray-100">{label}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{description}</p>
+                </div>
+                <Toggle checked={!!member[field]} onChange={(v) => handleToggle(field, v)} />
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* ── Deactivate / Reactivate ── */}
+      <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700 mb-6">
+        <div className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+          {member.is_active ? (
+            <>
+              <div>
+                <p className="font-medium text-gray-900 dark:text-gray-100">Deactivate {member.name}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Hide this user from login and the dashboard. Their data is preserved.</p>
+              </div>
+              <button
+                onClick={async () => {
+                  if (!confirm(`Deactivate ${member.name}?`)) return;
+                  try {
+                    await familyApi.deactivateUser(Number(userId));
+                    navigate('/settings/users');
+                  } catch {
+                    setError('Failed to deactivate user.');
+                  }
+                }}
+                className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                Deactivate
+              </button>
+            </>
+          ) : (
+            <>
+              <div>
+                <p className="font-medium text-gray-900 dark:text-gray-100">Reactivate {member.name}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Restore this user so they can log in and appear on the dashboard.</p>
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    await familyApi.updateUser(Number(userId), { is_active: true });
+                    setMember((prev) => ({ ...prev, is_active: 1 }));
+                  } catch {
+                    setError('Failed to reactivate user.');
+                  }
+                }}
+                className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+              >
+                Reactivate
+              </button>
+            </>
+          )}
+        </div>
+      </div>
 
       {/* ── Danger zone ── */}
       <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700">
@@ -359,6 +512,59 @@ export default function SettingsUserDetailPage() {
           </div>
         </div>
       )}
+
+      {/* ── Credentials modal ── */}
+      <Modal open={credOpen} onClose={() => !credSaving && setCredOpen(false)} title="Login Credentials">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Allow login for child</label>
+            <Toggle checked={credLogin} onChange={setCredLogin} />
+          </div>
+          {credLogin && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
+                <input
+                  type="text"
+                  value={credUsername}
+                  onChange={(e) => setCredUsername(e.target.value)}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-200"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  PIN (4 digits) <span className="text-gray-400 dark:text-gray-500 font-normal">{member.username ? '— leave blank to keep current' : ''}</span>
+                </label>
+                <input
+                  type="password"
+                  value={credPin}
+                  onChange={(e) => setCredPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  maxLength={4}
+                  placeholder="••••"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-200"
+                />
+              </div>
+            </>
+          )}
+          {credError && <p className="text-sm text-red-500">{credError}</p>}
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={saveCredentials}
+              disabled={credSaving}
+              className="flex-1 bg-brand-500 hover:bg-brand-600 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+            >
+              {credSaving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={() => setCredOpen(false)}
+              disabled={credSaving}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <EmojiPicker
         open={emojiPickerOpen}

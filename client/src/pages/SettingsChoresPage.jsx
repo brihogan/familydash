@@ -80,7 +80,7 @@ export default function SettingsChoresPage() {
   useEffect(() => {
     if (user?.role !== 'parent') return;
     familyApi.getFamily().then((data) => {
-      const allKids = (data.members || []).filter((m) => m.role === 'kid' && m.is_active !== 0);
+      const allKids = (data.members || []).filter((m) => (m.role === 'kid' || !!m.chores_enabled) && m.is_active !== 0);
       setKids(allKids);
       if (userId) {
         const match = allKids.find((k) => String(k.id) === String(userId));

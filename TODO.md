@@ -26,12 +26,16 @@
 The idea is to have coins and bills as objects on the screen that can be dragged around by touch/mouse.
 
 - [x] Own stack -> Fullscreen mode that shows the coins & cash you have (ideally with a way for you to break or combine money)
-- [ ] Exchange stack -> where you can break or convert stacks ($1x5 + $5 =$10) - once selected the new monies animate back into your stack.
-- [ ] Transfer -> Your own stack and the stack of where you're sending it to
-- [ ] Withdraw -> Your own stack and where stack for where spending it
+- [x] Exchange stack -> where you can break or convert stacks ($1x5 + $5 =$10) - once selected the new monies animate back into your stack.
+- [x] Transfer -> Your own stack and the stack of where you're sending it to
 - [ ] Receive -> Deposits to your account show all possible coins/bills you see the amount but you have to drag down the correct before you can receive it
 - [ ] Should it show the total or just have you guess? I think for receive it should show the total but then you have to guess until you get it right (nothing that shows what you have on the stack, you just have to keep going until you get it right or else you don't get the money to spend).
 - [ ] After you close your stack - if you sent/received then your account balance should animate quickly to the new number (and side panel should update, too)
+- [ ] Make the moneyPopover nicer looking:
+  - [ ] Better "Set amount" button (maybe bottom and more bold)
+  - [ ] The header (and area headers could look better)
+  - [ ] Check everything in dark mode
+  - [ ] Have the "To account" have the kid's name/emoji
 
 ## Task sets
 

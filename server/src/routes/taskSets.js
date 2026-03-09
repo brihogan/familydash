@@ -44,7 +44,10 @@ router.get('/task-sets', authenticate, (req, res, next) => {
     const rows = db.prepare(`
       SELECT ts.*,
         (SELECT COUNT(*) FROM task_steps       WHERE task_set_id = ts.id AND is_active = 1)                    AS step_count,
-        (SELECT COUNT(*) FROM task_assignments WHERE task_set_id = ts.id AND is_active = 1) AS assignment_count
+        (SELECT COUNT(*) FROM task_assignments ta
+         JOIN users u ON u.id = ta.user_id
+         WHERE ta.task_set_id = ts.id AND ta.is_active = 1
+           AND (u.role = 'kid' OR u.chores_enabled = 1)) AS assignment_count
       FROM task_sets ts
       WHERE ts.family_id = ? AND ts.is_active = 1
       ORDER BY ts.name ASC

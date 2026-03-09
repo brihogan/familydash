@@ -1,22 +1,28 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const ThemeContext = createContext(null);
 
-export function ThemeProvider({ children }) {
-  const [isDark, setIsDark] = useState(() => localStorage.getItem('theme') === 'dark');
+const mq = window.matchMedia('(prefers-color-scheme: dark)');
 
+export function ThemeProvider({ children }) {
+  const [isDark, setIsDark] = useState(() => mq.matches);
+
+  // Apply dark class whenever isDark changes
   useEffect(() => {
     const root = document.documentElement;
-    if (isDark) {
-      root.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      root.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
+    if (isDark) root.classList.add('dark');
+    else root.classList.remove('dark');
   }, [isDark]);
 
-  const toggleTheme = () => setIsDark((d) => !d);
+  // Always follow OS theme changes
+  useEffect(() => {
+    const handler = (e) => setIsDark(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  // Manual toggle — temporary override until next system change
+  const toggleTheme = useCallback(() => setIsDark((d) => !d), []);
 
   return (
     <ThemeContext.Provider value={{ isDark, toggleTheme }}>

@@ -1,5 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faMoneyBills, faChevronDown } from '@fortawesome/free-solid-svg-icons';
 import Modal from '../shared/Modal.jsx';
+import MoneyPopover from './MoneyPopover.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { accountsApi } from '../../api/accounts.api.js';
 import { familyApi } from '../../api/family.api.js';
@@ -60,6 +64,239 @@ function groupByOwner(accounts) {
   }, {});
 }
 
+// ── Custom account picker dropdown ───────────────────────────────────────────
+
+function renderAvatar(acct) {
+  if (acct.owner_avatar_emoji) return <span className="text-base leading-none shrink-0">{acct.owner_avatar_emoji}</span>;
+  const initials = (acct.owner_name || '').split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase();
+  return (
+    <span
+      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold text-white shrink-0"
+      style={{ backgroundColor: acct.owner_avatar_color || '#6b7280' }}
+    >{initials}</span>
+  );
+}
+
+function AccountPicker({ accounts, value, onChange, currentUser, isParent }) {
+  const [open, setOpen]           = useState(false);
+  const [drillOwner, setDrillOwner] = useState(null); // parent drill-in: user_id
+  const [pos, setPos]             = useState({ top: 0, left: 0, width: 0 });
+  const ref      = useRef(null);
+  const trigRef  = useRef(null);
+  const panelRef = useRef(null);
+
+  // Close on click outside (check both trigger and portal panel)
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (trigRef.current?.contains(e.target)) return;
+      if (panelRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, [open]);
+
+  // Reset drill when closing
+  useEffect(() => { if (!open) setDrillOwner(null); }, [open]);
+
+  const selected = accounts.find((a) => String(a.id) === value);
+
+  // ── Trigger label ──────────────────────────────────────────────────────
+  let selectedLabel;
+  if (!selected) {
+    selectedLabel = <span className="text-gray-400 dark:text-gray-500">Select account…</span>;
+  } else if (isParent) {
+    selectedLabel = <span className="flex items-center gap-2 truncate">{renderAvatar(selected)} <span className="truncate">{selected.owner_name} — {selected.name}</span></span>;
+  } else if (selected.user_id === currentUser?.id) {
+    selectedLabel = <span className="truncate">{selected.name}</span>;
+  } else {
+    selectedLabel = <span className="flex items-center gap-2 truncate">{renderAvatar(selected)} <span className="truncate">{selected.owner_name}</span></span>;
+  }
+
+  // ── Group data ─────────────────────────────────────────────────────────
+  // Parent: { user_id → { name, emoji, color, accounts[] } }
+  const ownerMap = {};
+  for (const a of accounts) {
+    if (!ownerMap[a.user_id]) ownerMap[a.user_id] = { userId: a.user_id, name: a.owner_name, emoji: a.owner_avatar_emoji, color: a.owner_avatar_color, accounts: [] };
+    ownerMap[a.user_id].accounts.push(a);
+  }
+  const owners = Object.values(ownerMap);
+
+  // Kid view grouping
+  const ownAccts   = accounts.filter((a) => a.user_id === currentUser?.id);
+  const otherAccts = accounts.filter((a) => a.user_id !== currentUser?.id);
+
+  // Drilled-in owner for parent
+  const drilledOwner = drillOwner != null ? ownerMap[drillOwner] : null;
+
+  const handleOpen = () => {
+    if (!open && trigRef.current) {
+      const r = trigRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    setOpen((o) => !o);
+  };
+
+  const dropdownPanel = open ? (
+    <div
+      ref={panelRef}
+      style={{ position: 'fixed', zIndex: 9999, top: pos.top, left: pos.left, width: pos.width }}
+      className="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg overflow-hidden"
+    >
+          {isParent ? (
+            /* ── Parent: two-panel slide ────────────────────────────── */
+            <div className="overflow-hidden">
+              <div
+                className="flex transition-transform duration-200 ease-in-out"
+                style={{ transform: drilledOwner ? 'translateX(-50%)' : 'translateX(0)', width: '200%' }}
+              >
+                {/* Panel 1: list of kids */}
+                <div className="w-1/2 max-h-60 overflow-y-auto">
+                  {owners.map((o) => (
+                    <button
+                      key={o.userId}
+                      type="button"
+                      onClick={() => {
+                        if (o.accounts.length === 1) {
+                          onChange(String(o.accounts[0].id));
+                          setOpen(false);
+                        } else {
+                          setDrillOwner(o.userId);
+                        }
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      {o.emoji
+                        ? <span className="text-base leading-none shrink-0">{o.emoji}</span>
+                        : <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold text-white shrink-0" style={{ backgroundColor: o.color || '#6b7280' }}>
+                            {o.name.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()}
+                          </span>
+                      }
+                      <span className="truncate font-medium">{o.name}</span>
+                      {o.accounts.length > 1 && (
+                        <FontAwesomeIcon icon={faChevronDown} className="ml-auto text-[10px] text-gray-300 dark:text-gray-500 -rotate-90" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Panel 2: accounts for the drilled-in kid */}
+                <div className="w-1/2 max-h-60 overflow-y-auto">
+                  {/* Back button + kid header */}
+                  <button
+                    type="button"
+                    onClick={() => setDrillOwner(null)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-750 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border-b border-gray-200 dark:border-gray-600"
+                  >
+                    <span className="text-xs">←</span>
+                    <span className="text-gray-500 dark:text-gray-400">Back</span>
+                  </button>
+                  {drilledOwner && (
+                    <>
+                      {/* Kid identity header */}
+                      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 dark:border-gray-700">
+                        {drilledOwner.emoji
+                          ? <span className="text-lg leading-none">{drilledOwner.emoji}</span>
+                          : <span className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white shrink-0" style={{ backgroundColor: drilledOwner.color || '#6b7280' }}>
+                              {drilledOwner.name.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()}
+                            </span>
+                        }
+                        <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">{drilledOwner.name}</span>
+                      </div>
+                      {/* Account list */}
+                      {drilledOwner.accounts.map((a) => {
+                        const isSelected = String(a.id) === value;
+                        return (
+                          <button
+                            key={a.id}
+                            type="button"
+                            onClick={() => { onChange(String(a.id)); setOpen(false); }}
+                            className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition-colors ${
+                              isSelected
+                                ? 'bg-brand-50 dark:bg-brand-500/15 text-brand-600 dark:text-brand-300 font-medium'
+                                : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            {a.name}
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* ── Kid: flat list with sections ──────────────────────── */
+            <div className="max-h-60 overflow-y-auto">
+              {ownAccts.length > 0 && (
+                <>
+                  <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-750">
+                    My accounts
+                  </div>
+                  {ownAccts.map((a) => {
+                    const isSelected = String(a.id) === value;
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => { onChange(String(a.id)); setOpen(false); }}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${
+                          isSelected
+                            ? 'bg-brand-50 dark:bg-brand-500/15 text-brand-600 dark:text-brand-300 font-medium'
+                            : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {a.name}
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+              {ownAccts.length > 0 && otherAccts.length > 0 && (
+                <hr className="border-gray-200 dark:border-gray-600 mx-3" />
+              )}
+              {otherAccts.length > 0 && otherAccts.map((a) => {
+                const isSelected = String(a.id) === value;
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => { onChange(String(a.id)); setOpen(false); }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors ${
+                      isSelected
+                        ? 'bg-brand-50 dark:bg-brand-500/15 text-brand-600 dark:text-brand-300 font-medium'
+                        : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {renderAvatar(a)}
+                    <span className="truncate">{a.owner_name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : null;
+
+  return (
+    <div ref={ref}>
+      {/* Trigger */}
+      <button
+        ref={trigRef}
+        type="button"
+        onClick={handleOpen}
+        className="w-full flex items-center justify-between border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-400"
+      >
+        {selectedLabel}
+        <FontAwesomeIcon icon={faChevronDown} className={`text-xs text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {dropdownPanel && createPortal(dropdownPanel, document.body)}
+    </div>
+  );
+}
+
 const MODE_STYLES = {
   deposit:  'bg-green-500 text-white',
   withdraw: 'bg-red-500 text-white',
@@ -79,6 +316,7 @@ export default function UnifiedBankDialog({
   initialMode    = 'deposit',
   sourceAccount  = null,   // pre-selected account (bank page)
   userAccounts   = null,   // pre-loaded (bank page)
+  requireCurrencyWork = false,
   onSuccess,
 }) {
   const { user } = useAuth();
@@ -98,6 +336,14 @@ export default function UnifiedBankDialog({
   const [submitting,   setSubmitting]   = useState(false);
   const [error,        setError]        = useState('');
   const [recent,       setRecent]       = useState([]);
+  const [showMoneyPopover, setShowMoneyPopover] = useState(false);
+  // Allocation state: { [accountId]: { enabled, type: 'percent'|'flat', value } }
+  const [allocations, setAllocations] = useState({});
+
+  // Sub-accounts for the current source account (non-main accounts owned by this user)
+  const subAccounts = (userAccounts || ownAccounts).filter(
+    (a) => a.user_id === parseInt(userId, 10) && a.type !== 'main'
+  );
 
   // Reset form each time the dialog opens
   useEffect(() => {
@@ -111,7 +357,16 @@ export default function UnifiedBankDialog({
     setError('');
     setToAccountId('');
     setRecent(loadRecent());
-  }, [open, initialMode]);
+    // Default allocations: 10% per sub-account
+    const allocs = {};
+    const subs = (userAccounts || []).filter(
+      (a) => a.user_id === parseInt(userId, 10) && a.type !== 'main'
+    );
+    for (const a of subs) {
+      allocs[a.id] = { enabled: true, type: 'percent', value: 10 };
+    }
+    setAllocations(allocs);
+  }, [open, initialMode, userId]);
 
   // Load kid's own accounts when dialog opens (dashboard mode)
   useEffect(() => {
@@ -138,7 +393,9 @@ export default function UnifiedBankDialog({
     familyApi.getFamilyAccounts().then(({ accounts: all }) => {
       const filtered = filterDestAccounts(all, effectiveSrcId, user);
       setDestAccounts(filtered);
-      setToAccountId(filtered.length ? String(filtered[0].id) : '');
+      // Default to first own account if available, otherwise first in list
+      const ownFirst = filtered.find((a) => a.user_id === user.id);
+      setToAccountId(filtered.length ? String((ownFirst || filtered[0]).id) : '');
     }).catch(() => {});
   }, [open, mode, effectiveSrcId]);
 
@@ -171,6 +428,18 @@ export default function UnifiedBankDialog({
     if (mode === 'deposit') {
       const typeInfo = DEPOSIT_TYPES.find((t) => t.value === depositType);
       data = { type: typeInfo.apiType, amount_cents: Math.round(amount * 100), description };
+      // Attach allocations for currency-work kids
+      if (isParent && requireCurrencyWork) {
+        const activeAllocs = subAccounts
+          .filter((a) => allocations[a.id]?.enabled)
+          .map((a) => ({
+            account_id: a.id,
+            account_name: a.name,
+            type: allocations[a.id].type,
+            value: allocations[a.id].value,
+          }));
+        if (activeAllocs.length) data.allocations = activeAllocs;
+      }
     } else if (mode === 'withdraw') {
       data = { type: 'withdraw', amount_cents: Math.round(amount * 100), description };
     } else {
@@ -201,13 +470,14 @@ export default function UnifiedBankDialog({
 
   const groupedDest = groupByOwner(destAccounts);
   const dashboardMode = !sourceAccount; // no pre-selected account → show account selector
+  const effectiveSrcAccount = sourceAccount || ownAccounts.find((a) => a.id === parseInt(srcId, 10)) || null;
 
   return (
     <Modal open={open} onClose={() => { if (!submitting) onClose(); }} title="Bank Transaction">
       <form onSubmit={handleSubmit} className="space-y-4">
 
-        {/* ── Recent transactions (deposit / withdraw only) ── */}
-        {visibleRecent.length > 0 && (
+        {/* ── Recent transactions (parent only) ── */}
+        {isParent && visibleRecent.length > 0 && (
           <div>
             <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Recent</p>
             <div className="flex flex-wrap gap-1.5">
@@ -288,19 +558,13 @@ export default function UnifiedBankDialog({
               {destAccounts.length === 0 ? (
                 <p className="text-sm text-gray-400 dark:text-gray-500 italic">No other accounts available.</p>
               ) : (
-                <select
+                <AccountPicker
+                  accounts={destAccounts}
                   value={toAccountId}
-                  onChange={(e) => setToAccountId(e.target.value)}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
-                >
-                  {Object.entries(groupedDest).map(([owner, accs]) => (
-                    <optgroup key={owner} label={owner}>
-                      {accs.map((a) => (
-                        <option key={a.id} value={a.id}>{a.name} ({a.owner_name})</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
+                  onChange={setToAccountId}
+                  currentUser={user}
+                  isParent={isParent}
+                />
               )}
             </div>
           </>
@@ -325,16 +589,106 @@ export default function UnifiedBankDialog({
         {/* ── Amount ── */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Amount ($)</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0.01"
-            value={dollars}
-            onChange={(e) => setDollars(e.target.value)}
-            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
-            placeholder="0.00"
-          />
+          {mode === 'transfer' && requireCurrencyWork && !isParent ? (
+            <div className="flex items-center gap-3">
+              <span className="text-lg font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
+                {dollars ? `$${parseFloat(dollars).toFixed(2)}` : '$0.00'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowMoneyPopover(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                title="Pick amount with money"
+              >
+                <FontAwesomeIcon icon={faMoneyBills} className="text-sm" />
+                Count It
+              </button>
+            </div>
+          ) : (
+            <div className={`flex items-center ${mode === 'transfer' ? 'gap-2' : ''}`}>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={dollars}
+                onChange={(e) => setDollars(e.target.value)}
+                className={`${mode === 'transfer' ? 'w-32' : 'w-full'} border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200`}
+                placeholder="0.00"
+              />
+              {mode === 'transfer' && (
+                <button
+                  type="button"
+                  onClick={() => setShowMoneyPopover(true)}
+                  className="w-9 h-9 flex items-center justify-center text-green-500 dark:text-green-400 hover:text-green-600 dark:hover:text-green-300 transition-colors border border-green-300 dark:border-green-700 rounded-lg hover:border-green-400 dark:hover:border-green-500"
+                  title="Pick amount with money"
+                >
+                  <FontAwesomeIcon icon={faMoneyBills} className="text-sm" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
+
+        {/* ── Currency work notice for parents ── */}
+        {mode === 'deposit' && isParent && requireCurrencyWork && (
+          <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-xs">
+            <span className="shrink-0 mt-0.5">&#x26A0;</span>
+            <span>This kid has <strong>Require Working with Currency</strong> enabled. The deposit will be held as pending until they count and receive it.</span>
+          </div>
+        )}
+
+        {/* ── Sub-account allocations (parent + deposit + currency work) ── */}
+        {mode === 'deposit' && isParent && requireCurrencyWork && subAccounts.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Sub-account splits</p>
+            <div className="space-y-2">
+              {subAccounts.map((a) => {
+                const alloc = allocations[a.id] || { enabled: false, type: 'percent', value: 10 };
+                return (
+                  <div key={a.id} className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 min-w-0 flex-1">
+                      <input
+                        type="checkbox"
+                        checked={alloc.enabled}
+                        onChange={(e) => setAllocations((prev) => ({
+                          ...prev,
+                          [a.id]: { ...alloc, enabled: e.target.checked },
+                        }))}
+                        className="rounded border-gray-300 text-brand-500 focus:ring-brand-400"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300 truncate capitalize">{a.name}</span>
+                    </label>
+                    {alloc.enabled && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <input
+                          type="number"
+                          min="1"
+                          value={alloc.value}
+                          onChange={(e) => setAllocations((prev) => ({
+                            ...prev,
+                            [a.id]: { ...alloc, value: parseFloat(e.target.value) || 0 },
+                          }))}
+                          className="w-16 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm text-right focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
+                        />
+                        <select
+                          value={alloc.type}
+                          onChange={(e) => setAllocations((prev) => ({
+                            ...prev,
+                            [a.id]: { ...alloc, type: e.target.value },
+                          }))}
+                          className="border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
+                        >
+                          <option value="percent">%</option>
+                          <option value="flat">$</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ── Description ── */}
         <div>
@@ -382,6 +736,15 @@ export default function UnifiedBankDialog({
           </button>
         </div>
       </form>
+
+      {effectiveSrcAccount && (
+        <MoneyPopover
+          open={showMoneyPopover}
+          onClose={() => setShowMoneyPopover(false)}
+          account={effectiveSrcAccount}
+          onSetAmount={(cents) => setDollars((cents / 100).toFixed(2))}
+        />
+      )}
     </Modal>
   );
 }

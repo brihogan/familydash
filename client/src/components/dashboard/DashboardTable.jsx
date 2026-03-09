@@ -42,8 +42,8 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
   const isOwnRow = member.id === user?.id;
   const showBalance = !maskPrivateData || member.showBalanceOnDashboard || isOwnRow;
   const isInteractiveKidRow = !readOnly && member.role === 'kid' && (isParent || isOwnRow);
-  const nameClickable  = isInteractiveKidRow;
-  const statsClickable = isInteractiveKidRow;
+  const nameClickable  = isInteractiveKidRow || (!readOnly && isOwnRow);
+  const statsClickable = isInteractiveKidRow || (!readOnly && isOwnRow);
 
   const chorePct = member.choreTotal > 0 ? Math.round((member.choreDone / member.choreTotal) * 100) : 0;
   const choreDone = member.choreTotal > 0 && member.choreDone === member.choreTotal;
@@ -78,6 +78,7 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
         </div>
 
         {/* Right side: progress circles */}
+        {(member.role === 'kid' || (member.choresEnabled && member.choreTotal > 0)) && (
         <div className="flex items-center gap-1 shrink-0">
           {/* Chore ring */}
           <div className="rounded-full">
@@ -89,7 +90,7 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
               progressColor={choreDone ? ringDoneColor : ringProgressColor}
               bgColor={choreDone ? ringDoneColor : ringBgColor}
               title={`Chores: ${member.choreDone}/${member.choreTotal}`}
-              onClick={isInteractiveKidRow ? (e) => { e.stopPropagation(); navigate(`/chores/${member.id}`); } : undefined}
+              onClick={(isInteractiveKidRow || (isOwnRow && member.choresEnabled)) ? (e) => { e.stopPropagation(); navigate(`/chores/${member.id}`); } : undefined}
             >
               <FontAwesomeIcon icon={choreDone ? faCrown : faBroom} className={choreDone ? 'text-yellow-400' : undefined} />
             </ProgressRing>
@@ -121,6 +122,7 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* ── Stats rows ── */}
@@ -128,7 +130,7 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
         <div className="mb-3 pt-1 pb-3 border-b border-gray-100 dark:border-gray-700">
         {/* Row 1: Balance + Tickets + Trophies side by side */}
         <div className={`grid gap-1 ${
-          member.role === 'kid'
+          (member.role === 'kid' || member.choresEnabled)
             ? { 3: 'grid-cols-3', 2: 'grid-cols-2', 1: 'grid-cols-1' }[[useBanking, useTickets, true].filter(Boolean).length]
             : { 2: 'grid-cols-2', 1: 'grid-cols-1', 0: 'grid-cols-1' }[[useBanking, useTickets].filter(Boolean).length]
         }`}>
@@ -141,9 +143,11 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
                   className={`text-xl font-mono font-semibold text-gray-800 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
                   onClick={statsClickable ? () => navigate(`/bank/${member.id}`) : undefined}
                 >
-                  {showBalance
-                    ? formatCents(member.mainBalanceCents)
-                    : <span className="text-gray-400 dark:text-gray-500 tracking-widest text-base">—</span>
+                  {member.role === 'parent'
+                    ? <span className="text-gray-400 dark:text-gray-500">—</span>
+                    : showBalance
+                      ? formatCents(member.mainBalanceCents)
+                      : <span className="text-gray-400 dark:text-gray-500 tracking-widest text-base">—</span>
                   }
                 </p>
                 {!readOnly && isParent && member.role === 'kid' && (
@@ -171,8 +175,8 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
             </div>
           )}
 
-          {/* Trophies → Trophies page (kids only) */}
-          {member.role === 'kid' && (
+          {/* Trophies → Trophies page */}
+          {(member.role === 'kid' || member.choresEnabled) && (
             <div className="text-center">
               <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Trophies</p>
               <p

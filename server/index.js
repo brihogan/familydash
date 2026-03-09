@@ -41,7 +41,7 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-// Auth rate limiting
+// Rate-limit login/register only (refresh is protected by the cookie, not brute-forceable)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
@@ -52,7 +52,9 @@ const authLimiter = rateLimit({
 
 // ─── Routes ────────────────────────────────────────────────────────────────
 
-app.use('/api/auth', authLimiter, authRouter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth', authRouter);
 
 // Family routes: /api/family/** (includes /rewards, /redemptions, /activity)
 // Mount rewards + activity sub-routes on the family router prefix

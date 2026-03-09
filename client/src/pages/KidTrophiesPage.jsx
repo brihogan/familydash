@@ -57,7 +57,7 @@ export default function KidTrophiesPage() {
       setTrophies(completed);
       const member = familyData.members.find((m) => m.id === parseInt(userId, 10));
       if (member) setMemberName(member.name);
-      if (isParent) setKids(familyData.members.filter((m) => m.role === 'kid' && m.is_active));
+      if (isParent) setKids(familyData.members.filter((m) => (m.role === 'kid' || !!m.chores_enabled) && m.is_active));
     } catch {
       setError('Failed to load trophies.');
     } finally {

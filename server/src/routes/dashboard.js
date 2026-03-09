@@ -40,6 +40,7 @@ router.get('/', authenticate, (req, res, next) => {
         u.sort_order,
         u.show_on_dashboard,
         u.show_balance_on_dashboard,
+        u.chores_enabled,
         a.balance_cents AS main_balance_cents,
         COALESCE(ch.total, 0) AS chore_total,
         COALESCE(ch.done, 0)  AS chore_done,
@@ -70,6 +71,7 @@ router.get('/', authenticate, (req, res, next) => {
       showOnDashboard: r.show_on_dashboard === 1,
       showBalanceOnDashboard: r.show_balance_on_dashboard === 1,
       mainBalanceCents: r.main_balance_cents ?? 0,
+      choresEnabled: r.chores_enabled === 1,
       choreTotal: r.chore_total,
       choreDone: r.chore_done,
       lastActivityDisplay:
@@ -82,10 +84,10 @@ router.get('/', authenticate, (req, res, next) => {
       trophyCount: 0,
     }));
 
-    // Fetch active task sets (not yet completed) for kid members
-    const kidIds = members.filter((m) => m.role === 'kid').map((m) => m.id);
-    if (kidIds.length > 0) {
-      const ph = kidIds.map(() => '?').join(',');
+    // Fetch active task sets (not yet completed) for all members
+    const memberIds = members.map((m) => m.id);
+    if (memberIds.length > 0) {
+      const ph = memberIds.map(() => '?').join(',');
       const taskRows = db.prepare(`
         SELECT user_id, id, name, emoji, type, step_count, completed_count FROM (
           SELECT
@@ -106,7 +108,7 @@ router.get('/', authenticate, (req, res, next) => {
           AND date(earned_at) < date('now')
         )
         ORDER BY user_id, CASE type WHEN 'Project' THEN 0 ELSE 1 END, name
-      `).all(...kidIds);
+      `).all(...memberIds);
 
       const tasksByUser = {};
       for (const row of taskRows) {
@@ -136,7 +138,7 @@ router.get('/', authenticate, (req, res, next) => {
           AND (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ta.user_id)
               = (SELECT COUNT(*) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)
         GROUP BY ta.user_id
-      `).all(...kidIds);
+      `).all(...memberIds);
       for (const row of trophyRows) {
         const m = members.find((m) => m.id === row.user_id);
         if (m) m.trophyCount = row.trophy_count;

@@ -19,10 +19,10 @@ export default function DashboardRow({ member, onRefresh, readOnly = false, mask
   const isOwnRow = member.id === user?.id;
   // Parents can interact with any kid row; kids can only interact with their own row
   const isInteractiveKidRow = !readOnly && member.role === 'kid' && (isParent || isOwnRow);
-  // Name navigation: parents go to any kid's overview; kids can click their own name
-  const nameClickable = isInteractiveKidRow;
+  // Name navigation: parents go to any kid's overview (or their own); kids can click their own name
+  const nameClickable = isInteractiveKidRow || (!readOnly && isOwnRow);
   // Balance / tickets / chores navigation is available to both parents and own-kid
-  const statsClickable = isInteractiveKidRow;
+  const statsClickable = isInteractiveKidRow || (!readOnly && isOwnRow);
 
   const chorePct  = member.choreTotal > 0 ? Math.round((member.choreDone / member.choreTotal) * 100) : 0;
   const choreDone = member.choreTotal > 0 && member.choreDone === member.choreTotal;
@@ -51,9 +51,11 @@ export default function DashboardRow({ member, onRefresh, readOnly = false, mask
               className={`text-sm font-mono ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
               onClick={statsClickable ? () => navigate(`/bank/${member.id}`) : undefined}
             >
-              {maskPrivateData && !member.showBalanceOnDashboard && !isOwnRow
-                ? <span className="text-gray-400 dark:text-gray-500 tracking-widest">—&thinsp;—&thinsp;—</span>
-                : formatCents(member.mainBalanceCents)
+              {member.role === 'parent'
+                ? <span className="text-gray-400 dark:text-gray-500">—</span>
+                : maskPrivateData && !member.showBalanceOnDashboard && !isOwnRow
+                  ? <span className="text-gray-400 dark:text-gray-500 tracking-widest">—&thinsp;—&thinsp;—</span>
+                  : formatCents(member.mainBalanceCents)
               }
             </span>
             {!readOnly && isParent && member.role === 'kid' && (
@@ -82,7 +84,7 @@ export default function DashboardRow({ member, onRefresh, readOnly = false, mask
 
       {/* Trophies */}
       <td className="px-2 py-3 whitespace-nowrap text-center">
-        {member.role === 'kid' ? (
+        {(member.role === 'kid' || member.choresEnabled) ? (
           <span
             className={`text-sm font-medium text-amber-500 dark:text-amber-400 ${statsClickable ? 'cursor-pointer hover:text-amber-600' : ''}`}
             onClick={statsClickable ? () => navigate(`/trophies/${member.id}`) : undefined}
@@ -96,7 +98,7 @@ export default function DashboardRow({ member, onRefresh, readOnly = false, mask
 
       {/* Progress: chore ring + task rings */}
       <td className="px-4 py-3 whitespace-nowrap">
-        {member.role === 'kid' ? (
+        {member.role === 'kid' || (member.choresEnabled && member.choreTotal > 0) ? (
           <div className="flex items-center gap-1">
             {/* Chore ring */}
             <div className="rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
@@ -105,7 +107,7 @@ export default function DashboardRow({ member, onRefresh, readOnly = false, mask
                 done={choreDone}
                 size={56}
                 title={`Chores: ${member.choreDone}/${member.choreTotal}`}
-                onClick={statsClickable ? (e) => { e.stopPropagation(); navigate(`/chores/${member.id}`); } : undefined}
+                onClick={(statsClickable || (isOwnRow && member.choresEnabled)) ? (e) => { e.stopPropagation(); navigate(`/chores/${member.id}`); } : undefined}
               >
                 <FontAwesomeIcon icon={choreDone ? faCrown : faBroom} className={choreDone ? 'text-yellow-400' : undefined} />
               </ProgressRing>

@@ -17,21 +17,42 @@ const getUserByAccountStmt = db.prepare(`
   WHERE a.id = ?
 `);
 
+const getKidCurrencyWorkStmt = db.prepare(`
+  SELECT u.require_currency_work, u.role FROM users u
+  JOIN accounts a ON a.user_id = u.id
+  WHERE a.id = ?
+`);
+
 const runDepositRule = db.transaction((rule) => {
-  db.prepare(`
-    UPDATE accounts SET balance_cents = balance_cents + ? WHERE id = ?
-  `).run(rule.amount_cents, rule.account_id);
-
-  const txInfo = db.prepare(`
-    INSERT INTO transactions (account_id, amount_cents, type, description, created_by_user_id)
-    VALUES (?, ?, 'allowance', ?, ?)
-  `).run(rule.account_id, rule.amount_cents, rule.description || 'Recurring deposit', rule.account_user_id);
-
+  const kid = getKidCurrencyWorkStmt.get(rule.account_id);
   const user = getUserByAccountStmt.get(rule.account_id);
-  db.prepare(`
-    INSERT INTO activity_feed (family_id, subject_user_id, actor_user_id, event_type, description, reference_id, reference_type, amount_cents)
-    VALUES (?, ?, ?, 'allowance', ?, ?, 'transaction', ?)
-  `).run(user.family_id, user.id, user.id, rule.description || 'Recurring allowance', txInfo.lastInsertRowid, rule.amount_cents);
+
+  if (kid && kid.role === 'kid' && kid.require_currency_work) {
+    // Create pending deposit instead of crediting immediately
+    const pd = db.prepare(`
+      INSERT INTO pending_deposits (account_id, amount_cents, description, type, created_by_user_id, allocations)
+      VALUES (?, ?, ?, 'allowance', ?, ?)
+    `).run(rule.account_id, rule.amount_cents, rule.description || 'Recurring deposit', rule.account_user_id, rule.allocations || null);
+
+    db.prepare(`
+      INSERT INTO activity_feed (family_id, subject_user_id, actor_user_id, event_type, description, reference_id, reference_type, amount_cents)
+      VALUES (?, ?, ?, 'allowance', ?, ?, 'pending_deposit', ?)
+    `).run(user.family_id, user.id, user.id, (rule.description || 'Recurring allowance') + ' (awaiting receipt)', pd.lastInsertRowid, rule.amount_cents);
+  } else {
+    db.prepare(`
+      UPDATE accounts SET balance_cents = balance_cents + ? WHERE id = ?
+    `).run(rule.amount_cents, rule.account_id);
+
+    const txInfo = db.prepare(`
+      INSERT INTO transactions (account_id, amount_cents, type, description, created_by_user_id)
+      VALUES (?, ?, 'allowance', ?, ?)
+    `).run(rule.account_id, rule.amount_cents, rule.description || 'Recurring deposit', rule.account_user_id);
+
+    db.prepare(`
+      INSERT INTO activity_feed (family_id, subject_user_id, actor_user_id, event_type, description, reference_id, reference_type, amount_cents)
+      VALUES (?, ?, ?, 'allowance', ?, ?, 'transaction', ?)
+    `).run(user.family_id, user.id, user.id, rule.description || 'Recurring allowance', txInfo.lastInsertRowid, rule.amount_cents);
+  }
 
   db.prepare(`
     UPDATE recurring_rules SET last_run_date = datetime('now', 'localtime') WHERE id = ?

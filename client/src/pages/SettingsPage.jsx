@@ -13,7 +13,7 @@ const SETTINGS_CARDS = [
   {
     to:          '/settings/tasks',
     icon:        faClipboardCheck,
-    label:       'Manage Sets',
+    label:       'Set Management',
     description: 'Create and assign task sets and awards.',
   },
   {

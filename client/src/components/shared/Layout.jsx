@@ -58,7 +58,7 @@ export default function Layout() {
   const location = useLocation();
   const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
-  const [firstKidId, setFirstKidId] = useState(null);
+  const [defaultMemberId, setDefaultMemberId] = useState(null);
   const [kidStats, setKidStats] = useState(null);
   const [inboxCount, setInboxCount] = useState(0);
 
@@ -99,19 +99,27 @@ export default function Layout() {
     return () => window.removeEventListener('inbox-updated', refresh);
   }, [user?.role]);
 
-  // Fetch first kid for parent "Kid Pages" nav links
+  // Fetch default member for "Individual Pages" nav links
   useEffect(() => {
     if (user?.role !== 'parent') return;
     familyApi.getFamily().then((data) => {
-      const sorted = (data.members || [])
+      const members = data.members || [];
+      // If logged-in parent has chores_enabled, default to their own ID
+      const self = members.find((m) => m.id === user.id);
+      if (self && self.chores_enabled) {
+        setDefaultMemberId(self.id);
+        return;
+      }
+      // Otherwise, default to first active kid
+      const sorted = members
         .filter((m) => m.role === 'kid' && m.is_active !== 0)
         .sort((a, b) => {
           if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
           return a.name.localeCompare(b.name);
         });
-      if (sorted.length > 0) setFirstKidId(sorted[0].id);
+      if (sorted.length > 0) setDefaultMemberId(sorted[0].id);
     }).catch(() => {});
-  }, [user?.role]);
+  }, [user?.role, user?.id]);
 
   const handleEmojiPick = async (emoji) => {
     if (!user) return;
@@ -205,38 +213,38 @@ export default function Layout() {
             )}
           </NavLink>
 
-          {firstKidId && (
+          {defaultMemberId && (
             <>
               <div className="pt-2 pb-1 px-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                Kid Pages
+                Individual Pages
               </div>
-              <NavLink to={`/kid/${firstKidId}`} className={() => kidPathClass('/kid')} onClick={close}>
+              <NavLink to={`/kid/${defaultMemberId}`} className={() => kidPathClass('/kid')} onClick={close}>
                 <FontAwesomeIcon icon={faTachographDigital} className="w-4 shrink-0" />
                 Overview
               </NavLink>
-              <NavLink to={`/chores/${firstKidId}`} className={() => kidPathClass('/chores')} onClick={close}>
+              <NavLink to={`/chores/${defaultMemberId}`} className={() => kidPathClass('/chores')} onClick={close}>
                 <FontAwesomeIcon icon={faBroom} className="w-4 shrink-0" />
                 Chores
               </NavLink>
               {useBanking && (
-                <NavLink to={`/bank/${firstKidId}`} className={() => kidPathClass('/bank')} onClick={close}>
+                <NavLink to={`/bank/${defaultMemberId}`} className={() => kidPathClass('/bank')} onClick={close}>
                   <FontAwesomeIcon icon={faPiggyBank} className="w-4 shrink-0" />
                   Bank
                 </NavLink>
               )}
               {useTickets && (
-                <NavLink to={`/tickets/${firstKidId}`} className={() => kidPathClass('/tickets')} onClick={close}>
+                <NavLink to={`/tickets/${defaultMemberId}`} className={() => kidPathClass('/tickets')} onClick={close}>
                   <FontAwesomeIcon icon={faTicket} className="w-4 shrink-0" />
                   Tickets
                 </NavLink>
               )}
               {useSets && (
-                <NavLink to={`/tasks/${firstKidId}`} className={() => kidPathClass('/tasks')} onClick={close}>
+                <NavLink to={`/tasks/${defaultMemberId}`} className={() => kidPathClass('/tasks')} onClick={close}>
                   <FontAwesomeIcon icon={faMedal} className="w-4 shrink-0" />
                   Sets &amp; Steps
                 </NavLink>
               )}
-              <NavLink to={`/trophies/${firstKidId}`} className={() => kidPathClass('/trophies')} onClick={close}>
+              <NavLink to={`/trophies/${defaultMemberId}`} className={() => kidPathClass('/trophies')} onClick={close}>
                 <FontAwesomeIcon icon={faTrophy} className="w-4 shrink-0" />
                 Trophies
               </NavLink>
@@ -257,7 +265,7 @@ export default function Layout() {
           {useSets && (
             <NavLink to="/settings/tasks" className={navClass} onClick={close}>
               <FontAwesomeIcon icon={faClipboardCheck} className="w-4 shrink-0" />
-              Manage Sets
+              Set Management
             </NavLink>
           )}
           {useTickets && (
@@ -463,17 +471,17 @@ export default function Layout() {
             transition: isDragging ? 'none' : 'transform 300ms ease-in-out',
           }}
         >
-          {/* Drag handle + user info — drag to reposition / release to snap */}
+          {/* Drag handle — drag to reposition / release to snap */}
           <div
             onTouchStart={handleDragStart}
             onTouchMove={handleDragMove}
             onTouchEnd={handleDragEnd}
+            className="flex justify-center pt-3 pb-1"
           >
-          <div className="flex justify-center pt-3 pb-1">
             <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
           </div>
 
-          {/* User info row */}
+          {/* User info row — outside drag target so buttons work reliably */}
           <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">
             <button
               type="button"
@@ -489,20 +497,19 @@ export default function Layout() {
             </div>
             <button
               onClick={handleLogout}
-              className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
               title="Sign out"
             >
               <FontAwesomeIcon icon={faRightFromBracket} />
             </button>
             <button
               onClick={close}
-              className="p-1 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="p-2 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
               aria-label="Close menu"
             >
               <CloseIcon />
             </button>
           </div>
-          </div>{/* end swipe target */}
 
           {/* Nav links */}
           <div className="flex-1 overflow-y-auto overscroll-contain">

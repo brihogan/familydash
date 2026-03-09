@@ -8,10 +8,12 @@ import { useAuth } from '../context/AuthContext.jsx';
 import AccountCard from '../components/bank/AccountCard.jsx';
 import TransactionList from '../components/bank/TransactionList.jsx';
 import UnifiedBankDialog from '../components/bank/UnifiedBankDialog.jsx';
+import MoneyPopover from '../components/bank/MoneyPopover.jsx';
 import RecurringRuleList from '../components/bank/RecurringRuleList.jsx';
 import RecurringRuleForm from '../components/bank/RecurringRuleForm.jsx';
 import Modal from '../components/shared/Modal.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
+import { formatCents } from '../utils/formatCents.js';
 
 const DATE_OPTIONS = [
   { key: 'today',     label: 'Today' },
@@ -162,6 +164,10 @@ export default function KidBankPage() {
   const isParent = user?.role === 'parent';
 
   const [memberName, setMemberName] = useState('');
+  const [memberRole, setMemberRole] = useState(null);
+  const [allowTransfers, setAllowTransfers] = useState(true);
+  const [allowWithdraws, setAllowWithdraws] = useState(true);
+  const [requireCurrencyWork, setRequireCurrencyWork] = useState(false);
   const [kids, setKids] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState(null);
@@ -177,6 +183,8 @@ export default function KidBankPage() {
   const [dateKey, setDateKey] = useState('today');
   const [txTypeKey, setTxTypeKey] = useState('all');
   const [error, setError] = useState('');
+  const [pendingDeposits, setPendingDeposits] = useState([]);
+  const [receivePopover, setReceivePopover] = useState(null); // pending deposit to receive
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -223,11 +231,24 @@ export default function KidBankPage() {
     } catch {}
   }, [userId, isParent]);
 
+  const fetchPendingDeposits = useCallback(async () => {
+    try {
+      const data = await accountsApi.getPendingDeposits(userId);
+      setPendingDeposits(data.pending_deposits || []);
+    } catch {}
+  }, [userId]);
+
   useEffect(() => {
     familyApi.getFamily().then(({ members }) => {
       const m = members.find((mem) => mem.id === parseInt(userId, 10));
-      if (m) setMemberName(m.name);
-      if (isParent) setKids(members.filter((mem) => mem.role === 'kid' && mem.is_active));
+      if (m) {
+        setMemberName(m.name);
+        setMemberRole(m.role);
+        setAllowTransfers(!!m.allow_transfers);
+        setAllowWithdraws(!!m.allow_withdraws);
+        setRequireCurrencyWork(!!m.require_currency_work);
+      }
+      if (isParent) setKids(members.filter((mem) => (mem.role === 'kid' || !!mem.chores_enabled) && mem.is_active));
     }).catch(() => {});
   }, [userId, isParent]);
 
@@ -238,6 +259,7 @@ export default function KidBankPage() {
   }, [userId]);
   useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
   useEffect(() => { fetchRules(); }, [fetchRules]);
+  useEffect(() => { fetchPendingDeposits(); }, [fetchPendingDeposits]);
 
   const handleAddAccount = async (data) => {
     setAddAccountLoading(true);
@@ -295,7 +317,7 @@ export default function KidBankPage() {
             </div>
           )}
         </div>
-        {isParent && (
+        {isParent && memberRole !== 'parent' && (
           <button
             onClick={() => setAddAccountModal(true)}
             className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-sm rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
@@ -305,156 +327,224 @@ export default function KidBankPage() {
         )}
       </div>
 
+      {memberRole === 'parent' && (
+        <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-6 mb-4 text-center text-sm text-gray-500 dark:text-gray-400">
+          Parents don't have bank accounts — this feature is for kids only.
+        </div>
+      )}
+
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-4 py-3 mb-4 text-sm">{error}</div>
       )}
 
-      {/* Accounts row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
-        {accounts.map((a) => (
-          <AccountCard
-            key={a.id}
-            account={a}
-            selected={selectedAccount?.id === a.id}
-            onClick={setSelectedAccount}
-            onEdit={isParent ? setRenameAccount : undefined}
-          />
-        ))}
-      </div>
-
-      {/* Action buttons */}
-      {selectedAccount && (
-        <div className="grid grid-cols-2 sm:flex gap-2 mb-6">
-          {isParent && (
-            <button
-              onClick={() => setTxModal('deposit')}
-              className="py-2 px-4 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg font-medium transition-colors"
-            >
-              + Deposit
-            </button>
-          )}
-          <button
-            onClick={() => setTxModal('withdraw')}
-            className="py-2 px-4 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium transition-colors"
-          >
-            Withdraw
-          </button>
-          <button
-            onClick={() => setTxModal('transfer')}
-            className="py-2 px-4 bg-purple-500 hover:bg-purple-600 text-white text-sm rounded-lg font-medium transition-colors"
-          >
-            Transfer
-          </button>
-          {isParent && (
-            <button
-              onClick={() => setRuleModal(true)}
-              className="py-2 px-4 border border-gray-300 dark:border-gray-600 text-sm rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors sm:ml-auto"
-            >
-              + Recurring Rule
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Transactions */}
-      {selectedAccount && (() => {
-        const displayTx = txTypeKey === 'all'
-          ? transactions
-          : transactions.filter((tx) => TX_TYPE_GROUPS[txTypeKey]?.includes(tx.type));
-        return (
-          <div className="mb-6">
-            <div className="mb-3">
-              <h2 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                Transactions — {selectedAccount.name}
-              </h2>
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-gray-400 dark:text-gray-500">Date</span>
-                  <select
-                    className={SELECT_CLS}
-                    value={dateKey}
-                    onChange={(e) => setDateKey(e.target.value)}
-                  >
-                    {DATE_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-                  </select>
-                </div>
-                <div className="flex items-center gap-1">
-                  {TX_TYPE_OPTIONS.map((o) => (
-                    <button
-                      key={o.key}
-                      onClick={() => setTxTypeKey(o.key)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                        txTypeKey === o.key
-                          ? 'bg-brand-600 text-white'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <TransactionList transactions={displayTx} viewingUserId={userId} />
+      {memberRole !== 'parent' && (
+        <>
+          {/* Accounts row */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+            {accounts.map((a) => (
+              <AccountCard
+                key={a.id}
+                account={a}
+                selected={selectedAccount?.id === a.id}
+                onClick={setSelectedAccount}
+                onEdit={isParent ? setRenameAccount : undefined}
+              />
+            ))}
           </div>
-        );
-      })()}
 
-      {/* Recurring rules (parent only) */}
-      {isParent && rules.length > 0 && (
-        <div>
-          <h2 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">Recurring Rules</h2>
-          <RecurringRuleList rules={rules} onDelete={handleDeleteRule} />
-        </div>
+          {/* Pending deposits banner */}
+          {pendingDeposits.length > 0 && (
+            <div className="mb-4 space-y-2">
+              {pendingDeposits.map((pd) => (
+                <button
+                  key={pd.id}
+                  onClick={() => setReceivePopover(pd)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border-2 border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                >
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                      Money to receive!
+                    </p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      {formatCents(pd.amount_cents)} — {pd.account_name}
+                      {pd.description ? ` · ${pd.description}` : ''}
+                    </p>
+                  </div>
+                  <span className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-semibold">
+                    Receive
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Action buttons */}
+          {selectedAccount && (
+            <div className="grid grid-cols-2 sm:flex gap-2 mb-6">
+              {isParent && (
+                <button
+                  onClick={() => setTxModal('deposit')}
+                  className="py-2 px-4 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg font-medium transition-colors"
+                >
+                  + Deposit
+                </button>
+              )}
+              {(isParent || allowWithdraws) && (
+                <button
+                  onClick={() => setTxModal('withdraw')}
+                  className="py-2 px-4 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium transition-colors"
+                >
+                  Withdraw
+                </button>
+              )}
+              {allowTransfers && (
+                <button
+                  onClick={() => setTxModal('transfer')}
+                  className="py-2 px-4 bg-purple-500 hover:bg-purple-600 text-white text-sm rounded-lg font-medium transition-colors"
+                >
+                  Transfer
+                </button>
+              )}
+              {isParent && (
+                <button
+                  onClick={() => setRuleModal(true)}
+                  className="py-2 px-4 border border-gray-300 dark:border-gray-600 text-sm rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors sm:ml-auto"
+                >
+                  + Recurring Rule
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Transactions */}
+          {selectedAccount && (() => {
+            const displayTx = txTypeKey === 'all'
+              ? transactions
+              : transactions.filter((tx) => TX_TYPE_GROUPS[txTypeKey]?.includes(tx.type));
+            return (
+              <div className="mb-6">
+                <div className="mb-3">
+                  <h2 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Transactions — {selectedAccount.name}
+                  </h2>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-gray-400 dark:text-gray-500">Date</span>
+                      <select
+                        className={SELECT_CLS}
+                        value={dateKey}
+                        onChange={(e) => setDateKey(e.target.value)}
+                      >
+                        {DATE_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {TX_TYPE_OPTIONS.map((o) => (
+                        <button
+                          key={o.key}
+                          onClick={() => setTxTypeKey(o.key)}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                            txTypeKey === o.key
+                              ? 'bg-brand-600 text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <TransactionList transactions={displayTx} viewingUserId={userId} />
+              </div>
+            );
+          })()}
+
+          {/* Recurring rules (parent only) */}
+          {isParent && rules.length > 0 && (
+            <div>
+              <h2 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">Recurring Rules</h2>
+              <RecurringRuleList rules={rules} onDelete={handleDeleteRule} />
+            </div>
+          )}
+
+          {/* Deposit / Withdraw / Transfer modal */}
+          <UnifiedBankDialog
+            open={!!txModal}
+            onClose={() => setTxModal(null)}
+            userId={userId}
+            initialMode={txModal || 'deposit'}
+            sourceAccount={selectedAccount}
+            userAccounts={accounts}
+            requireCurrencyWork={requireCurrencyWork}
+            onSuccess={async () => {
+              await fetchAccounts();
+              await fetchTransactions();
+              await fetchPendingDeposits();
+              window.dispatchEvent(new CustomEvent('kid-stats-updated'));
+            }}
+          />
+
+          {/* Edit account modal (parent only) */}
+          <Modal open={!!renameAccount} onClose={() => setRenameAccount(null)} title="Edit Account">
+            <EditAccountForm
+              account={renameAccount}
+              onSave={handleEditAccount}
+              onCancel={() => setRenameAccount(null)}
+              loading={renameLoading}
+            />
+          </Modal>
+
+          {/* Add sub-account modal */}
+          <Modal open={addAccountModal} onClose={() => setAddAccountModal(false)} title="Add Sub-account">
+            <AddAccountForm
+              onSave={handleAddAccount}
+              onCancel={() => setAddAccountModal(false)}
+              loading={addAccountLoading}
+            />
+          </Modal>
+
+          {/* Receive pending deposit popover */}
+          {receivePopover && (
+            <MoneyPopover
+              open={!!receivePopover}
+              onClose={() => setReceivePopover(null)}
+              account={{ name: 'Receiving money', balance_cents: receivePopover.amount_cents }}
+              receiveMode
+              receiveAmountCents={receivePopover.amount_cents}
+              receiveAllocations={receivePopover.allocations ? JSON.parse(receivePopover.allocations) : []}
+              onReceiveConfirm={async (cents, allocResults) => {
+                try {
+                  await accountsApi.claimPendingDeposit(userId, receivePopover.id, cents, allocResults);
+                  setReceivePopover(null);
+                  await fetchAccounts();
+                  await fetchTransactions();
+                  await fetchPendingDeposits();
+                  window.dispatchEvent(new CustomEvent('kid-stats-updated'));
+                } catch (err) {
+                  throw err;
+                }
+              }}
+            />
+          )}
+
+          {/* Recurring rule modal */}
+          <Modal open={ruleModal} onClose={() => setRuleModal(false)} title="Add Recurring Rule">
+            <RecurringRuleForm
+              accounts={accounts}
+              userAccounts={accounts}
+              requireCurrencyWork={requireCurrencyWork}
+              loading={false}
+              onCancel={() => setRuleModal(false)}
+              onSave={async (data) => {
+                await accountsApi.createRecurringRule(userId, data);
+                setRuleModal(false);
+                fetchRules();
+              }}
+            />
+          </Modal>
+        </>
       )}
-
-      {/* Deposit / Withdraw / Transfer modal */}
-      <UnifiedBankDialog
-        open={!!txModal}
-        onClose={() => setTxModal(null)}
-        userId={userId}
-        initialMode={txModal || 'deposit'}
-        sourceAccount={selectedAccount}
-        userAccounts={accounts}
-        onSuccess={async () => {
-          await fetchAccounts();
-          await fetchTransactions();
-          window.dispatchEvent(new CustomEvent('kid-stats-updated'));
-        }}
-      />
-
-      {/* Edit account modal (parent only) */}
-      <Modal open={!!renameAccount} onClose={() => setRenameAccount(null)} title="Edit Account">
-        <EditAccountForm
-          account={renameAccount}
-          onSave={handleEditAccount}
-          onCancel={() => setRenameAccount(null)}
-          loading={renameLoading}
-        />
-      </Modal>
-
-      {/* Add sub-account modal */}
-      <Modal open={addAccountModal} onClose={() => setAddAccountModal(false)} title="Add Sub-account">
-        <AddAccountForm
-          onSave={handleAddAccount}
-          onCancel={() => setAddAccountModal(false)}
-          loading={addAccountLoading}
-        />
-      </Modal>
-
-      {/* Recurring rule modal */}
-      <Modal open={ruleModal} onClose={() => setRuleModal(false)} title="Add Recurring Rule">
-        <RecurringRuleForm
-          accounts={accounts}
-          loading={false}
-          onCancel={() => setRuleModal(false)}
-          onSave={async (data) => {
-            await accountsApi.createRecurringRule(userId, data);
-            setRuleModal(false);
-            fetchRules();
-          }}
-        />
-      </Modal>
     </div>
   );
 }

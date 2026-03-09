@@ -66,7 +66,7 @@ export default function DisplayPage() {
   };
 
   const sortedMembers = useMemo(
-    () => sortMembers(members.filter((m) => m.showOnDashboard), sortKey),
+    () => sortMembers(members.filter((m) => m.showOnDashboard || (m.role === 'parent' && m.choresEnabled)), sortKey),
     [members, sortKey]
   );
 

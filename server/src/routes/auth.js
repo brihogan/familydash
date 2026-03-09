@@ -23,18 +23,21 @@ const COOKIE_OPTS = {
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
 
-function issueTokens(res, payload) {
+function issueTokens(res, payload, remember = true) {
   const accessToken = signAccessToken(payload);
   const refreshToken = signRefreshToken(payload);
 
   // Store hashed refresh token
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   db.prepare(`
-    INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-    VALUES (?, ?, ?)
-  `).run(payload.userId, hashToken(refreshToken), expiresAt);
+    INSERT INTO refresh_tokens (user_id, token_hash, expires_at, remember)
+    VALUES (?, ?, ?, ?)
+  `).run(payload.userId, hashToken(refreshToken), expiresAt, remember ? 1 : 0);
 
-  res.cookie(REFRESH_COOKIE, refreshToken, COOKIE_OPTS);
+  const cookieOpts = { ...COOKIE_OPTS };
+  if (!remember) delete cookieOpts.maxAge; // session cookie — expires when browser closes
+
+  res.cookie(REFRESH_COOKIE, refreshToken, cookieOpts);
   return accessToken;
 }
 
@@ -87,8 +90,8 @@ router.post('/register', async (req, res, next) => {
 // ─── Login ─────────────────────────────────────────────────────────────────
 
 const LoginSchema = z.union([
-  z.object({ email: z.string().email(), password: z.string() }),
-  z.object({ username: z.string(), pin: z.string().regex(/^\d{4}$/) }),
+  z.object({ email: z.string().email(), password: z.string(), rememberMe: z.boolean().optional() }),
+  z.object({ username: z.string(), pin: z.string().regex(/^\d{4}$/), rememberMe: z.boolean().optional() }),
 ]);
 
 router.post('/login', async (req, res, next) => {
@@ -104,12 +107,13 @@ router.post('/login', async (req, res, next) => {
     } else {
       user = db.prepare('SELECT * FROM users WHERE username = ? AND is_active = 1').get(body.username);
       if (!user) return res.status(401).json({ error: 'Invalid credentials.' });
+      if (!user.allow_login) return res.status(403).json({ error: 'Login is not enabled for this account.' });
       const valid = await comparePin(body.pin, user.pin_hash);
       if (!valid) return res.status(401).json({ error: 'Invalid credentials.' });
     }
 
     const payload = { userId: user.id, familyId: user.family_id, role: user.role, name: user.name, avatarColor: user.avatar_color, avatarEmoji: user.avatar_emoji || null };
-    const accessToken = issueTokens(res, payload);
+    const accessToken = issueTokens(res, payload, body.rememberMe !== false);
 
     res.json({
       accessToken,
@@ -132,7 +136,7 @@ router.post('/refresh', (req, res, next) => {
 
     const tokenHash = hashToken(rawToken);
     const stored = db.prepare(`
-      SELECT id FROM refresh_tokens
+      SELECT id, remember FROM refresh_tokens
       WHERE token_hash = ? AND expires_at > datetime('now')
     `).get(tokenHash);
     if (!stored) return res.status(401).json({ error: 'Refresh token not found or expired.' });
@@ -145,7 +149,7 @@ router.post('/refresh', (req, res, next) => {
     if (!userRecord) return res.status(401).json({ error: 'User not found.' });
 
     const newPayload = { userId: payload.userId, familyId: payload.familyId, role: payload.role, name: userRecord.name, avatarColor: userRecord.avatar_color, avatarEmoji: userRecord.avatar_emoji || null };
-    const accessToken = issueTokens(res, newPayload);
+    const accessToken = issueTokens(res, newPayload, !!stored.remember);
 
     res.json({ accessToken });
   } catch (err) {

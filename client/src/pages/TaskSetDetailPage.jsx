@@ -143,7 +143,7 @@ export default function TaskSetDetailPage() {
       const [data, familyData, assignData, histData] = await Promise.all(fetches);
       setTaskSet(data.taskSet);
       setSteps(data.steps);
-      const members = familyData.members.filter((m) => m.is_active);
+      const members = familyData.members.filter((m) => m.is_active && (m.role === 'kid' || !!m.chores_enabled));
       setAllUsers(members);
       const ids = new Set(assignData.assignedUserIds);
       setAssignedIds(ids);

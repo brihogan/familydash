@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -22,7 +23,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const creds = tab === 'parent' ? { email, password } : { username, pin };
+      const creds = tab === 'parent' ? { email, password, rememberMe } : { username, pin, rememberMe };
       await login(creds);
       navigate('/dashboard');
     } catch (err) {
@@ -116,6 +117,16 @@ export default function LoginPage() {
               </div>
             </>
           )}
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-brand-500 focus:ring-brand-400"
+            />
+            <span className="text-sm text-gray-600 dark:text-gray-400">Remember me</span>
+          </label>
 
           {error && <p className="text-sm text-red-500 text-center">{error}</p>}
 

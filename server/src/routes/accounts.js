@@ -143,11 +143,19 @@ router.get('/:id/accounts/:aid/transactions', authenticate, requireOwnOrParent, 
 
 // ─── POST /api/users/:id/accounts/:aid/transactions ───────────────────────
 
+const AllocationSchema = z.object({
+  account_id: z.number().int(),
+  account_name: z.string(),
+  type: z.enum(['percent', 'flat']),
+  value: z.number().positive(),
+});
+
 const TransactionSchema = z.object({
   type: z.enum(['deposit', 'withdraw', 'transfer_out', 'allowance', 'manual_adjustment']),
   amount_cents: z.number().int().positive(),
   description: z.string().default(''),
   to_account_id: z.number().int().optional(), // required for transfer_out
+  allocations: z.array(AllocationSchema).optional(), // sub-account splits for pending deposits
 });
 
 router.post('/:id/accounts/:aid/transactions', authenticate, requireOwnOrParent, (req, res, next) => {
@@ -240,6 +248,31 @@ router.post('/:id/accounts/:aid/transactions', authenticate, requireOwnOrParent,
       return res.status(400).json({ error: 'Insufficient balance.' });
     }
 
+    // If this is a credit to a kid with require_currency_work, create a pending deposit
+    if (isCredit && targetUser) {
+      const kid = db.prepare('SELECT require_currency_work, role FROM users WHERE id = ?').get(userId);
+      if (kid && kid.role === 'kid' && kid.require_currency_work) {
+        const allocJson = body.allocations?.length ? JSON.stringify(body.allocations) : null;
+        const pd = db.prepare(`
+          INSERT INTO pending_deposits (account_id, amount_cents, description, type, created_by_user_id, allocations)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(accountId, body.amount_cents, body.description || '', body.type, req.user.userId, allocJson);
+
+        insertActivity({
+          familyId: req.user.familyId,
+          subjectUserId: userId,
+          actorUserId: req.user.userId,
+          eventType: body.type === 'allowance' ? 'allowance' : 'deposit',
+          description: `Pending ${body.type} $${(body.amount_cents / 100).toFixed(2)}${body.description ? ': ' + body.description : ''} (awaiting receipt)`,
+          referenceId: pd.lastInsertRowid,
+          referenceType: 'pending_deposit',
+          amountCents: body.amount_cents,
+        });
+
+        return res.status(201).json({ pending: true, id: pd.lastInsertRowid, amount_cents: body.amount_cents });
+      }
+    }
+
     const singleTx = db.transaction(() => {
       db.prepare('UPDATE accounts SET balance_cents = balance_cents + ? WHERE id = ?').run(amountSigned, accountId);
 
@@ -301,6 +334,7 @@ const RecurringRuleSchema = z.object({
   description: z.string().default(''),
   day_of_week: z.number().int().min(0).max(6),
   to_account_id: z.number().int().optional().nullable(),
+  allocations: z.array(AllocationSchema).optional(),
 });
 
 router.post('/:id/recurring', authenticate, requireRole('parent'), (req, res, next) => {
@@ -312,10 +346,11 @@ router.post('/:id/recurring', authenticate, requireRole('parent'), (req, res, ne
     if (body.type === 'transfer' && !body.to_account_id) {
       return res.status(400).json({ error: 'to_account_id required for transfer rules.' });
     }
+    const allocJson = body.allocations?.length ? JSON.stringify(body.allocations) : null;
     const result = db.prepare(`
-      INSERT INTO recurring_rules (account_id, amount_cents, type, description, day_of_week, to_account_id)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(body.account_id, body.amount_cents, body.type, body.description, body.day_of_week, body.to_account_id ?? null);
+      INSERT INTO recurring_rules (account_id, amount_cents, type, description, day_of_week, to_account_id, allocations)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(body.account_id, body.amount_cents, body.type, body.description, body.day_of_week, body.to_account_id ?? null, allocJson);
     const rule = db.prepare('SELECT * FROM recurring_rules WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(rule);
   } catch (err) {
@@ -360,6 +395,131 @@ router.delete('/:id/recurring/:rid', authenticate, requireRole('parent'), (req, 
       WHERE id = ? AND account_id IN (SELECT id FROM accounts WHERE user_id = ?)
     `).run(ruleId, userId);
     if (!result.changes) return res.status(404).json({ error: 'Rule not found.' });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Pending Deposits ─────────────────────────────────────────────────────────
+
+// List pending deposits for a user
+router.get('/:id/pending-deposits', authenticate, requireOwnOrParent, (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    assertSameFamily(userId, req.user.familyId);
+    const rows = db.prepare(`
+      SELECT pd.*, a.name AS account_name
+      FROM pending_deposits pd
+      JOIN accounts a ON a.id = pd.account_id
+      WHERE a.user_id = ?
+      ORDER BY pd.created_at DESC
+    `).all(userId);
+    res.json({ pending_deposits: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Claim (receive) a pending deposit — kid must provide the exact amount
+const ClaimSchema = z.object({
+  amount_cents: z.number().int().positive(),
+  allocations: z.array(z.object({
+    account_id: z.number().int(),
+    amount_cents: z.number().int().nonnegative(),
+  })).optional(),
+});
+
+router.post('/:id/pending-deposits/:pdid/claim', authenticate, requireOwnOrParent, (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const pdId = parseInt(req.params.pdid, 10);
+    assertSameFamily(userId, req.user.familyId);
+
+    const pd = db.prepare(`
+      SELECT pd.* FROM pending_deposits pd
+      JOIN accounts a ON a.id = pd.account_id
+      WHERE pd.id = ? AND a.user_id = ?
+    `).get(pdId, userId);
+    if (!pd) return res.status(404).json({ error: 'Pending deposit not found.' });
+
+    const body = ClaimSchema.parse(req.body);
+    if (body.amount_cents !== pd.amount_cents) {
+      return res.status(400).json({ error: 'Amount does not match. Count again!' });
+    }
+
+    // Validate allocations if the pending deposit has them
+    const expectedAllocs = pd.allocations ? JSON.parse(pd.allocations) : [];
+    const claimedAllocs = body.allocations || [];
+
+    if (expectedAllocs.length > 0) {
+      if (claimedAllocs.length !== expectedAllocs.length) {
+        return res.status(400).json({ error: 'Allocation count does not match.' });
+      }
+      for (const expected of expectedAllocs) {
+        const expectedCents = expected.type === 'percent'
+          ? Math.round(pd.amount_cents * expected.value / 100)
+          : expected.value;
+        const claimed = claimedAllocs.find(a => a.account_id === expected.account_id);
+        if (!claimed || claimed.amount_cents !== expectedCents) {
+          return res.status(400).json({ error: `Allocation for ${expected.account_name} doesn't match. Count again!` });
+        }
+      }
+    }
+
+    const totalAllocCents = claimedAllocs.reduce((s, a) => s + a.amount_cents, 0);
+    const mainCents = pd.amount_cents - totalAllocCents;
+
+    const claimTx = db.transaction(() => {
+      // 1. Credit full amount to main (checking) account
+      db.prepare('UPDATE accounts SET balance_cents = balance_cents + ? WHERE id = ?')
+        .run(pd.amount_cents, pd.account_id);
+
+      const tx = db.prepare(`
+        INSERT INTO transactions (account_id, amount_cents, type, description, created_by_user_id)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(pd.account_id, pd.amount_cents, pd.type, pd.description || '', pd.created_by_user_id);
+
+      // 2. Transfer from main account to each sub-account
+      for (const alloc of claimedAllocs) {
+        if (alloc.amount_cents <= 0) continue;
+        const allocAcct = db.prepare('SELECT name FROM accounts WHERE id = ?').get(alloc.account_id);
+        const mainAcct = db.prepare('SELECT name FROM accounts WHERE id = ?').get(pd.account_id);
+
+        // Debit main account
+        db.prepare('UPDATE accounts SET balance_cents = balance_cents - ? WHERE id = ?')
+          .run(alloc.amount_cents, pd.account_id);
+        db.prepare(`
+          INSERT INTO transactions (account_id, amount_cents, type, description, linked_account_id, created_by_user_id)
+          VALUES (?, ?, 'transfer_out', ?, ?, ?)
+        `).run(pd.account_id, -alloc.amount_cents, `Transfer to ${allocAcct?.name || 'sub-account'}`, alloc.account_id, pd.created_by_user_id);
+
+        // Credit sub-account
+        db.prepare('UPDATE accounts SET balance_cents = balance_cents + ? WHERE id = ?')
+          .run(alloc.amount_cents, alloc.account_id);
+        db.prepare(`
+          INSERT INTO transactions (account_id, amount_cents, type, description, linked_account_id, created_by_user_id)
+          VALUES (?, ?, 'transfer_in', ?, ?, ?)
+        `).run(alloc.account_id, alloc.amount_cents, `Transfer from ${mainAcct?.name || 'Checking'}`, pd.account_id, pd.created_by_user_id);
+      }
+
+      db.prepare('DELETE FROM pending_deposits WHERE id = ?').run(pdId);
+
+      insertActivity({
+        familyId: req.user.familyId,
+        subjectUserId: userId,
+        actorUserId: req.user.userId,
+        eventType: 'deposit',
+        description: `Received $${(pd.amount_cents / 100).toFixed(2)}${pd.description ? ': ' + pd.description : ''}`,
+        referenceId: tx.lastInsertRowid,
+        referenceType: 'transaction',
+        amountCents: pd.amount_cents,
+      });
+
+      return tx.lastInsertRowid;
+    });
+
+    claimTx();
     res.json({ ok: true });
   } catch (err) {
     next(err);

@@ -69,7 +69,7 @@ export default function KidChoresPage() {
   useEffect(() => {
     if (!isParent) return;
     familyApi.getFamily()
-      .then(({ members }) => setKids(members.filter((m) => m.role === 'kid' && m.is_active)))
+      .then(({ members }) => setKids(members.filter((m) => (m.role === 'kid' || !!m.chores_enabled) && m.is_active)))
       .catch(() => {});
   }, [isParent]);
 

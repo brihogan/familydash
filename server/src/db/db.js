@@ -106,6 +106,60 @@ try {
   db.exec(`ALTER TABLE task_step_completions ADD COLUMN approval_status TEXT DEFAULT NULL`);
 } catch (_) { /* column already exists */ }
 
+// v18: allow_transfers on users — kids can use transfer feature (default on)
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN allow_transfers INTEGER NOT NULL DEFAULT 1`);
+} catch (_) { /* column already exists */ }
+
+// v19: require_currency_work on users — kids must use money popover to set transfer amounts
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN require_currency_work INTEGER NOT NULL DEFAULT 0`);
+} catch (_) { /* column already exists */ }
+
+// v20: remember flag on refresh_tokens — session vs persistent cookies
+try {
+  db.exec(`ALTER TABLE refresh_tokens ADD COLUMN remember INTEGER NOT NULL DEFAULT 1`);
+} catch (_) { /* column already exists */ }
+
+// v21: chores_enabled on users — parents can opt in to having chores
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN chores_enabled INTEGER NOT NULL DEFAULT 1`);
+  db.exec(`UPDATE users SET chores_enabled = 0 WHERE role = 'parent'`);
+} catch (_) { /* column already exists */ }
+
+// v22: allow_login on users — kids can be created without login credentials
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN allow_login INTEGER NOT NULL DEFAULT 1`);
+} catch (_) { /* column already exists */ }
+
+// v23: pending_deposits — deposits that kids with require_currency_work must "receive"
+db.exec(`
+  CREATE TABLE IF NOT EXISTS pending_deposits (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id    INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    amount_cents  INTEGER NOT NULL,
+    description   TEXT    NOT NULL DEFAULT '',
+    type          TEXT    NOT NULL DEFAULT 'deposit',
+    created_by_user_id INTEGER NOT NULL REFERENCES users(id),
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
+// v24: allocations JSON on pending_deposits — sub-account splits kid must figure out
+try {
+  db.exec(`ALTER TABLE pending_deposits ADD COLUMN allocations TEXT DEFAULT NULL`);
+} catch (_) { /* column already exists */ }
+
+// v25: allocations JSON on recurring_rules — sub-account splits for pending deposits
+try {
+  db.exec(`ALTER TABLE recurring_rules ADD COLUMN allocations TEXT DEFAULT NULL`);
+} catch (_) { /* column already exists */ }
+
+// v26: allow_withdraws on users — kids can use withdraw feature (default on)
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN allow_withdraws INTEGER NOT NULL DEFAULT 1`);
+} catch (_) { /* column already exists */ }
+
 // v8: rename account type 'tithing' → 'charity'
 // SQLite can't ALTER a CHECK constraint, so we recreate the accounts table.
 const hasTithing = db.prepare(`SELECT COUNT(*) AS n FROM accounts WHERE type = 'tithing'`).get().n;

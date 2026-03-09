@@ -21,7 +21,7 @@ export default function AccountCard({ account, selected, onClick, onEdit }) {
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setShowMoney(true); }}
-          className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center text-gray-300 dark:text-gray-600 hover:text-brand-500 dark:hover:text-brand-400 transition-colors"
+          className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center text-green-500 dark:text-green-400 hover:text-green-600 dark:hover:text-green-300 transition-colors"
           title="Visualize balance"
         >
           <FontAwesomeIcon icon={faMoneyBills} className="text-sm" />

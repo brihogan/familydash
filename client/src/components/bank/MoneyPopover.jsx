@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faXmark, faObjectGroup, faArrowsSplitUpAndLeft, faArrowLeft, faArrowUpFromBracket } from '@fortawesome/free-solid-svg-icons';
+import { faXmark, faObjectGroup, faArrowsSplitUpAndLeft, faArrowLeft, faArrowUpFromBracket, faRightLeft } from '@fortawesome/free-solid-svg-icons';
 import { formatCents } from '../../utils/formatCents.js';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -27,7 +27,7 @@ const BILL_H   = 45;
 const MAX_VIZ  = 5;
 const COIN_OFF = 4;
 const BILL_OFF = 3;
-const TOP_FRAC = 0.55;
+const TOP_FRAC = 0.52;
 const COLS     = 4;
 
 const MAX_COIN_H = COIN_D + COIN_OFF * (MAX_VIZ - 1); // 60
@@ -40,17 +40,17 @@ const FLIP_STAGGER_MS    =  90; // ms between consecutive ghost rises
 const FLIP_MAX_PER_DENOM =   4; // max individual ghosts shown per denomination
 
 // Action zone (mini panel, right side, vertically centred)
-const AZ_H_MIN     = 106;  // height when empty (icons + hint text)
+const AZ_H_MIN     = 78;   // height when empty (icons + hint text)
 const AZ_PAD_R     = 14;   // right margin from drag area edge
 const AZ_PAD_B     = 14;   // bottom margin from drag area edge
 const AZ_W_BASE    = 210;  // panel width for 0–2 active items
 const AZ_W_WIDE    = 260;  // panel width when 3 items fill all columns
 const AZ_COLS      = 3;    // item columns
-const AZ_ROW_H     = 90;   // height per row of items (generous for spacing)
+const AZ_ROW_H     = 72;   // height per row of items
 const AZ_INNER_PAD = 8;    // inner padding (base, used when empty)
 const AZ_HORIZ_PAD = 12;   // horizontal padding inside the panel on each side
-const AZ_BTN_H     = 56;   // button section height when zone has items
-const AZ_SEP       = 8;    // gap between last item row and button section
+const AZ_BTN_H     = 44;   // button section height when zone has items
+const AZ_SEP       = 4;    // gap between last item row and button section
 const AZ_H_BACK    = 340;  // height of split back-face (3 vertical option rows)
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -556,7 +556,7 @@ function FlipGhost({ oldDenom, newDenom, startX, startY, targetX, targetY,
 
 // ─── MoneyPopover ─────────────────────────────────────────────────────────────
 
-export default function MoneyPopover({ open, onClose, account }) {
+export default function MoneyPopover({ open, onClose, account, onSetAmount, receiveMode = false, receiveAmountCents = 0, receiveAllocations = [], onReceiveConfirm }) {
   const dragAreaRef       = useRef(null);
   const longPressTimerRef = useRef(null);
   const [size,      setSize]    = useState({ w: 0, h: 0 });
@@ -570,6 +570,23 @@ export default function MoneyPopover({ open, onClose, account }) {
   const [splitOptions,  setSplitOptions]  = useState([]);
   // flipGhosts: array of { id, oldDenom, newDenom, startX/Y, targetX/Y, riseDelay, zIdx }
   const [flipGhosts,    setFlipGhosts]    = useState([]);
+  const [receiveError,  setReceiveError]  = useState('');
+  const [receiveSubmitting, setReceiveSubmitting] = useState(false);
+  // Multi-step receive: step 0 = count total, step 1+ = allocation splits
+  const [receiveStep, setReceiveStep] = useState(0);
+  const [allocResults, setAllocResults] = useState([]); // [{ account_id, amount_cents }]
+  // Step transition animation: null | 'slide-out' (phase 1) | 'slide-up' (phase 2, step 0→1 only)
+  const [stepTransition, setStepTransition] = useState(null);
+  // Header bounce counter — incremented on each sub-account step to trigger CSS animation
+  const [headerBounce, setHeaderBounce] = useState(0);
+  const totalReceiveSteps = receiveMode ? 1 + receiveAllocations.length : 1;
+  const currentAlloc = receiveStep > 0 && receiveStep <= receiveAllocations.length
+    ? receiveAllocations[receiveStep - 1] : null;
+  const currentAllocCents = currentAlloc
+    ? (currentAlloc.type === 'percent'
+        ? Math.round(receiveAmountCents * currentAlloc.value / 100)
+        : currentAlloc.value)
+    : 0;
 
   // Detect Tailwind class-based dark mode reactively
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
@@ -584,10 +601,17 @@ export default function MoneyPopover({ open, onClose, account }) {
   // Build initial stacks from account balance
   useEffect(() => {
     if (!open) return;
-    const counts = computeBreakdown(account?.balance_cents ?? 0);
-    const ym = {};
-    for (const d of DENOMS) {
-      if (counts[d.key] > 0) ym[d.key] = counts[d.key];
+    let ym;
+    if (receiveMode) {
+      // In receive mode, show 5 of every denomination as an "infinite" bank
+      ym = {};
+      for (const d of DENOMS) ym[d.key] = 5;
+    } else {
+      const counts = computeBreakdown(account?.balance_cents ?? 0);
+      ym = {};
+      for (const d of DENOMS) {
+        if (counts[d.key] > 0) ym[d.key] = counts[d.key];
+      }
     }
     clearTimeout(longPressTimerRef.current);
     setYM(ym);
@@ -598,7 +622,13 @@ export default function MoneyPopover({ open, onClose, account }) {
     setShowSplitBack(false);
     setSplitOptions([]);
     setFlipGhosts([]);
-  }, [open, account?.balance_cents]);
+    setReceiveError('');
+    setReceiveSubmitting(false);
+    setReceiveStep(0);
+    setAllocResults([]);
+    setStepTransition(null);
+    setHeaderBounce(0);
+  }, [open, account?.balance_cents, receiveMode]);
 
   // Prevent pull-to-refresh / page scroll on iOS while the popover is open
   useEffect(() => {
@@ -629,6 +659,12 @@ export default function MoneyPopover({ open, onClose, account }) {
   const topH = size.h * TOP_FRAC;
   const ymPos = size.w > 0 ? computeZonePositions(yourMoney, size.w, 0,    topH)          : {};
   const exPos = size.w > 0 ? computeZonePositions(exchange,  size.w, topH, size.h - topH) : {};
+  // Target positions for exchange items settling into top zone (step 0→1 animation)
+  const exAsYmPos = stepTransition === 'settle' && size.w > 0
+    ? computeZonePositions(exchange, size.w, 0, topH) : {};
+
+  // Exchange zone total (cents) — used by "Use Amount" button
+  const exchangeTotal = DENOMS.reduce((s, d) => s + (exchange[d.key] ?? 0) * d.cents, 0);
 
   // Action zone geometry (top is fixed; zone grows downward as items are added)
   const azItemCount  = DENOMS.filter((d) => (action[d.key] ?? 0) > 0).length;
@@ -642,16 +678,20 @@ export default function MoneyPopover({ open, onClose, account }) {
   // Split: at least one piece in the zone is larger than a penny (has smaller denominations to break into)
   const splitEnabled = hasAction && DENOMS.some(d => d.cents > 1 && (action[d.key] ?? 0) > 0);
   const azRows      = Math.ceil(azItemCount / AZ_COLS);
-  const azInnerPad  = hasAction ? 51 : AZ_INNER_PAD;
+  const azInnerPad  = hasAction ? 40 : AZ_INNER_PAD;
   const azH         = showSplitBack
     ? AZ_H_BACK
     : hasAction ? azInnerPad + azRows * AZ_ROW_H + AZ_SEP + AZ_BTN_H : AZ_H_MIN;
   // Panel grows wider when 3 items fill all columns; narrows visually when empty.
   const azW          = azWFor(azItemCount);
-  const azEffectiveW = hasAction || showSplitBack ? azW : Math.round(AZ_W_BASE * 0.6);
+  const AZ_EMPTY_D   = AZ_H_MIN;        // circle diameter when empty
+  const AZ_EMPTY_PAD = 20;             // extra px to show beyond the center
+  const azEffectiveW = hasAction || showSplitBack ? azW : AZ_EMPTY_D;
   const azX          = size.w > 0 ? size.w - azW          - AZ_PAD_R : 9999; // hit-detection
-  const azPanelX     = size.w > 0 ? size.w - azEffectiveW - AZ_PAD_R : 9999; // visual panel left edge
-  const azTopY      = size.h > 0 ? size.h - azH - AZ_PAD_B : 9999;
+  const azPanelX     = hasAction || showSplitBack
+    ? (size.w > 0 ? size.w - azEffectiveW - AZ_PAD_R : 9999)
+    : (size.w > 0 ? size.w - AZ_EMPTY_D / 2 - AZ_EMPTY_PAD : 9999);
+  const azTopY      = size.h > 0 ? topH - azH / 2 : 9999;
   const azPos       = size.w > 0 ? computeActionPositions(action, azX, azTopY, azW, azInnerPad) : {};
 
   const isOverAZ   = drag
@@ -667,14 +707,20 @@ export default function MoneyPopover({ open, onClose, account }) {
   const handlePointerDown = useCallback((e, key, zone) => {
     if (landing.length > 0) return;
     e.preventDefault();
-    // Capture to the drag area (never unmounts) so pointerup always fires even if
-    // the source MoneyStack disappears from the DOM mid-drag
     dragAreaRef.current?.setPointerCapture(e.pointerId);
     clearTimeout(longPressTimerRef.current);
 
-    // Capture full count BEFORE modifying state (for long-press upgrade)
     const srcState   = zone === 'your' ? yourMoney : zone === 'action' ? action : exchange;
     const fullCount  = srcState[key] ?? 0;
+
+    // In receive mode step 0: "your" zone is infinite — don't decrement, only drag 1, no long-press
+    if (receiveMode && receiveStep === 0 && zone === 'your') {
+      const rect  = dragAreaRef.current.getBoundingClientRect();
+      const pressX = e.clientX - rect.left;
+      const pressY = e.clientY - rect.top;
+      setDrag({ key, zone, curX: pressX, curY: pressY, pressX, pressY, count: 1 });
+      return;
+    }
 
     // Remove 1 from source stack immediately (normal single-drag)
     const set = zone === 'your' ? setYM : zone === 'action' ? setAction : setEx;
@@ -691,21 +737,19 @@ export default function MoneyPopover({ open, onClose, account }) {
     const pressY = e.clientY - rect.top;
     setDrag({ key, zone, curX: pressX, curY: pressY, pressX, pressY, count: 1 });
 
-    // Long-press (500 ms): upgrade drag to grab the whole stack
-    if (fullCount > 1) {
+    // Long-press (500 ms): upgrade drag to grab the whole stack (not in receive mode step 0)
+    if (fullCount > 1 && !(receiveMode && receiveStep === 0)) {
       longPressTimerRef.current = setTimeout(() => {
-        // Remove all remaining items of this denomination from the source zone
         set((prev) => {
           if (!(key in prev)) return prev;
           const next = { ...prev };
           delete next[key];
           return next;
         });
-        // Upgrade drag count so the orbit visual activates
         setDrag((prev) => (prev && prev.key === key ? { ...prev, count: fullCount } : prev));
       }, 500);
     }
-  }, [landing, yourMoney, action, exchange]);
+  }, [landing, yourMoney, action, exchange, receiveMode, receiveStep]);
 
   // Fires via event bubbling from the pointer-captured MoneyStack element
   const LONG_PRESS_MOVE_THRESHOLD = 8; // px — cancel long-press if pointer drifts this far
@@ -727,14 +771,16 @@ export default function MoneyPopover({ open, onClose, account }) {
     setDrag((prev) => ({ ...prev, curX: newX, curY: newY }));
   }, [drag]);
 
+  const TAP_THRESHOLD = 8; // px — if pointer moves less than this, treat as a tap
+
   const handlePointerUp = useCallback(() => {
     if (!drag) return;
     clearTimeout(longPressTimerRef.current);
-    const { key, curX, curY, count = 1 } = drag;
+    const { key, curX, curY, pressX, pressY, zone: srcZone, count = 1 } = drag;
     setDrag(null);
 
     // Helper: create vertical-stack landing ghosts for `n` items landing at `snapPos`
-    const makeGhosts = (n, snapPos, targetZone) => {
+    const makeGhosts = (n, snapPos, targetZone, fromX = curX, fromY = curY) => {
       if (!snapPos) return [];
       const denom = DENOMS.find((d) => d.key === key);
       const off   = denom.type === 'coin' ? COIN_OFF : BILL_OFF;
@@ -743,8 +789,8 @@ export default function MoneyPopover({ open, onClose, account }) {
       return Array.from({ length: viz }).map((_, i) => ({
         key,
         zone:   targetZone,
-        startX: curX + (Math.random() * 8 - 4),
-        startY: curY + (Math.random() * 8 - 4),
+        startX: fromX + (Math.random() * 8 - 4),
+        startY: fromY + (Math.random() * 8 - 4),
         endX:   snapPos.x,
         endY:   snapPos.y + off * ((viz - 1) / 2 - i),
         delay:  i * 40,
@@ -752,27 +798,55 @@ export default function MoneyPopover({ open, onClose, account }) {
       }));
     };
 
+    // Detect tap (minimal movement) — send item to the opposite zone
+    const dx = curX - pressX;
+    const dy = curY - pressY;
+    const isTap = Math.sqrt(dx * dx + dy * dy) < TAP_THRESHOLD;
+
+    if (isTap && (srcZone === 'your' || srcZone === 'exchange')) {
+      if (srcZone === 'your') {
+        // Tap on your money → send to exchange
+        const next    = { ...exchange, [key]: (exchange[key] ?? 0) + count };
+        const snapPos = computeZonePositions(next, size.w, topH, size.h - topH)[key];
+        setEx(next);
+        setLanding((prev) => [...prev, ...makeGhosts(count, snapPos, 'exchange', pressX, pressY)]);
+      } else {
+        // Tap on exchange → send back to your money
+        if (receiveMode && receiveStep === 0) {
+          // In receive mode step 0, just remove from exchange (source wasn't decremented)
+          const snapPos = computeZonePositions(yourMoney, size.w, 0, topH)[key] || { x: pressX, y: pressY / 2 };
+          setLanding((prev) => [...prev, ...makeGhosts(count, snapPos, 'your', pressX, pressY)]);
+        } else {
+          const next    = { ...yourMoney, [key]: (yourMoney[key] ?? 0) + count };
+          const snapPos = computeZonePositions(next, size.w, 0, topH)[key];
+          setYM(next);
+          setLanding((prev) => [...prev, ...makeGhosts(count, snapPos, 'your', pressX, pressY)]);
+        }
+      }
+      return;
+    }
+
     // Recompute action zone bounds (size/action are closure-captured)
     const curAzItemCount = DENOMS.filter((d) => (action[d.key] ?? 0) > 0).length;
     const curAzHasAction = curAzItemCount > 0;
     const curAzW = azWFor(curAzItemCount);
     const curAzH = curAzHasAction
-      ? 51 + Math.ceil(curAzItemCount / AZ_COLS) * AZ_ROW_H + AZ_SEP + AZ_BTN_H
+      ? 40 + Math.ceil(curAzItemCount / AZ_COLS) * AZ_ROW_H + AZ_SEP + AZ_BTN_H
       : AZ_H_MIN;
     const curAzX    = size.w - curAzW - AZ_PAD_R;
-    const curAzTopY = size.h - curAzH - AZ_PAD_B;
+    const curAzTopY = topH - curAzH / 2;
     const inAZ = curX >= curAzX && curX <= curAzX + curAzW
               && curY >= curAzTopY && curY <= curAzTopY + curAzH;
 
     if (inAZ) {
       const next           = { ...action, [key]: (action[key] ?? 0) + count };
       const newAzItemCount = DENOMS.filter((d) => (next[d.key] ?? 0) > 0).length;
-      const newInnerPad    = newAzItemCount > 0 ? 51 : AZ_INNER_PAD;
+      const newInnerPad    = newAzItemCount > 0 ? 40 : AZ_INNER_PAD;
       const newAzRows      = Math.ceil(newAzItemCount / AZ_COLS);
-      const newAzH         = newAzItemCount > 0 ? 51 + newAzRows * AZ_ROW_H + AZ_SEP + AZ_BTN_H : AZ_H_MIN;
+      const newAzH         = newAzItemCount > 0 ? 40 + newAzRows * AZ_ROW_H + AZ_SEP + AZ_BTN_H : AZ_H_MIN;
       const newAzW         = azWFor(newAzItemCount);
       const newAzX         = size.w - newAzW - AZ_PAD_R;
-      const newAzTopY      = size.h - newAzH - AZ_PAD_B;
+      const newAzTopY      = topH - newAzH / 2;
       const snapPos        = computeActionPositions(next, newAzX, newAzTopY, newAzW, newInnerPad)[key];
       setAction(next);
       setLanding((prev) => [...prev, ...makeGhosts(count, snapPos, 'action')]);
@@ -780,20 +854,24 @@ export default function MoneyPopover({ open, onClose, account }) {
     }
 
     const inExchange = curY >= topH;
-    const destZone   = inExchange ? 'exchange' : 'your';
 
     if (inExchange) {
       const next    = { ...exchange, [key]: (exchange[key] ?? 0) + count };
       const snapPos = computeZonePositions(next, size.w, topH, size.h - topH)[key];
       setEx(next);
       setLanding((prev) => [...prev, ...makeGhosts(count, snapPos, 'exchange')]);
+    } else if (receiveMode && receiveStep === 0 && drag.zone === 'your') {
+      // Dragged from infinite bank back to bank — just discard (nothing was removed)
+    } else if (receiveMode && receiveStep === 0 && drag.zone === 'exchange') {
+      const snapPos = computeZonePositions(yourMoney, size.w, 0, topH)[key] || { x: curX, y: curY / 2 };
+      setLanding((prev) => [...prev, ...makeGhosts(count, snapPos, 'your')]);
     } else {
       const next    = { ...yourMoney, [key]: (yourMoney[key] ?? 0) + count };
       const snapPos = computeZonePositions(next, size.w, 0, topH)[key];
       setYM(next);
       setLanding((prev) => [...prev, ...makeGhosts(count, snapPos, 'your')]);
     }
-  }, [drag, topH, yourMoney, exchange, action, size]);
+  }, [drag, topH, yourMoney, exchange, action, size, receiveMode, receiveStep, receiveAmountCents, currentAllocCents, currentAlloc, allocResults, receiveAllocations, totalReceiveSteps, onReceiveConfirm]);
 
   // Merge animation:
   //   • action is NOT cleared — panel height stays stable during the animation
@@ -819,21 +897,21 @@ export default function MoneyPopover({ open, onClose, account }) {
     // Current action zone geometry (same logic as render body)
     const curItemCount = DENOMS.filter(d => (action[d.key] ?? 0) > 0).length;
     const curRows      = Math.ceil(curItemCount / AZ_COLS);
-    const curInnerPad  = curItemCount > 0 ? 51 : AZ_INNER_PAD;
+    const curInnerPad  = curItemCount > 0 ? 40 : AZ_INNER_PAD;
     const curAzH       = curInnerPad + curRows * AZ_ROW_H + AZ_SEP + AZ_BTN_H;
     const curAzW       = azWFor(curItemCount);
     const curAzX       = size.w - curAzW - AZ_PAD_R;
-    const curAzTopY    = size.h - curAzH - AZ_PAD_B;
+    const curAzTopY    = size.h * TOP_FRAC - curAzH / 2;
     const curPos       = computeActionPositions(action, curAzX, curAzTopY, curAzW, curInnerPad);
 
     // Target: where the merged denomination will sit in the new action zone layout
     const newItemCount  = DENOMS.filter(d => (newAction[d.key] ?? 0) > 0).length;
     const newRows       = Math.ceil(newItemCount / AZ_COLS);
-    const newInnerPad   = newItemCount > 0 ? 51 : AZ_INNER_PAD;
+    const newInnerPad   = newItemCount > 0 ? 40 : AZ_INNER_PAD;
     const newAzH        = newInnerPad + newRows * AZ_ROW_H + AZ_SEP + AZ_BTN_H;
     const newAzW        = azWFor(newItemCount);
     const newAzX        = size.w - newAzW - AZ_PAD_R;
-    const newAzTopY     = size.h - newAzH - AZ_PAD_B;
+    const newAzTopY     = size.h * TOP_FRAC - newAzH / 2;
     const newPos        = computeActionPositions(newAction, newAzX, newAzTopY, newAzW, newInnerPad);
     const tgt           = newPos[targetDenom.key];
     const targetX       = tgt?.x ?? (newAzX + newAzW / 2);
@@ -892,12 +970,12 @@ export default function MoneyPopover({ open, onClose, account }) {
   const handleApplySplit = useCallback((optionCounts, buttonEl) => {
     // Compute where items will land in the (new) action zone front face
     const newItemCount = DENOMS.filter(d => (optionCounts[d.key] ?? 0) > 0).length;
-    const newInnerPad  = newItemCount > 0 ? 51 : AZ_INNER_PAD;
+    const newInnerPad  = newItemCount > 0 ? 40 : AZ_INNER_PAD;
     const newAzRows    = Math.ceil(newItemCount / AZ_COLS);
     const newAzH       = newItemCount > 0 ? newInnerPad + newAzRows * AZ_ROW_H + AZ_SEP + AZ_BTN_H : AZ_H_MIN;
     const newAzW       = azWFor(newItemCount);
     const newAzX       = size.w - newAzW - AZ_PAD_R;
-    const newAzTopY    = size.h - newAzH - AZ_PAD_B;
+    const newAzTopY    = size.h * TOP_FRAC - newAzH / 2;
     const newAzPos     = computeActionPositions(optionCounts, newAzX, newAzTopY, newAzW, newInnerPad);
 
     // Compute per-denomination ghost start positions from within the tapped button.
@@ -924,7 +1002,7 @@ export default function MoneyPopover({ open, onClose, account }) {
       const curItemCount = DENOMS.filter(d => (action[d.key] ?? 0) > 0).length;
       const curAzW = azWFor(curItemCount);
       const curAzX = size.w - curAzW - AZ_PAD_R;
-      const backTopY = size.h - AZ_H_BACK - AZ_PAD_B;
+      const backTopY = size.h * TOP_FRAC - AZ_H_BACK / 2;
       denomsInOpt.forEach(d => {
         itemOrigins[d.key] = { x: curAzX + curAzW / 2, y: backTopY + AZ_H_BACK / 2 };
       });
@@ -963,24 +1041,26 @@ export default function MoneyPopover({ open, onClose, account }) {
     setLanding(prev => [...prev, ...ghosts]);
   }, [action, size, dragAreaRef]);
 
-  // Animate all action-zone items back to Your Money.
-  // Every individual item flies from the swap area center; same-denom cards
-  // fan out horizontally at their destination and cascade with a stagger delay.
+  // Animate all action-zone items back to Your Money (or Exchange in receive mode).
   const handleReset = useCallback(() => {
     if (!Object.keys(action).length) return;
 
-    const newYM = { ...yourMoney };
+    // In receive mode step 0, items go back to exchange (bank money); otherwise to yourMoney
+    const destState = (receiveMode && receiveStep === 0) ? exchange : yourMoney;
+    const newDest = { ...destState };
     for (const [k, count] of Object.entries(action)) {
-      newYM[k] = (newYM[k] ?? 0) + count;
+      newDest[k] = (newDest[k] ?? 0) + count;
     }
     const newTopH      = size.h * TOP_FRAC;
-    const newYmPos     = computeZonePositions(newYM, size.w, 0, newTopH);
+    const destPos      = (receiveMode && receiveStep === 0)
+      ? computeZonePositions(newDest, size.w, newTopH, size.h - newTopH)
+      : computeZonePositions(newDest, size.w, 0, newTopH);
     const resetCount   = Object.keys(action).length;
     const resetAzW     = azWFor(resetCount);
     const azXLocal     = size.w - resetAzW - AZ_PAD_R;
     const resetRows    = Math.ceil(resetCount / AZ_COLS);
-    const resetAzH     = 51 + resetRows * AZ_ROW_H + AZ_SEP + AZ_BTN_H;
-    const azTopYLocal  = size.h - resetAzH - AZ_PAD_B;
+    const resetAzH     = 40 + resetRows * AZ_ROW_H + AZ_SEP + AZ_BTN_H;
+    const azTopYLocal  = size.h * TOP_FRAC - resetAzH / 2;
     const azCenterX    = azXLocal + resetAzW / 2;
     const azCenterY    = azTopYLocal + resetAzH / 2;
 
@@ -988,14 +1068,14 @@ export default function MoneyPopover({ open, onClose, account }) {
     let gid = Date.now();
     for (const d of DENOMS) {
       const count = action[d.key] ?? 0;
-      if (count === 0 || !newYmPos[d.key]) continue;
-      const { x: endX, y: endY } = newYmPos[d.key];
+      if (count === 0 || !destPos[d.key]) continue;
+      const { x: endX, y: endY } = destPos[d.key];
       const off = d.type === 'coin' ? COIN_OFF : BILL_OFF;
       const viz = Math.min(count, MAX_VIZ);
       for (let i = 0; i < viz; i++) {
         ghosts.push({
           key:    d.key,
-          zone:   'your',
+          zone:   receiveMode ? 'exchange' : 'your',
           startX: azCenterX + (Math.random() * 8 - 4),
           startY: azCenterY + (Math.random() * 8 - 4),
           endX:   endX,
@@ -1006,10 +1086,14 @@ export default function MoneyPopover({ open, onClose, account }) {
       }
     }
 
-    setYM(newYM);
+    if (receiveMode && receiveStep === 0) {
+      setEx(newDest);
+    } else {
+      setYM(newDest);
+    }
     setAction({});
     setLanding(prev => [...prev, ...ghosts]);
-  }, [action, yourMoney, size]);
+  }, [action, yourMoney, exchange, size, receiveMode, receiveStep]);
 
   if (!open) return null;
 
@@ -1041,6 +1125,26 @@ export default function MoneyPopover({ open, onClose, account }) {
         from { transform: scale(0.72); }
         to   { transform: scale(0.92); }
       }
+      /* Step transition: corkscrew stacks off to the left */
+      @keyframes step-slide-left {
+        0%   { transform: translateX(0) rotate(0deg) scale(1); opacity: 1; }
+        30%  { transform: translateX(-80px) rotate(-180deg) scale(0.8); opacity: 0.85; }
+        60%  { transform: translateX(-200px) rotate(-450deg) scale(0.5); opacity: 0.5; }
+        100% { transform: translateX(-400px) rotate(-720deg) scale(0.2); opacity: 0; }
+      }
+      /* Step transition: slide bottom stacks up to top zone */
+      @keyframes step-slide-up {
+        from { transform: translateY(0); opacity: 1; }
+        to   { transform: translateY(-45vh); opacity: 0; }
+      }
+      /* Header bounce on new sub-account step */
+      @keyframes header-bounce {
+        0%   { transform: scale(1); }
+        25%  { transform: scale(1.08); }
+        50%  { transform: scale(0.95); }
+        75%  { transform: scale(1.04); }
+        100% { transform: scale(1); }
+      }
     `}</style>
     <div className="fixed inset-0 z-50 flex items-center justify-center sm:p-4">
       {/* Backdrop */}
@@ -1048,17 +1152,37 @@ export default function MoneyPopover({ open, onClose, account }) {
 
       {/* Panel */}
       <div
-        className="relative z-10 w-full sm:max-w-lg flex flex-col sm:rounded-[38px] sm:shadow-2xl overflow-hidden bg-white dark:bg-gray-900 h-full sm:h-[88vh] sm:max-h-[620px]"
+        className="relative z-10 w-full sm:max-w-lg flex flex-col sm:rounded-2xl sm:shadow-2xl overflow-hidden bg-white dark:bg-gray-900 h-full sm:h-[88vh] sm:max-h-[620px]"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shrink-0">
-          <div>
-            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{account?.name}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{formatCents(account?.balance_cents ?? 0)}</p>
+        <div className="relative flex items-center justify-center px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shrink-0">
+          <div
+            className="text-center"
+            key={`header-bounce-${headerBounce}`}
+            style={headerBounce > 0 ? { animation: 'header-bounce 500ms ease' } : undefined}
+          >
+            <p className="text-base font-semibold text-gray-900 dark:text-gray-100">
+              {receiveMode
+                ? (receiveStep === 0
+                    ? 'Receiving money'
+                    : `Split for ${currentAlloc?.account_name || 'account'}`)
+                : account?.name}
+              <span className="mx-1.5 text-gray-300 dark:text-gray-600">·</span>
+              <span className="text-gray-500 dark:text-gray-400">
+                {receiveMode
+                  ? formatCents(receiveStep === 0 ? receiveAmountCents : currentAllocCents)
+                  : formatCents(account?.balance_cents ?? 0)}
+              </span>
+            </p>
+            {receiveMode && totalReceiveSteps > 1 && (
+              <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
+                Step {receiveStep + 1} of {totalReceiveSteps}
+              </p>
+            )}
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            className="absolute right-3 p-2 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
             <FontAwesomeIcon icon={faXmark} />
           </button>
@@ -1079,7 +1203,9 @@ export default function MoneyPopover({ open, onClose, account }) {
             style={{ height: `${TOP_FRAC * 100}%` }}
           >
             <p className="text-[10px] font-semibold tracking-widest text-slate-400 dark:text-gray-500 uppercase pt-2 text-center pointer-events-none">
-              Your Money
+              {receiveMode
+                ? (receiveStep === 0 ? 'Bank Money' : 'My Money')
+                : 'Your Money'}
             </p>
           </div>
 
@@ -1089,9 +1215,13 @@ export default function MoneyPopover({ open, onClose, account }) {
             className="absolute inset-x-0 bottom-0 bg-slate-100/80 dark:bg-gray-700/50"
             style={{ top: `${TOP_FRAC * 100}%` }}
           >
-            <p className="text-[10px] font-semibold tracking-widest text-slate-400 dark:text-gray-500 uppercase pt-3 text-center pointer-events-none">
-              Exchange Area
-            </p>
+            <div className="flex items-center justify-center gap-2 pt-3 px-3">
+              <p className="text-[10px] font-semibold tracking-widest text-slate-400 dark:text-gray-500 uppercase pointer-events-none">
+                {receiveMode
+                  ? (receiveStep === 0 ? 'My New Money' : (currentAlloc?.account_name || 'Sub-account'))
+                  : 'Exchange Area'}
+              </p>
+            </div>
           </div>
 
           {/* ── Zone border overlays ─────────────────────────────────── */}
@@ -1099,7 +1229,7 @@ export default function MoneyPopover({ open, onClose, account }) {
             style={{
               position:     'absolute',
               inset:        `4px 4px calc(${(1 - TOP_FRAC) * 100}% + 6px) 4px`,
-              borderRadius: 38,
+              borderRadius: 16,
               borderWidth:  25,
               borderStyle:  'solid',
               borderColor:  activeZone === 'your' ? 'rgba(99,102,241,0.18)' : 'rgba(148,163,184,0.10)',
@@ -1112,7 +1242,7 @@ export default function MoneyPopover({ open, onClose, account }) {
             style={{
               position:     'absolute',
               inset:        `calc(${TOP_FRAC * 100}% + 6px) 4px 4px 4px`,
-              borderRadius: 38,
+              borderRadius: 16,
               borderWidth:  25,
               borderStyle:  'solid',
               borderColor:  activeZone === 'exchange' ? 'rgba(99,102,241,0.18)' : 'rgba(148,163,184,0.10)',
@@ -1133,19 +1263,26 @@ export default function MoneyPopover({ open, onClose, account }) {
           )}
 
           {/* ── Your Money stacks ──────────────────────────────────── */}
-          {DENOMS.map((d) => {
+          {stepTransition !== 'settle' && DENOMS.map((d) => {
             const count = visCount('your', d.key);
             const pos   = ymPos[d.key];
             if (count <= 0 || !pos) return null;
             return (
-              <MoneyStack
-                key={`ym-${d.key}`}
-                denom={d}
-                count={count}
-                x={pos.x}
-                y={pos.y}
-                onPointerDown={(e) => handlePointerDown(e, d.key, 'your')}
-              />
+              <div
+                key={`ym-wrap-${d.key}`}
+                style={stepTransition === 'slide-out' && receiveStep === 0
+                  ? { animation: 'step-slide-left 400ms ease-in forwards' }
+                  : undefined}
+              >
+                <MoneyStack
+                  key={`ym-${d.key}`}
+                  denom={d}
+                  count={count}
+                  x={pos.x}
+                  y={pos.y}
+                  onPointerDown={stepTransition ? undefined : (e) => handlePointerDown(e, d.key, 'your')}
+                />
+              </div>
             );
           })}
 
@@ -1154,15 +1291,23 @@ export default function MoneyPopover({ open, onClose, account }) {
             const count = visCount('exchange', d.key);
             const pos   = exPos[d.key];
             if (count <= 0 || !pos) return null;
+            // During settle phase, use top-zone positions so stacks glide up
+            const targetPos = stepTransition === 'settle' && exAsYmPos[d.key]
+              ? exAsYmPos[d.key] : pos;
+            const animStyle = stepTransition === 'slide-out' && receiveStep > 0
+              ? { animation: 'step-slide-left 500ms ease-in forwards', transformOrigin: `${pos.x}px ${pos.y}px` }
+              : undefined;
             return (
-              <MoneyStack
-                key={`ex-${d.key}`}
-                denom={d}
-                count={count}
-                x={pos.x}
-                y={pos.y}
-                onPointerDown={(e) => handlePointerDown(e, d.key, 'exchange')}
-              />
+              <div key={`ex-wrap-${d.key}`} style={animStyle}>
+                <MoneyStack
+                  key={`ex-${d.key}`}
+                  denom={d}
+                  count={count}
+                  x={targetPos.x}
+                  y={targetPos.y}
+                  onPointerDown={stepTransition ? undefined : (e) => handlePointerDown(e, d.key, 'exchange')}
+                />
+              </div>
             );
           })}
 
@@ -1215,7 +1360,7 @@ export default function MoneyPopover({ open, onClose, account }) {
                   style={{
                     position: 'absolute', width: '100%', height: '100%',
                     backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
-                    borderRadius: 16,
+                    borderRadius: hasAction ? 16 : `${AZ_EMPTY_D / 2}px 0 0 ${AZ_EMPTY_D / 2}px`,
                     borderWidth: hasAction ? 6 : 3, borderStyle: 'solid',
                     borderColor: activeZone === 'action'
                       ? 'rgba(99,102,241,0.55)'
@@ -1273,8 +1418,8 @@ export default function MoneyPopover({ open, onClose, account }) {
                       flexDirection: hasAction ? 'row' : 'column',
                       alignItems: 'center',
                       justifyContent: hasAction ? 'space-between' : 'center',
-                      gap: hasAction ? 6 : 6,
-                      padding: hasAction ? '5px 8px' : '10px 12px 4px',
+                      gap: hasAction ? 6 : 4,
+                      padding: hasAction ? '4px 8px' : '6px 10px 4px',
                       transition: 'height 220ms ease',
                     }}
                   >
@@ -1285,7 +1430,7 @@ export default function MoneyPopover({ open, onClose, account }) {
                           onClick={handleMerge}
                           style={{
                             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            gap: 5, padding: '9px 6px', borderRadius: 7,
+                            gap: 5, padding: '6px 6px', borderRadius: 7,
                             cursor: (mergeEnabled && flipGhosts.length === 0) ? 'pointer' : 'not-allowed',
                             border: `1.5px solid ${isDark ? 'rgba(99,102,241,0.5)' : 'rgba(99,102,241,0.35)'}`,
                             background: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.09)',
@@ -1303,7 +1448,7 @@ export default function MoneyPopover({ open, onClose, account }) {
                           onClick={handleSplit}
                           style={{
                             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            gap: 5, padding: '9px 6px', borderRadius: 7,
+                            gap: 5, padding: '6px 6px', borderRadius: 7,
                             cursor: splitEnabled ? 'pointer' : 'not-allowed',
                             border: `1.5px solid ${isDark ? 'rgba(52,211,153,0.5)' : 'rgba(16,185,129,0.35)'}`,
                             background: isDark ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.09)',
@@ -1317,15 +1462,7 @@ export default function MoneyPopover({ open, onClose, account }) {
                         </button>
                       </>
                     ) : (
-                      <>
-                        <div style={{ display: 'flex', flexDirection: 'row', gap: 14 }}>
-                          <FontAwesomeIcon icon={faObjectGroup}          style={{ fontSize: 19, color: isDark ? 'rgba(148,163,184,0.5)' : 'rgba(100,116,139,0.45)' }} />
-                          <FontAwesomeIcon icon={faArrowsSplitUpAndLeft} style={{ fontSize: 19, color: isDark ? 'rgba(148,163,184,0.5)' : 'rgba(100,116,139,0.45)' }} />
-                        </div>
-                        <p style={{ margin: 0, fontSize: 8.5, lineHeight: 1.4, textAlign: 'center', color: isDark ? 'rgba(148,163,184,0.6)' : 'rgba(100,116,139,0.5)' }}>
-                          Drag money into this area to split or break it into different amounts
-                        </p>
-                      </>
+                      <FontAwesomeIcon icon={faRightLeft} style={{ fontSize: 18, marginLeft: -(AZ_EMPTY_D / 2 - AZ_EMPTY_PAD) + 11, color: isDark ? 'rgba(148,163,184,0.5)' : 'rgba(100,116,139,0.45)' }} />
                     )}
                   </div>
                 </div>
@@ -1432,6 +1569,123 @@ export default function MoneyPopover({ open, onClose, account }) {
             );
           })}
         </div>
+
+        {/* ── USE / RECEIVE button footer ─────────────────────────────── */}
+        {receiveMode ? (() => {
+          const isLastStep = receiveStep >= totalReceiveSteps - 1;
+          const targetCents = receiveStep === 0 ? receiveAmountCents : currentAllocCents;
+          const isExact = exchangeTotal === targetCents;
+          return (
+            <div className="shrink-0 px-4 py-3 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
+              {receiveError && (
+                <p className="text-sm text-red-500 text-center mb-2">{receiveError}</p>
+              )}
+              <button
+                type="button"
+                disabled={exchangeTotal === 0 || receiveSubmitting || !!stepTransition}
+                onClick={async () => {
+                  if (!isExact) {
+                    setReceiveError(`That's ${formatCents(exchangeTotal)} — not quite right! The amount should be ${formatCents(targetCents)}.`);
+                    return;
+                  }
+                  setReceiveError('');
+
+                  if (!isLastStep) {
+                    // Start slide-out animation, then update state after it finishes
+                    setStepTransition('slide-out');
+
+                    // Capture values before async delay
+                    const capturedStep = receiveStep;
+                    const capturedExchange = { ...exchange };
+                    const capturedYourMoney = { ...yourMoney };
+                    const capturedCurrentAlloc = currentAlloc;
+                    const capturedExchangeTotal = exchangeTotal;
+
+                    if (capturedStep === 0) {
+                      // Step 0→1: two-phase animation
+                      // Phase 1 (400ms): bank money slides left
+                      // Phase 2 (300ms): exchange stacks glide up to top zone positions
+                      setTimeout(() => {
+                        // Enter settle phase — exchange stacks glide to top zone positions
+                        // Clear bank stacks, keep exchange (it renders at top-zone positions)
+                        setYM({});
+                        setAction({});
+                        setStepTransition('settle');
+                        setReceiveStep(1);
+                        setHeaderBounce((b) => b + 1);
+                      }, 400);
+                      setTimeout(() => {
+                        // Settling done — move exchange into yourMoney for real
+                        setYM({ ...capturedExchange });
+                        setEx({});
+                        setStepTransition(null);
+                      }, 750);
+                    } else {
+                      // Step 1+→next: single-phase slide-left
+                      setTimeout(() => {
+                        if (capturedCurrentAlloc) {
+                          setAllocResults((prev) => [...prev, { account_id: capturedCurrentAlloc.account_id, amount_cents: capturedExchangeTotal }]);
+                        }
+                        const remaining = { ...capturedYourMoney };
+                        setYM(remaining);
+                        setEx({});
+                        setAction({});
+                        setReceiveStep(capturedStep + 1);
+                        setHeaderBounce((b) => b + 1);
+                        setStepTransition(null);
+                      }, 450);
+                    }
+                  } else {
+                    // Final step: corkscrew animation then submit
+                    setStepTransition('slide-out');
+                    const finalAllocs = receiveStep > 0 && currentAlloc
+                      ? [...allocResults, { account_id: currentAlloc.account_id, amount_cents: exchangeTotal }]
+                      : allocResults;
+                    setTimeout(async () => {
+                      setReceiveSubmitting(true);
+                      try {
+                        await onReceiveConfirm(receiveAmountCents, finalAllocs.length ? finalAllocs : undefined);
+                      } catch (err) {
+                        setReceiveError(err.response?.data?.error || 'Failed to receive money.');
+                        setReceiveSubmitting(false);
+                        setStepTransition(null);
+                      }
+                    }, 500);
+                  }
+                }}
+                className={`w-full py-3 rounded-xl text-base font-bold tracking-wide uppercase transition-colors shadow-md ${
+                  isExact
+                    ? 'bg-green-500 hover:bg-green-600 text-white'
+                    : exchangeTotal > 0
+                      ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                {receiveSubmitting
+                  ? 'Receiving…'
+                  : isExact
+                    ? (isLastStep ? 'Receive this money!' : `Next → ${receiveAllocations[receiveStep]?.account_name || 'Split'}`)
+                    : 'Use this amount'}
+              </button>
+            </div>
+          );
+        })()
+        : onSetAmount ? (
+          <div className="shrink-0 px-4 py-3 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
+            <button
+              type="button"
+              disabled={exchangeTotal === 0}
+              onClick={() => { onSetAmount(exchangeTotal); onClose(); }}
+              className={`w-full py-3 rounded-xl text-base font-bold tracking-wide uppercase transition-colors shadow-md ${
+                exchangeTotal > 0
+                  ? 'bg-brand-500 hover:bg-brand-600 text-white'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              Use this amount
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
     </>

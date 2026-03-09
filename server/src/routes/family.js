@@ -18,7 +18,8 @@ const router = Router();
 router.get('/accounts', authenticate, (req, res, next) => {
   try {
     const accounts = db.prepare(`
-      SELECT a.*, u.name AS owner_name, u.role AS owner_role
+      SELECT a.*, u.name AS owner_name, u.role AS owner_role,
+             u.avatar_color AS owner_avatar_color, u.avatar_emoji AS owner_avatar_emoji
       FROM accounts a
       JOIN users u ON u.id = a.user_id
       WHERE u.family_id = ? AND u.is_active = 1 AND a.is_active = 1
@@ -37,7 +38,8 @@ router.get('/', authenticate, (req, res, next) => {
     const family = db.prepare('SELECT id, name, created_at FROM families WHERE id = ?').get(req.user.familyId);
     const members = db.prepare(`
       SELECT u.id, u.name, u.username, u.email, u.role, u.avatar_color, u.avatar_emoji, u.ticket_balance,
-             u.is_active, u.sort_order, u.show_on_dashboard, u.show_balance_on_dashboard, u.require_task_approval, u.created_at,
+             u.is_active, u.sort_order, u.show_on_dashboard, u.show_balance_on_dashboard, u.require_task_approval,
+             u.allow_transfers, u.allow_withdraws, u.require_currency_work, u.chores_enabled, u.allow_login, u.created_at,
              COALESCE(ct.daily_potential, 0) AS daily_ticket_potential
       FROM users u
       LEFT JOIN (
@@ -67,8 +69,9 @@ const AddUserSchema = z.discriminatedUnion('role', [
   z.object({
     role: z.literal('kid'),
     name: z.string().min(1).max(100),
-    username: z.string().min(1).max(50),
-    pin: z.string().regex(/^\d{4}$/, 'PIN must be 4 digits'),
+    allowLogin: z.boolean().optional(),
+    username: z.string().min(1).max(50).optional(),
+    pin: z.string().regex(/^\d{4}$/, 'PIN must be 4 digits').optional(),
     avatarColor: z.string().optional(),
     avatarEmoji: z.string().max(10).nullable().optional(),
   }),
@@ -87,14 +90,22 @@ router.post('/users', authenticate, requireRole('parent'), async (req, res, next
     const body = AddUserSchema.parse(req.body);
 
     if (body.role === 'kid') {
-      const exists = db.prepare('SELECT id FROM users WHERE username = ?').get(body.username);
-      if (exists) return res.status(409).json({ error: 'Username already taken.' });
+      const allowLogin = body.allowLogin !== false && body.username && body.pin;
+      let usernameVal = null;
+      let pinHash = null;
 
-      const pinHash = await hashPin(body.pin);
+      if (allowLogin) {
+        if (!body.username || !body.pin) return res.status(400).json({ error: 'Username and PIN are required when login is enabled.' });
+        const exists = db.prepare('SELECT id FROM users WHERE username = ?').get(body.username);
+        if (exists) return res.status(409).json({ error: 'Username already taken.' });
+        usernameVal = body.username;
+        pinHash = await hashPin(body.pin);
+      }
+
       const result = db.prepare(`
-        INSERT INTO users (family_id, name, username, pin_hash, role, avatar_color, avatar_emoji)
-        VALUES (?, ?, ?, ?, 'kid', ?, ?)
-      `).run(req.user.familyId, body.name, body.username, pinHash, body.avatarColor || '#6366f1', body.avatarEmoji ?? null);
+        INSERT INTO users (family_id, name, username, pin_hash, role, avatar_color, avatar_emoji, allow_login)
+        VALUES (?, ?, ?, ?, 'kid', ?, ?, ?)
+      `).run(req.user.familyId, body.name, usernameVal, pinHash, body.avatarColor || '#6366f1', body.avatarEmoji ?? null, allowLogin ? 1 : 0);
       const userId = result.lastInsertRowid;
 
       db.prepare(`INSERT INTO accounts (user_id, name, type, sort_order) VALUES (?, 'Checking', 'main', 0)`).run(userId);
@@ -109,8 +120,8 @@ router.post('/users', authenticate, requireRole('parent'), async (req, res, next
 
       const passwordHash = await hashPassword(body.password);
       const result = db.prepare(`
-        INSERT INTO users (family_id, name, email, password_hash, role, avatar_color, show_on_dashboard, avatar_emoji)
-        VALUES (?, ?, ?, ?, 'parent', ?, 0, ?)
+        INSERT INTO users (family_id, name, email, password_hash, role, avatar_color, show_on_dashboard, avatar_emoji, chores_enabled)
+        VALUES (?, ?, ?, ?, 'parent', ?, 0, ?, 0)
       `).run(req.user.familyId, body.name, body.email, passwordHash, body.avatarColor || '#6366f1', body.avatarEmoji ?? null);
       const userId = result.lastInsertRowid;
 
@@ -205,7 +216,13 @@ const UpdateUserSchema = z.object({
   show_on_dashboard: z.boolean().optional(),
   show_balance_on_dashboard: z.boolean().optional(),
   require_task_approval: z.boolean().optional(),
+  allow_transfers: z.boolean().optional(),
+  allow_withdraws: z.boolean().optional(),
+  require_currency_work: z.boolean().optional(),
+  chores_enabled: z.boolean().optional(),
+  allow_login: z.boolean().optional(),
   avatar_emoji: z.string().max(10).nullable().optional(),
+  is_active: z.boolean().optional(),
 }).strict();
 
 router.put('/users/:id', authenticate, requireRole('parent'), async (req, res, next) => {
@@ -246,6 +263,25 @@ router.put('/users/:id', authenticate, requireRole('parent'), async (req, res, n
     }
     if (body.require_task_approval !== undefined) {
       updates.push('require_task_approval = ?'); values.push(body.require_task_approval ? 1 : 0);
+    }
+    if (body.allow_transfers !== undefined) {
+      updates.push('allow_transfers = ?'); values.push(body.allow_transfers ? 1 : 0);
+    }
+    if (body.allow_withdraws !== undefined) {
+      updates.push('allow_withdraws = ?'); values.push(body.allow_withdraws ? 1 : 0);
+    }
+    if (body.require_currency_work !== undefined) {
+      updates.push('require_currency_work = ?'); values.push(body.require_currency_work ? 1 : 0);
+    }
+    if (body.chores_enabled !== undefined) {
+      updates.push('chores_enabled = ?'); values.push(body.chores_enabled ? 1 : 0);
+    }
+    if (body.allow_login !== undefined) {
+      updates.push('allow_login = ?'); values.push(body.allow_login ? 1 : 0);
+    }
+    if (body.is_active !== undefined) {
+      if (userId === req.user.userId) return res.status(400).json({ error: 'Cannot change your own active status.' });
+      updates.push('is_active = ?'); values.push(body.is_active ? 1 : 0);
     }
     if (body.avatar_emoji !== undefined) {
       updates.push('avatar_emoji = ?'); values.push(body.avatar_emoji ?? null);

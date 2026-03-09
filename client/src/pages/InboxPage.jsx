@@ -229,16 +229,37 @@ export default function InboxPage() {
                     );
                   };
 
+                  const choresByDay = kid.chores.reduce((acc, c) => {
+                    const day = c.log_date;
+                    if (!acc[day]) acc[day] = [];
+                    acc[day].push(c);
+                    return acc;
+                  }, {});
+
+                  const formatDayLabel = (dateStr) => {
+                    const today = new Date(); today.setHours(0,0,0,0);
+                    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+                    const [y, m, d] = dateStr.split('-').map(Number);
+                    const date = new Date(y, m - 1, d);
+                    if (date.getTime() === today.getTime()) return 'Today';
+                    if (date.getTime() === yesterday.getTime()) return 'Yesterday';
+                    return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                  };
+
+                  const sortedDays = Object.keys(choresByDay).sort((a, b) => b.localeCompare(a));
+
                   return (
                     <div className="space-y-4">
-                      {kid.chores.length > 0 && (
-                        <div>
-                          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Chores</p>
+                      {sortedDays.length > 0 && sortedDays.map((day) => (
+                        <div key={day}>
+                          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                            Chores — {formatDayLabel(day)}
+                          </p>
                           <div className="space-y-2">
-                            {kid.chores.map((chore) => renderItem('chore', chore.id, chore.chore_name, relativeTime(chore.completed_at), `chore:${chore.id}`))}
+                            {choresByDay[day].map((chore) => renderItem('chore', chore.id, chore.chore_name, relativeTime(chore.completed_at), `chore:${chore.id}`))}
                           </div>
                         </div>
-                      )}
+                      ))}
                       {Object.entries(stepsBySet).map(([tsId, group]) => (
                         <div key={tsId}>
                           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">{group.emoji || '📋'} {group.name}</p>
