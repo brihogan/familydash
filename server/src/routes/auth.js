@@ -19,7 +19,8 @@ const REFRESH_COOKIE = 'refreshToken';
 const COOKIE_OPTS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
+  sameSite: 'lax',
+  path: '/',
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
 
@@ -165,7 +166,7 @@ router.post('/logout', authenticate, (req, res, next) => {
     if (rawToken) {
       db.prepare('DELETE FROM refresh_tokens WHERE token_hash = ?').run(hashToken(rawToken));
     }
-    res.clearCookie(REFRESH_COOKIE);
+    res.clearCookie(REFRESH_COOKIE, { httpOnly: true, secure: COOKIE_OPTS.secure, sameSite: COOKIE_OPTS.sameSite, path: '/' });
     res.json({ ok: true });
   } catch (err) {
     next(err);

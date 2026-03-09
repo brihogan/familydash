@@ -139,19 +139,24 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
             <div className="text-center">
               <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Balance</p>
               <div className="flex items-center justify-center gap-1.5">
-                <p
-                  className={`text-xl font-mono font-semibold text-gray-800 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
-                  onClick={statsClickable ? () => navigate(`/bank/${member.id}`) : undefined}
-                >
-                  {member.role === 'parent'
-                    ? <span className="text-gray-400 dark:text-gray-500">—</span>
-                    : showBalance
-                      ? formatCents(member.mainBalanceCents)
-                      : <span className="text-gray-400 dark:text-gray-500 tracking-widest text-base">—</span>
-                  }
-                </p>
+                <span className="relative">
+                  {isParent && member.role === 'kid' && member.pendingDepositCount > 0 && (
+                    <span className="absolute -top-1 -left-2.5 w-3 h-3 rounded-full bg-amber-400 dark:bg-amber-500 border-2 border-white dark:border-gray-800" title="Pending deposits" />
+                  )}
+                  <p
+                    className={`text-xl font-mono font-semibold text-gray-800 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
+                    onClick={statsClickable ? () => navigate(`/bank/${member.id}`) : undefined}
+                  >
+                    {member.role === 'parent'
+                      ? <span className="text-gray-400 dark:text-gray-500">—</span>
+                      : showBalance
+                        ? formatCents(member.mainBalanceCents)
+                        : <span className="text-gray-400 dark:text-gray-500 tracking-widest text-base">—</span>
+                    }
+                  </p>
+                </span>
                 {!readOnly && isParent && member.role === 'kid' && (
-                  <QuickBankAdjust userId={member.id} onDone={onRefresh} large />
+                  <QuickBankAdjust userId={member.id} onDone={onRefresh} requireCurrencyWork={member.requireCurrencyWork} large />
                 )}
               </div>
             </div>

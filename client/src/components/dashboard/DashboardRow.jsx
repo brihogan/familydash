@@ -47,19 +47,24 @@ export default function DashboardRow({ member, onRefresh, readOnly = false, mask
       {useBanking && (
         <td className="px-4 py-3 whitespace-nowrap">
           <div className="flex items-center justify-center gap-2">
-            <span
-              className={`text-sm font-mono ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
-              onClick={statsClickable ? () => navigate(`/bank/${member.id}`) : undefined}
-            >
-              {member.role === 'parent'
-                ? <span className="text-gray-400 dark:text-gray-500">—</span>
-                : maskPrivateData && !member.showBalanceOnDashboard && !isOwnRow
-                  ? <span className="text-gray-400 dark:text-gray-500 tracking-widest">—&thinsp;—&thinsp;—</span>
-                  : formatCents(member.mainBalanceCents)
-              }
+            <span className="relative">
+              {isParent && member.role === 'kid' && member.pendingDepositCount > 0 && (
+                <span className="absolute -top-1 -left-2 w-2.5 h-2.5 rounded-full bg-amber-400 dark:bg-amber-500 border border-white dark:border-gray-800" title="Pending deposits" />
+              )}
+              <span
+                className={`text-sm font-mono ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
+                onClick={statsClickable ? () => navigate(`/bank/${member.id}`) : undefined}
+              >
+                {member.role === 'parent'
+                  ? <span className="text-gray-400 dark:text-gray-500">—</span>
+                  : maskPrivateData && !member.showBalanceOnDashboard && !isOwnRow
+                    ? <span className="text-gray-400 dark:text-gray-500 tracking-widest">—&thinsp;—&thinsp;—</span>
+                    : formatCents(member.mainBalanceCents)
+                }
+              </span>
             </span>
             {!readOnly && isParent && member.role === 'kid' && (
-              <QuickBankAdjust userId={member.id} onDone={onRefresh} />
+              <QuickBankAdjust userId={member.id} onDone={onRefresh} requireCurrencyWork={member.requireCurrencyWork} />
             )}
           </div>
         </td>

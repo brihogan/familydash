@@ -7,6 +7,7 @@ import MoneyPopover from './MoneyPopover.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { accountsApi } from '../../api/accounts.api.js';
 import { familyApi } from '../../api/family.api.js';
+import CurrencyWorkNotice, { buildDefaultAllocations } from './CurrencyWorkNotice.jsx';
 
 // Frontend deposit sub-types — all map to 'deposit' or 'allowance' / 'manual_adjustment' on the API
 const DEPOSIT_TYPES = [
@@ -357,15 +358,11 @@ export default function UnifiedBankDialog({
     setError('');
     setToAccountId('');
     setRecent(loadRecent());
-    // Default allocations: 10% per sub-account
-    const allocs = {};
+    // Default allocations: 10% per sub-account (only if accounts already loaded)
     const subs = (userAccounts || []).filter(
       (a) => a.user_id === parseInt(userId, 10) && a.type !== 'main'
     );
-    for (const a of subs) {
-      allocs[a.id] = { enabled: true, type: 'percent', value: 10 };
-    }
-    setAllocations(allocs);
+    setAllocations(buildDefaultAllocations(subs));
   }, [open, initialMode, userId]);
 
   // Load kid's own accounts when dialog opens (dashboard mode)
@@ -379,6 +376,9 @@ export default function UnifiedBankDialog({
         .then(({ accounts: accs }) => {
           setOwnAccounts(accs);
           if (!sourceAccount && accs.length) setSrcId(String(accs[0].id));
+          // Initialize allocations for async-loaded accounts
+          const subs = accs.filter((a) => a.user_id === parseInt(userId, 10) && a.type !== 'main');
+          if (subs.length) setAllocations(buildDefaultAllocations(subs));
         })
         .catch(() => {});
     }
@@ -474,7 +474,7 @@ export default function UnifiedBankDialog({
 
   return (
     <Modal open={open} onClose={() => { if (!submitting) onClose(); }} title="Bank Transaction">
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4 min-w-0">
 
         {/* ── Recent transactions (parent only) ── */}
         {isParent && visibleRecent.length > 0 && (
@@ -518,12 +518,10 @@ export default function UnifiedBankDialog({
           ))}
         </div>
 
-        {/* ── Dashboard: account selector (deposit / withdraw) ── */}
-        {dashboardMode && mode !== 'transfer' && ownAccounts.length > 0 && (
+        {/* ── Dashboard: account selector (withdraw only — deposits always go to main) ── */}
+        {dashboardMode && mode === 'withdraw' && ownAccounts.length > 0 && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {mode === 'deposit' ? 'Into account' : 'From account'}
-            </label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From account</label>
             <select
               value={srcId}
               onChange={(e) => setSrcId(e.target.value)}
@@ -589,7 +587,7 @@ export default function UnifiedBankDialog({
         {/* ── Amount ── */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Amount ($)</label>
-          {mode === 'transfer' && requireCurrencyWork && !isParent ? (
+          {(mode === 'transfer' || mode === 'withdraw') && requireCurrencyWork && !isParent ? (
             <div className="flex items-center gap-3">
               <span className="text-lg font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
                 {dollars ? `$${parseFloat(dollars).toFixed(2)}` : '$0.00'}
@@ -605,17 +603,17 @@ export default function UnifiedBankDialog({
               </button>
             </div>
           ) : (
-            <div className={`flex items-center ${mode === 'transfer' ? 'gap-2' : ''}`}>
+            <div className={`flex items-center ${(mode === 'transfer' || mode === 'withdraw') ? 'gap-2' : ''}`}>
               <input
                 type="number"
                 step="0.01"
                 min="0.01"
                 value={dollars}
                 onChange={(e) => setDollars(e.target.value)}
-                className={`${mode === 'transfer' ? 'w-32' : 'w-full'} border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200`}
+                className={`${(mode === 'transfer' || mode === 'withdraw') ? 'w-32' : 'w-full'} border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200`}
                 placeholder="0.00"
               />
-              {mode === 'transfer' && (
+              {(mode === 'transfer' || mode === 'withdraw') && (
                 <button
                   type="button"
                   onClick={() => setShowMoneyPopover(true)}
@@ -629,65 +627,13 @@ export default function UnifiedBankDialog({
           )}
         </div>
 
-        {/* ── Currency work notice for parents ── */}
+        {/* ── Currency work notice + sub-account splits ── */}
         {mode === 'deposit' && isParent && requireCurrencyWork && (
-          <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-xs">
-            <span className="shrink-0 mt-0.5">&#x26A0;</span>
-            <span>This kid has <strong>Require Working with Currency</strong> enabled. The deposit will be held as pending until they count and receive it.</span>
-          </div>
-        )}
-
-        {/* ── Sub-account allocations (parent + deposit + currency work) ── */}
-        {mode === 'deposit' && isParent && requireCurrencyWork && subAccounts.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Sub-account splits</p>
-            <div className="space-y-2">
-              {subAccounts.map((a) => {
-                const alloc = allocations[a.id] || { enabled: false, type: 'percent', value: 10 };
-                return (
-                  <div key={a.id} className="flex items-center gap-2">
-                    <label className="flex items-center gap-2 min-w-0 flex-1">
-                      <input
-                        type="checkbox"
-                        checked={alloc.enabled}
-                        onChange={(e) => setAllocations((prev) => ({
-                          ...prev,
-                          [a.id]: { ...alloc, enabled: e.target.checked },
-                        }))}
-                        className="rounded border-gray-300 text-brand-500 focus:ring-brand-400"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300 truncate capitalize">{a.name}</span>
-                    </label>
-                    {alloc.enabled && (
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <input
-                          type="number"
-                          min="1"
-                          value={alloc.value}
-                          onChange={(e) => setAllocations((prev) => ({
-                            ...prev,
-                            [a.id]: { ...alloc, value: parseFloat(e.target.value) || 0 },
-                          }))}
-                          className="w-16 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm text-right focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
-                        />
-                        <select
-                          value={alloc.type}
-                          onChange={(e) => setAllocations((prev) => ({
-                            ...prev,
-                            [a.id]: { ...alloc, type: e.target.value },
-                          }))}
-                          className="border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
-                        >
-                          <option value="percent">%</option>
-                          <option value="flat">$</option>
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <CurrencyWorkNotice
+            subAccounts={subAccounts}
+            allocations={allocations}
+            onAllocationsChange={setAllocations}
+          />
         )}
 
         {/* ── Description ── */}

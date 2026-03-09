@@ -41,6 +41,7 @@ router.get('/', authenticate, (req, res, next) => {
         u.show_on_dashboard,
         u.show_balance_on_dashboard,
         u.chores_enabled,
+        u.require_currency_work,
         a.balance_cents AS main_balance_cents,
         COALESCE(ch.total, 0) AS chore_total,
         COALESCE(ch.done, 0)  AS chore_done,
@@ -72,6 +73,7 @@ router.get('/', authenticate, (req, res, next) => {
       showBalanceOnDashboard: r.show_balance_on_dashboard === 1,
       mainBalanceCents: r.main_balance_cents ?? 0,
       choresEnabled: r.chores_enabled === 1,
+      requireCurrencyWork: r.require_currency_work === 1,
       choreTotal: r.chore_total,
       choreDone: r.chore_done,
       lastActivityDisplay:
@@ -82,10 +84,27 @@ router.get('/', authenticate, (req, res, next) => {
           : null,
       taskSets: [],
       trophyCount: 0,
+      pendingDepositCount: 0,
     }));
 
-    // Fetch active task sets (not yet completed) for all members
+    // Fetch pending deposit counts per kid
     const memberIds = members.map((m) => m.id);
+    if (memberIds.length > 0) {
+      const ph = memberIds.map(() => '?').join(',');
+      const pdRows = db.prepare(`
+        SELECT a.user_id, COUNT(*) AS cnt
+        FROM pending_deposits pd
+        JOIN accounts a ON a.id = pd.account_id
+        WHERE a.user_id IN (${ph})
+        GROUP BY a.user_id
+      `).all(...memberIds);
+      for (const row of pdRows) {
+        const m = members.find((m) => m.id === row.user_id);
+        if (m) m.pendingDepositCount = row.cnt;
+      }
+    }
+
+    // Fetch active task sets (not yet completed) for all members
     if (memberIds.length > 0) {
       const ph = memberIds.map(() => '?').join(',');
       const taskRows = db.prepare(`

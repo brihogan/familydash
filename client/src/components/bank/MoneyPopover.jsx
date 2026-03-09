@@ -1621,13 +1621,40 @@ export default function MoneyPopover({ open, onClose, account, onSetAmount, rece
                         setStepTransition(null);
                       }, 750);
                     } else {
-                      // Step 1+→next: single-phase slide-left
+                      // Step 1+→next: animate action zone items back to yourMoney, then slide-left exchange
+                      let mergedYM = { ...capturedYourMoney };
+                      if (Object.keys(action).length > 0) {
+                        for (const [k, cnt] of Object.entries(action)) {
+                          mergedYM[k] = (mergedYM[k] ?? 0) + cnt;
+                        }
+                        const newYMPos = computeZonePositions(mergedYM, size.w, 0, topH);
+                        const ghosts = [];
+                        let gid = Date.now();
+                        for (const d of DENOMS) {
+                          const cnt = action[d.key] ?? 0;
+                          if (cnt === 0 || !azPos[d.key]) continue;
+                          const snapPos = newYMPos[d.key];
+                          if (!snapPos) continue;
+                          const off = d.type === 'coin' ? COIN_OFF : BILL_OFF;
+                          const viz = Math.min(cnt, MAX_VIZ);
+                          for (let i = 0; i < viz; i++) {
+                            ghosts.push({
+                              key: d.key, zone: 'your',
+                              startX: azPos[d.key].x, startY: azPos[d.key].y,
+                              endX: snapPos.x, endY: snapPos.y + off * ((viz - 1) / 2 - i),
+                              delay: i * 40, id: gid++,
+                            });
+                          }
+                        }
+                        setYM(mergedYM);
+                        setAction({});
+                        setLanding(prev => [...prev, ...ghosts]);
+                      }
                       setTimeout(() => {
                         if (capturedCurrentAlloc) {
                           setAllocResults((prev) => [...prev, { account_id: capturedCurrentAlloc.account_id, amount_cents: capturedExchangeTotal }]);
                         }
-                        const remaining = { ...capturedYourMoney };
-                        setYM(remaining);
+                        setYM(mergedYM);
                         setEx({});
                         setAction({});
                         setReceiveStep(capturedStep + 1);
@@ -1636,7 +1663,35 @@ export default function MoneyPopover({ open, onClose, account, onSetAmount, rece
                       }, 450);
                     }
                   } else {
-                    // Final step: corkscrew animation then submit
+                    // Final step: animate action zone items back, then corkscrew and submit
+                    if (Object.keys(action).length > 0) {
+                      const newYM = { ...yourMoney };
+                      for (const [k, cnt] of Object.entries(action)) {
+                        newYM[k] = (newYM[k] ?? 0) + cnt;
+                      }
+                      const newYMPos = computeZonePositions(newYM, size.w, 0, topH);
+                      const ghosts = [];
+                      let gid = Date.now();
+                      for (const d of DENOMS) {
+                        const cnt = action[d.key] ?? 0;
+                        if (cnt === 0 || !azPos[d.key]) continue;
+                        const snapPos = newYMPos[d.key];
+                        if (!snapPos) continue;
+                        const off = d.type === 'coin' ? COIN_OFF : BILL_OFF;
+                        const viz = Math.min(cnt, MAX_VIZ);
+                        for (let i = 0; i < viz; i++) {
+                          ghosts.push({
+                            key: d.key, zone: 'your',
+                            startX: azPos[d.key].x, startY: azPos[d.key].y,
+                            endX: snapPos.x, endY: snapPos.y + off * ((viz - 1) / 2 - i),
+                            delay: i * 40, id: gid++,
+                          });
+                        }
+                      }
+                      setYM(newYM);
+                      setAction({});
+                      setLanding(prev => [...prev, ...ghosts]);
+                    }
                     setStepTransition('slide-out');
                     const finalAllocs = receiveStep > 0 && currentAlloc
                       ? [...allocResults, { account_id: currentAlloc.account_id, amount_cents: exchangeTotal }]

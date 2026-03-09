@@ -7,7 +7,7 @@ import UnifiedBankDialog from '../bank/UnifiedBankDialog.jsx';
  * Small outlined button that opens a unified bank dialog (parent only).
  * Used on the dashboard to quickly deposit / withdraw / transfer for a kid.
  */
-export default function QuickBankAdjust({ userId, onDone, large = false }) {
+export default function QuickBankAdjust({ userId, onDone, large = false, requireCurrencyWork = false }) {
   const [open, setOpen] = useState(false);
 
   const handleOpen = (e) => {
@@ -33,6 +33,7 @@ export default function QuickBankAdjust({ userId, onDone, large = false }) {
         onClose={() => setOpen(false)}
         userId={userId}
         initialMode="deposit"
+        requireCurrencyWork={requireCurrencyWork}
         onSuccess={() => {
           onDone();
         }}

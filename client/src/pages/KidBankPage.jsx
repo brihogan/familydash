@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPiggyBank } from '@fortawesome/free-solid-svg-icons';
 import { accountsApi } from '../api/accounts.api.js';
@@ -161,6 +161,7 @@ export default function KidBankPage() {
   const { userId } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const isParent = user?.role === 'parent';
 
   const [memberName, setMemberName] = useState('');
@@ -260,6 +261,15 @@ export default function KidBankPage() {
   useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
   useEffect(() => { fetchRules(); }, [fetchRules]);
   useEffect(() => { fetchPendingDeposits(); }, [fetchPendingDeposits]);
+
+  // Auto-open first pending deposit when navigated from dashboard indicator
+  useEffect(() => {
+    if (location.state?.openReceive && pendingDeposits.length > 0 && !receivePopover) {
+      setReceivePopover(pendingDeposits[0]);
+      // Clear the state so refreshing doesn't re-open
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state?.openReceive, pendingDeposits, receivePopover, navigate, location.pathname]);
 
   const handleAddAccount = async (data) => {
     setAddAccountLoading(true);

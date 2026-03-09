@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faHouse, faTrophy, faTachographDigital, faBroom,
   faPiggyBank, faTicket, faUsers, faScroll, faRightFromBracket,
-  faMedal, faClipboardCheck, faGear, faInbox,
+  faMedal, faClipboardCheck, faGear, faInbox, faMoneyBillWave,
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
@@ -14,6 +14,7 @@ import EmojiPicker from './EmojiPicker.jsx';
 import { familyApi } from '../../api/family.api.js';
 import { overviewApi } from '../../api/overview.api.js';
 import { taskSetsApi } from '../../api/taskSets.api.js';
+import { accountsApi } from '../../api/accounts.api.js';
 import { inboxApi } from '../../api/inbox.api.js';
 import { formatCents } from '../../utils/formatCents.js';
 
@@ -68,7 +69,8 @@ export default function Layout() {
     Promise.all([
       overviewApi.getOverview(user.id),
       taskSetsApi.getUserTaskSets(user.id),
-    ]).then(([overview, taskData]) => {
+      accountsApi.getPendingDeposits(user.id),
+    ]).then(([overview, taskData, pdData]) => {
       const mainAccount = overview.accounts.find((a) => a.type === 'main');
       setKidStats({
         choresRemaining:        overview.choreProgressToday.total - overview.choreProgressToday.done,
@@ -80,6 +82,7 @@ export default function Layout() {
         completedTaskSetsCount: taskData.taskSets.filter(
           (ts) => ts.type === 'Award' && ts.step_count > 0 && ts.completed_count === ts.step_count
         ).length,
+        pendingDepositCount:    (pdData.pending_deposits || []).length,
       });
     }).catch(() => {});
   }, [user?.role, user?.id]);
@@ -374,6 +377,17 @@ export default function Layout() {
 
         <Nav />
 
+        {/* Pending deposit banner (kid only) */}
+        {kidStats?.pendingDepositCount > 0 && (
+          <button
+            onClick={() => navigate(`/bank/${user.id}`, { state: { openReceive: true } })}
+            className="mx-3 mb-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-semibold hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
+          >
+            <FontAwesomeIcon icon={faMoneyBillWave} className="text-[11px]" />
+            Money to receive!
+          </button>
+        )}
+
         {/* User info + theme toggle + logout */}
         <div className="px-4 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center gap-3">
           <button
@@ -422,7 +436,16 @@ export default function Layout() {
         {/* Mobile top bar */}
         <header className="lg:hidden sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3 shadow-sm">
           <Link to="/dashboard" className="font-bold text-brand-600 text-base hover:text-brand-700">Family Dashboard</Link>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            {kidStats?.pendingDepositCount > 0 && (
+              <button
+                onClick={() => navigate(`/bank/${user.id}`, { state: { openReceive: true } })}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-400 dark:bg-amber-500 text-amber-900 dark:text-amber-950 text-[10px] font-bold shadow-sm hover:bg-amber-300 dark:hover:bg-amber-400 transition-colors"
+              >
+                <FontAwesomeIcon icon={faMoneyBillWave} className="text-[9px]" />
+                Receive $!
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setEmojiOpen(true)}

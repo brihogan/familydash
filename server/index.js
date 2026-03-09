@@ -24,6 +24,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
 
 const app = express();
+app.set('trust proxy', 1); // trust first proxy (Cloudflare tunnel)
 
 app.use(
   helmet({
