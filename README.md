@@ -68,7 +68,18 @@ Self-hosted family web app for chores, bank accounts, and a ticket/rewards syste
 
 ```bash
 cp .env.example .env
-# Edit .env with real secrets
+```
+
+Generate two unique secrets and paste them into `.env`:
+
+```bash
+openssl rand -hex 32   # use for JWT_ACCESS_SECRET
+openssl rand -hex 32   # use for JWT_REFRESH_SECRET
+```
+
+Then start the app:
+
+```bash
 docker compose up --build
 # Open http://localhost:3001
 ```
@@ -79,7 +90,7 @@ docker compose up --build
 ```bash
 cd server
 npm install
-cp ../.env.example ../.env   # fill in secrets
+cp ../.env.example ../.env   # fill in secrets (see above)
 node --env-file=../.env --watch index.js
 ```
 
