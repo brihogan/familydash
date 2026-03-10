@@ -39,6 +39,7 @@ app.use(
         workerSrc: ["'self'"],
       },
     },
+    hsts: false, // Cloudflare handles HTTPS; HSTS breaks localhost access
   }),
 );
 app.use(express.json());
