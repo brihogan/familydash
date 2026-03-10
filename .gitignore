@@ -6,4 +6,5 @@ dist/
 *.db-shm
 /data/
 server/public/
+client/dev-dist/
 TODO.md
