@@ -25,6 +25,9 @@ export default defineConfig({
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api\//],
       },
+      devOptions: {
+        enabled: true,
+      },
     }),
   ],
   server: {
