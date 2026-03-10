@@ -18,8 +18,12 @@ const TaskSetSchema = z.object({
 });
 
 const StepSchema = z.object({
-  name:        z.string().min(1).max(200),
-  description: z.string().max(500).default(''),
+  name:              z.string().min(1).max(200),
+  description:       z.string().max(500).default(''),
+  repeat_count:      z.number().int().min(1).default(1),
+  limit_one_per_day: z.boolean().default(false),
+  require_input:     z.boolean().default(false),
+  input_prompt:      z.string().max(500).default(''),
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -43,7 +47,7 @@ router.get('/task-sets', authenticate, (req, res, next) => {
   try {
     const rows = db.prepare(`
       SELECT ts.*,
-        (SELECT COUNT(*) FROM task_steps       WHERE task_set_id = ts.id AND is_active = 1)                    AS step_count,
+        (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)     AS step_count,
         (SELECT COUNT(*) FROM task_assignments ta
          JOIN users u ON u.id = ta.user_id
          WHERE ta.task_set_id = ts.id AND ta.is_active = 1
@@ -264,8 +268,8 @@ router.post('/task-sets/:id/steps', authenticate, requireRole('parent'), (req, r
     ).get(setId).m;
 
     const result = db.prepare(
-      'INSERT INTO task_steps (task_set_id, name, description, sort_order) VALUES (?, ?, ?, ?)'
-    ).run(setId, body.name, body.description, maxOrder + 1);
+      'INSERT INTO task_steps (task_set_id, name, description, sort_order, repeat_count, limit_one_per_day, require_input, input_prompt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(setId, body.name, body.description, maxOrder + 1, body.repeat_count, body.limit_one_per_day ? 1 : 0, body.require_input ? 1 : 0, body.input_prompt);
 
     res.status(201).json(db.prepare('SELECT * FROM task_steps WHERE id = ?').get(result.lastInsertRowid));
   } catch (err) { next(err); }
@@ -286,8 +290,12 @@ router.put('/task-sets/:id/steps/:sid', authenticate, requireRole('parent'), (re
 
     const body = StepSchema.partial().parse(req.body);
     const updates = []; const values = [];
-    if (body.name        !== undefined) { updates.push('name = ?');        values.push(body.name); }
-    if (body.description !== undefined) { updates.push('description = ?'); values.push(body.description); }
+    if (body.name              !== undefined) { updates.push('name = ?');              values.push(body.name); }
+    if (body.description       !== undefined) { updates.push('description = ?');       values.push(body.description); }
+    if (body.repeat_count      !== undefined) { updates.push('repeat_count = ?');      values.push(body.repeat_count); }
+    if (body.limit_one_per_day !== undefined) { updates.push('limit_one_per_day = ?'); values.push(body.limit_one_per_day ? 1 : 0); }
+    if (body.require_input     !== undefined) { updates.push('require_input = ?');     values.push(body.require_input ? 1 : 0); }
+    if (body.input_prompt      !== undefined) { updates.push('input_prompt = ?');      values.push(body.input_prompt); }
     if (!updates.length) return res.status(400).json({ error: 'Nothing to update.' });
 
     values.push(stepId);

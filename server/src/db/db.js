@@ -219,4 +219,77 @@ if (hasTithing > 0) {
   db.pragma('foreign_keys = ON');
 }
 
+// v28: add 'Countdown' to task_sets.type CHECK constraint
+// SQLite can't ALTER a CHECK constraint, so recreate the table.
+// Check the schema SQL to see if the constraint already includes 'Countdown'.
+const taskSetsSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='task_sets'").get()?.sql || '';
+if (!taskSetsSql.includes('Countdown')) {
+  db.pragma('foreign_keys = OFF');
+  db.exec(`
+    CREATE TABLE task_sets_v28 (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      family_id     INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+      name          TEXT    NOT NULL,
+      type          TEXT    NOT NULL DEFAULT 'Project' CHECK (type IN ('Award', 'Project', 'Countdown')),
+      emoji         TEXT,
+      description   TEXT    NOT NULL DEFAULT '',
+      tags          TEXT    NOT NULL DEFAULT '[]',
+      category      TEXT    NOT NULL DEFAULT '',
+      ticket_reward INTEGER NOT NULL DEFAULT 0 CHECK (ticket_reward >= 0),
+      is_active     INTEGER NOT NULL DEFAULT 1,
+      created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    INSERT INTO task_sets_v28 (id, family_id, name, type, emoji, description, tags, category, ticket_reward, is_active, created_at)
+      SELECT id, family_id, name, type, emoji, description, tags, category, ticket_reward, is_active, created_at FROM task_sets;
+    DROP TABLE task_sets;
+    ALTER TABLE task_sets_v28 RENAME TO task_sets;
+    CREATE INDEX IF NOT EXISTS idx_task_sets_family ON task_sets(family_id);
+  `);
+  db.pragma('foreign_keys = ON');
+}
+
+// v29: repeat_count + limit_one_per_day on task_steps
+try {
+  db.exec(`ALTER TABLE task_steps ADD COLUMN repeat_count INTEGER NOT NULL DEFAULT 1`);
+} catch (_) { /* column already exists */ }
+try {
+  db.exec(`ALTER TABLE task_steps ADD COLUMN limit_one_per_day INTEGER NOT NULL DEFAULT 0`);
+} catch (_) { /* column already exists */ }
+
+// v30: instance column on task_step_completions + change UNIQUE constraint
+const tscSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='task_step_completions'").get()?.sql || '';
+if (!tscSql.includes('instance')) {
+  db.pragma('foreign_keys = OFF');
+  db.exec(`
+    CREATE TABLE task_step_completions_v30 (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_step_id    INTEGER NOT NULL REFERENCES task_steps(id) ON DELETE CASCADE,
+      task_set_id     INTEGER NOT NULL REFERENCES task_sets(id) ON DELETE CASCADE,
+      user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      instance        INTEGER NOT NULL DEFAULT 1,
+      completed_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+      approval_status TEXT    DEFAULT NULL,
+      UNIQUE(task_step_id, user_id, instance)
+    );
+    INSERT INTO task_step_completions_v30 (id, task_step_id, task_set_id, user_id, instance, completed_at, approval_status)
+      SELECT id, task_step_id, task_set_id, user_id, 1, completed_at, approval_status
+      FROM task_step_completions;
+    DROP TABLE task_step_completions;
+    ALTER TABLE task_step_completions_v30 RENAME TO task_step_completions;
+    CREATE INDEX IF NOT EXISTS idx_task_step_completions_user ON task_step_completions(user_id, task_set_id);
+  `);
+  db.pragma('foreign_keys = ON');
+}
+
+// v31: require_input + input_prompt on task_steps, input_response on task_step_completions
+try {
+  db.exec(`ALTER TABLE task_steps ADD COLUMN require_input INTEGER NOT NULL DEFAULT 0`);
+} catch (_) { /* column already exists */ }
+try {
+  db.exec(`ALTER TABLE task_steps ADD COLUMN input_prompt TEXT NOT NULL DEFAULT ''`);
+} catch (_) { /* column already exists */ }
+try {
+  db.exec(`ALTER TABLE task_step_completions ADD COLUMN input_response TEXT DEFAULT NULL`);
+} catch (_) { /* column already exists */ }
+
 export default db;

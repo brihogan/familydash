@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS task_sets (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   family_id     INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
   name          TEXT    NOT NULL,
-  type          TEXT    NOT NULL DEFAULT 'Project' CHECK (type IN ('Award', 'Project')),
+  type          TEXT    NOT NULL DEFAULT 'Project' CHECK (type IN ('Award', 'Project', 'Countdown')),
   emoji         TEXT,
   description   TEXT    NOT NULL DEFAULT '',
   tags          TEXT    NOT NULL DEFAULT '[]',
@@ -167,13 +167,17 @@ CREATE TABLE IF NOT EXISTS task_sets (
 CREATE INDEX IF NOT EXISTS idx_task_sets_family ON task_sets(family_id);
 
 CREATE TABLE IF NOT EXISTS task_steps (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  task_set_id INTEGER NOT NULL REFERENCES task_sets(id) ON DELETE CASCADE,
-  name        TEXT    NOT NULL,
-  description TEXT    NOT NULL DEFAULT '',
-  sort_order  INTEGER NOT NULL DEFAULT 0,
-  is_active   INTEGER NOT NULL DEFAULT 1,
-  created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_set_id       INTEGER NOT NULL REFERENCES task_sets(id) ON DELETE CASCADE,
+  name              TEXT    NOT NULL,
+  description       TEXT    NOT NULL DEFAULT '',
+  sort_order        INTEGER NOT NULL DEFAULT 0,
+  repeat_count      INTEGER NOT NULL DEFAULT 1 CHECK (repeat_count >= 1),
+  limit_one_per_day INTEGER NOT NULL DEFAULT 0,
+  require_input     INTEGER NOT NULL DEFAULT 0,
+  input_prompt      TEXT    NOT NULL DEFAULT '',
+  is_active         INTEGER NOT NULL DEFAULT 1,
+  created_at        TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_task_steps_set ON task_steps(task_set_id);
 
@@ -190,11 +194,14 @@ CREATE INDEX IF NOT EXISTS idx_task_assignments_set  ON task_assignments(task_se
 CREATE INDEX IF NOT EXISTS idx_task_assignments_user ON task_assignments(user_id);
 
 CREATE TABLE IF NOT EXISTS task_step_completions (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  task_step_id INTEGER NOT NULL REFERENCES task_steps(id) ON DELETE CASCADE,
-  task_set_id  INTEGER NOT NULL REFERENCES task_sets(id) ON DELETE CASCADE,
-  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  completed_at TEXT    NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(task_step_id, user_id)
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_step_id    INTEGER NOT NULL REFERENCES task_steps(id) ON DELETE CASCADE,
+  task_set_id     INTEGER NOT NULL REFERENCES task_sets(id) ON DELETE CASCADE,
+  user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  instance        INTEGER NOT NULL DEFAULT 1,
+  input_response  TEXT    DEFAULT NULL,
+  completed_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+  approval_status TEXT    DEFAULT NULL,
+  UNIQUE(task_step_id, user_id, instance)
 );
 CREATE INDEX IF NOT EXISTS idx_task_step_completions_user ON task_step_completions(user_id, task_set_id);

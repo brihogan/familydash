@@ -33,9 +33,9 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
         AND ta.is_active = 1
         AND ts.type      = 'Project'
         AND ts.is_active = 1
-        AND (SELECT COUNT(*) FROM task_steps WHERE task_set_id = ta.task_set_id AND is_active = 1) > 0
+        AND (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ta.task_set_id AND is_active = 1) > 0
         AND (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ta.task_set_id AND user_id = ta.user_id)
-            = (SELECT COUNT(*) FROM task_steps WHERE task_set_id = ta.task_set_id AND is_active = 1)
+            >= (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ta.task_set_id AND is_active = 1)
         AND date((SELECT MAX(completed_at) FROM task_step_completions WHERE task_set_id = ta.task_set_id AND user_id = ta.user_id)) < date('now')
     `).all(userId);
 
@@ -61,7 +61,7 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
 
     const rows = db.prepare(`
       SELECT ts.*,
-        (SELECT COUNT(*) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)                         AS step_count,
+        (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)   AS step_count,
         (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ?)                AS completed_count,
         (SELECT MAX(completed_at) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ?)       AS earned_at
       FROM task_sets ts
@@ -91,16 +91,22 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
 
     const steps = db.prepare(`
       SELECT ts.*,
-        CASE WHEN tsc.id IS NOT NULL THEN 1 ELSE 0 END AS completed,
-        tsc.approval_status,
-        tsc.id AS completion_id
+        (SELECT COUNT(*) FROM task_step_completions WHERE task_step_id = ts.id AND user_id = ?) AS completed_count,
+        (SELECT COUNT(*) FROM task_step_completions WHERE task_step_id = ts.id AND user_id = ? AND date(completed_at) = date('now')) AS completed_today
       FROM task_steps ts
-      LEFT JOIN task_step_completions tsc ON tsc.task_step_id = ts.id AND tsc.user_id = ?
       WHERE ts.task_set_id = ? AND ts.is_active = 1
       ORDER BY ts.sort_order ASC, ts.id ASC
-    `).all(userId, taskSetId);
+    `).all(userId, userId, taskSetId);
 
-    res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at });
+    // Fetch completions with input_response for display
+    const completions = db.prepare(`
+      SELECT task_step_id, instance, input_response
+      FROM task_step_completions
+      WHERE task_set_id = ? AND user_id = ?
+      ORDER BY task_step_id, instance
+    `).all(taskSetId, userId);
+
+    res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at, completions });
   } catch (err) { next(err); }
 });
 
@@ -123,7 +129,7 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
     if (!assignment) return res.status(404).json({ error: 'Task set not assigned to this user.' });
 
     const step = db.prepare(
-      'SELECT id, name FROM task_steps WHERE id = ? AND task_set_id = ? AND is_active = 1'
+      'SELECT id, name, repeat_count, limit_one_per_day, require_input, input_prompt FROM task_steps WHERE id = ? AND task_set_id = ? AND is_active = 1'
     ).get(stepId, taskSetId);
     if (!step) return res.status(404).json({ error: 'Step not found.' });
 
@@ -134,27 +140,42 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
     const family = db.prepare('SELECT use_tickets FROM families WHERE id = ?').get(user.family_id);
     const useTickets = family?.use_tickets !== 0;
 
-    const existing = db.prepare(
-      'SELECT id, approval_status FROM task_step_completions WHERE task_step_id = ? AND user_id = ?'
-    ).get(stepId, userId);
+    const repeatCount = step.repeat_count || 1;
+    const completedCount = db.prepare(
+      'SELECT COUNT(*) AS cnt FROM task_step_completions WHERE task_step_id = ? AND user_id = ?'
+    ).get(stepId, userId).cnt;
 
-    if (existing) {
+    const isUndo = req.body?.undo === true;
+    const inputResponse = typeof req.body?.input_response === 'string' ? req.body.input_response.trim() : null;
+
+    // Helper: count total instances across all steps
+    const getTotalInstances = () => db.prepare(
+      'SELECT COALESCE(SUM(repeat_count), 0) AS cnt FROM task_steps WHERE task_set_id = ? AND is_active = 1'
+    ).get(taskSetId).cnt;
+    const getDoneInstances = () => db.prepare(
+      'SELECT COUNT(*) AS cnt FROM task_step_completions WHERE task_set_id = ? AND user_id = ?'
+    ).get(taskSetId, userId).cnt;
+
+    if (isUndo) {
+      // Undo the most recent completion for this step
+      const last = db.prepare(
+        'SELECT id, approval_status FROM task_step_completions WHERE task_step_id = ? AND user_id = ? ORDER BY instance DESC LIMIT 1'
+      ).get(stepId, userId);
+      if (!last) return res.json({ completed_count: 0 });
+
       // If pending approval, just cancel without ticket reversal
-      if (existing.approval_status === 'pending') {
-        db.prepare('DELETE FROM task_step_completions WHERE task_step_id = ? AND user_id = ?').run(stepId, userId);
-        return res.json({ completed: false });
+      if (last.approval_status === 'pending') {
+        db.prepare('DELETE FROM task_step_completions WHERE id = ?').run(last.id);
+        const newCount = completedCount - 1;
+        return res.json({ completed_count: newCount, completed_today: 0 });
       }
 
-      // Check if the set was fully completed before this undo — if so, reverse the ticket reward
-      const totalSteps = db.prepare(
-        'SELECT COUNT(*) AS cnt FROM task_steps WHERE task_set_id = ? AND is_active = 1'
-      ).get(taskSetId).cnt;
-      const doneSteps = db.prepare(
-        'SELECT COUNT(*) AS cnt FROM task_step_completions WHERE task_set_id = ? AND user_id = ?'
-      ).get(taskSetId, userId).cnt;
-      const wasCompleted = totalSteps > 0 && doneSteps >= totalSteps;
+      // Check if the set was fully completed before this undo
+      const totalInst = getTotalInstances();
+      const doneInst = getDoneInstances();
+      const wasCompleted = totalInst > 0 && doneInst >= totalInst;
 
-      db.prepare('DELETE FROM task_step_completions WHERE task_step_id = ? AND user_id = ?').run(stepId, userId);
+      db.prepare('DELETE FROM task_step_completions WHERE id = ?').run(last.id);
 
       // Reverse ticket reward if the set was complete before this undo
       const ticketReward = taskSet.ticket_reward ?? 0;
@@ -188,36 +209,59 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
           amountCents: useTickets && ticketReward > 0 ? -ticketReward : null,
         });
       }
-      res.json({ completed: false });
+      const newCount = completedCount - 1;
+      const todayCount = db.prepare(
+        "SELECT COUNT(*) AS cnt FROM task_step_completions WHERE task_step_id = ? AND user_id = ? AND date(completed_at) = date('now')"
+      ).get(stepId, userId).cnt;
+      res.json({ completed_count: newCount, completed_today: todayCount });
     } else {
+      // Complete next instance
+      if (completedCount >= repeatCount) {
+        return res.status(400).json({ error: 'Already fully completed.' });
+      }
+
+      // Require input validation
+      if (step.require_input && !inputResponse) {
+        return res.status(400).json({ error: 'Input response is required for this step.' });
+      }
+
+      // Check limit_one_per_day
+      if (step.limit_one_per_day) {
+        const today = db.prepare(
+          "SELECT id FROM task_step_completions WHERE task_step_id = ? AND user_id = ? AND date(completed_at) = date('now')"
+        ).get(stepId, userId);
+        if (today) return res.status(400).json({ error: 'Already completed today. Come back tomorrow!' });
+      }
+
+      const nextInstance = completedCount + 1;
+
       if (user.require_task_approval) {
         db.prepare(
-          'INSERT INTO task_step_completions (task_step_id, task_set_id, user_id, approval_status) VALUES (?, ?, ?, ?)'
-        ).run(stepId, taskSetId, userId, 'pending');
-        return res.json({ completed: true, approval_status: 'pending' });
+          'INSERT INTO task_step_completions (task_step_id, task_set_id, user_id, instance, approval_status, input_response) VALUES (?, ?, ?, ?, ?, ?)'
+        ).run(stepId, taskSetId, userId, nextInstance, 'pending', inputResponse);
+        return res.json({ completed_count: nextInstance, completed_today: 1, approval_status: 'pending' });
       }
 
       db.prepare(
-        'INSERT INTO task_step_completions (task_step_id, task_set_id, user_id) VALUES (?, ?, ?)'
-      ).run(stepId, taskSetId, userId);
+        'INSERT INTO task_step_completions (task_step_id, task_set_id, user_id, instance, input_response) VALUES (?, ?, ?, ?, ?)'
+      ).run(stepId, taskSetId, userId, nextInstance, inputResponse);
+
+      const displayName = step.name.replace('{#}', String(nextInstance));
       insertActivity({
         familyId: user.family_id,
         subjectUserId: userId,
         actorUserId: req.user.userId,
         eventType: 'task_step_completed',
-        description: `Completed step: ${step.name} (${taskSet.name})`,
+        description: `Completed step: ${displayName} (${taskSet.name})`,
         referenceId: taskSetId,
         referenceType: 'task_set',
         amountCents: stepId,
       });
-      // Check if all steps are now complete → taskset_completed milestone + ticket reward
-      const totalSteps = db.prepare(
-        'SELECT COUNT(*) AS cnt FROM task_steps WHERE task_set_id = ? AND is_active = 1'
-      ).get(taskSetId).cnt;
-      const doneSteps = db.prepare(
-        'SELECT COUNT(*) AS cnt FROM task_step_completions WHERE task_set_id = ? AND user_id = ?'
-      ).get(taskSetId, userId).cnt;
-      if (totalSteps > 0 && doneSteps >= totalSteps) {
+
+      // Check if all steps×instances are now complete
+      const totalInst = getTotalInstances();
+      const doneInst = getDoneInstances();
+      if (totalInst > 0 && doneInst >= totalInst) {
         const ticketReward = taskSet.ticket_reward ?? 0;
         if (useTickets && ticketReward > 0) {
           db.prepare('UPDATE users SET ticket_balance = ticket_balance + ? WHERE id = ?')
@@ -237,7 +281,11 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
           amountCents: useTickets && ticketReward > 0 ? ticketReward : null,
         });
       }
-      res.json({ completed: true });
+
+      const todayCount = db.prepare(
+        "SELECT COUNT(*) AS cnt FROM task_step_completions WHERE task_step_id = ? AND user_id = ? AND date(completed_at) = date('now')"
+      ).get(stepId, userId).cnt;
+      res.json({ completed_count: nextInstance, completed_today: todayCount });
     }
   } catch (err) { next(err); }
 });

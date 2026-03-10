@@ -58,7 +58,8 @@ export default function ChoreItem({ log, onToggle, disabled }) {
 
   return (
     <div
-      className="flex items-center gap-3 p-3 rounded-lg border dark:border-gray-700"
+      onClick={handleClick}
+      className={`flex items-center gap-3 p-3 rounded-lg border dark:border-gray-700 ${!done && !disabled && !isAnimating ? 'cursor-pointer active:bg-gray-50 dark:active:bg-gray-700/50' : ''}`}
       style={cardStyle}
     >
       {/* Checkbox + burst container */}

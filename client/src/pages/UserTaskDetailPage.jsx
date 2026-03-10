@@ -342,22 +342,45 @@ const DIST = 26;
 
 // ── Step item with chore-style animation ──────────────────────────────────────
 function StepItem({ step, onToggle, disabled }) {
-  const done = Boolean(step.completed);
-  // idle → pop (checkbox bounce + burst) → exit (card fades down) → parent called
+  const done = false; // todo items are never done
   const [phase, setPhase] = useState('idle');
+  const [inputValue, setInputValue] = useState('');
+  const [showInput, setShowInput] = useState(false);
+  const inputRef = useRef(null);
+
+  const needsInput = !!step.require_input;
 
   const handleClick = () => {
-    if (disabled || phase !== 'idle') return;
-    if (!done) {
-      playChoreCheck();
-      setPhase('pop');
-      setTimeout(() => setPhase('exit'), 420);
-      setTimeout(() => {
-        onToggle(step);
-        setPhase('idle');
-      }, 780);
-    } else {
-      onToggle(step);
+    if (disabled || step._limitedToday || phase !== 'idle') return;
+
+    // If this step requires input and we haven't shown the input yet, show it
+    if (needsInput && !showInput) {
+      setShowInput(true);
+      setTimeout(() => inputRef.current?.focus(), 50);
+      return;
+    }
+
+    // If requires input, validate
+    if (needsInput && !inputValue.trim()) return;
+
+    playChoreCheck();
+    setPhase('pop');
+    const response = needsInput ? inputValue.trim() : null;
+    setTimeout(() => setPhase('exit'), 420);
+    setTimeout(() => {
+      onToggle(step, false, response);
+      setPhase('idle');
+      setShowInput(false);
+      setInputValue('');
+    }, 780);
+  };
+
+  const handleInputKeyDown = (e) => {
+    if (e.key === 'Enter' && inputValue.trim()) {
+      handleClick();
+    } else if (e.key === 'Escape') {
+      setShowInput(false);
+      setInputValue('');
     }
   };
 
@@ -380,16 +403,19 @@ function StepItem({ step, onToggle, disabled }) {
     return {};
   })();
 
+  const canClick = !disabled && !isAnimating && !step._limitedToday;
+
   return (
     <div
-      className="flex items-center gap-3 p-3 rounded-lg border dark:border-gray-700"
+      onClick={canClick && !showInput ? handleClick : undefined}
+      className={`flex items-center gap-3 p-3 rounded-lg border dark:border-gray-700 ${canClick && !showInput ? 'cursor-pointer active:bg-gray-50 dark:active:bg-gray-700/50' : ''}`}
       style={cardStyle}
     >
       {/* Checkbox + burst container */}
       <div className="relative shrink-0">
         <button
-          onClick={handleClick}
-          disabled={disabled || isAnimating}
+          onClick={(e) => { e.stopPropagation(); handleClick(); }}
+          disabled={disabled || isAnimating || step._limitedToday}
           aria-label={showDone ? 'Mark incomplete' : 'Mark complete'}
           className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors disabled:cursor-not-allowed ${
             showDone
@@ -431,11 +457,35 @@ function StepItem({ step, onToggle, disabled }) {
 
       {/* Step name + description */}
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium transition-colors ${showDone ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
-          {step.name}
+        <p className={`text-sm font-medium transition-colors ${showDone ? 'line-through text-gray-400 dark:text-gray-500' : step._limitedToday ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
+          {step._displayName || step.name}
         </p>
-        {step.description && (
+        {step._limitedToday && (
+          <p className="text-xs text-amber-500 dark:text-amber-400">Come back tomorrow!</p>
+        )}
+        {!step._limitedToday && step.description && !showInput && (
           <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{step.description}</p>
+        )}
+        {showInput && (
+          <div className="mt-1.5 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleInputKeyDown}
+              placeholder={step.input_prompt || 'Type your response…'}
+              maxLength={500}
+              className="flex-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+            />
+            <button
+              onClick={handleClick}
+              disabled={!inputValue.trim()}
+              className="px-3 py-1.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white rounded-lg text-xs font-medium transition-colors shrink-0"
+            >
+              Done
+            </button>
+          </div>
         )}
       </div>
     </div>
@@ -450,6 +500,7 @@ export default function UserTaskDetailPage() {
 
   const [taskSet,       setTaskSet]       = useState(null);
   const [steps,         setSteps]         = useState([]);
+  const [completions,   setCompletions]   = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState('');
   const [toggling,      setToggling]      = useState(new Set());
@@ -466,6 +517,7 @@ export default function UserTaskDetailPage() {
       const data = await taskSetsApi.getUserTaskSet(userId, taskSetId);
       setTaskSet(data.taskSet);
       setSteps(data.steps);
+      setCompletions(data.completions ?? []);
       setAssignedAt(data.assignedAt ?? null);
     } catch {
       setError('Failed to load task set.');
@@ -479,34 +531,48 @@ export default function UserTaskDetailPage() {
   // Detect when the last step is checked off → fireworks + victory sound
   useEffect(() => {
     if (!steps.length) return;
-    const doneCount = steps.filter((s) => s.completed).length;
+    const doneCount = steps.reduce((sum, s) => sum + (s.completed_count || 0), 0);
+    const total     = steps.reduce((sum, s) => sum + (s.repeat_count || 1), 0);
     const prev = prevDoneCountRef.current;
-    if (prev !== null && doneCount > prev && doneCount === steps.length) {
+    if (prev !== null && doneCount > prev && doneCount >= total) {
       completedAtRef.current = new Date();
-      const hasPending = steps.some((s) => s.approval_status === 'pending');
       setShowFireworks(true);
       playVictory();
-      if (!hasPending) {
-        if (taskSet?.type === 'Award')   setShowAwardModal(true);
-        if (taskSet?.type === 'Project') setShowProjectModal(true);
-      }
+      if (taskSet?.type === 'Award')   setShowAwardModal(true);
+      if (taskSet?.type === 'Project' || taskSet?.type === 'Countdown') setShowProjectModal(true);
     }
     prevDoneCountRef.current = doneCount;
   }, [steps]);
 
-  const handleToggle = async (step) => {
+  const handleToggle = async (step, undo = false, inputResponse = null) => {
     if (toggling.has(step.id)) return;
     setToggling((prev) => new Set([...prev, step.id]));
+    const prevCount = step.completed_count || 0;
     // Optimistic update
-    setSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, completed: s.completed ? 0 : 1 } : s));
+    setSteps((prev) => prev.map((s) => s.id === step.id
+      ? { ...s, completed_count: undo ? Math.max(0, prevCount - 1) : prevCount + 1 }
+      : s));
+    if (!undo && inputResponse) {
+      setCompletions((prev) => [...prev, { task_step_id: step.id, instance: prevCount + 1, input_response: inputResponse }]);
+    }
     try {
-      const result = await taskSetsApi.toggleStep(userId, taskSetId, step.id);
+      const result = await taskSetsApi.toggleStep(userId, taskSetId, step.id, undo, inputResponse);
       setSteps((prev) => prev.map((s) => s.id === step.id
-        ? { ...s, completed: result.completed ? 1 : 0, approval_status: result.approval_status ?? null }
+        ? { ...s, completed_count: result.completed_count, completed_today: result.completed_today ?? 0 }
         : s));
+      if (undo) {
+        setCompletions((prev) => {
+          const idx = prev.findLastIndex((c) => c.task_step_id === step.id);
+          if (idx >= 0) return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+          return prev;
+        });
+      }
     } catch {
       // Revert on failure
-      setSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, completed: step.completed } : s));
+      setSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, completed_count: prevCount } : s));
+      if (!undo && inputResponse) {
+        setCompletions((prev) => prev.slice(0, -1));
+      }
     } finally {
       setToggling((prev) => { const next = new Set(prev); next.delete(step.id); return next; });
     }
@@ -534,14 +600,33 @@ export default function UserTaskDetailPage() {
     );
   }
 
-  const todo            = steps.filter((s) => !s.completed);
-  const waitingApproval = steps.filter((s) => s.completed && s.approval_status === 'pending');
-  const completedSteps  = steps.filter((s) => s.completed && s.approval_status !== 'pending');
-  const completedCount  = steps.filter((s) => s.completed).length; // all submitted (for progress)
-  const totalCount      = steps.length;
-  const allDone         = totalCount > 0 && completedCount === totalCount;
-  const pct             = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-  const anyBusy         = toggling.size > 0;
+  // Expand steps into virtual instances for repeating steps
+  const expanded = (() => {
+    const todo = [];
+    const done = [];
+    for (const step of steps) {
+      const repeat = step.repeat_count || 1;
+      const count = step.completed_count || 0;
+      for (let i = 1; i <= count; i++) {
+        const name = repeat > 1 ? step.name.replace('{#}', String(i)) : step.name;
+        const completion = completions.find((c) => c.task_step_id === step.id && c.instance === i);
+        done.push({ ...step, _instance: i, _displayName: name, _isLast: i === count, _inputResponse: completion?.input_response || null });
+      }
+      if (count < repeat) {
+        const nextInst = count + 1;
+        const name = repeat > 1 ? step.name.replace('{#}', String(nextInst)) : step.name;
+        const disabled = !!(step.limit_one_per_day && step.completed_today);
+        todo.push({ ...step, _instance: nextInst, _displayName: name, _limitedToday: disabled });
+      }
+    }
+    return { todo, done };
+  })();
+
+  const totalCount     = steps.reduce((sum, s) => sum + (s.repeat_count || 1), 0);
+  const completedCount = steps.reduce((sum, s) => sum + (s.completed_count || 0), 0);
+  const allDone        = totalCount > 0 && completedCount >= totalCount;
+  const pct            = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const anyBusy        = toggling.size > 0;
 
   return (
     <div>
@@ -620,11 +705,11 @@ export default function UserTaskDetailPage() {
       ) : (
         <div className="space-y-6">
           {/* ── Todo steps ── */}
-          {todo.length > 0 && (
+          {expanded.todo.length > 0 && (
             <div className="space-y-2">
-              {todo.map((step) => (
+              {expanded.todo.map((step) => (
                 <StepItem
-                  key={step.id}
+                  key={`${step.id}-${step._instance}`}
                   step={step}
                   onToggle={handleToggle}
                   disabled={anyBusy}
@@ -633,49 +718,18 @@ export default function UserTaskDetailPage() {
             </div>
           )}
 
-          {allDone && waitingApproval.length === 0 && (
+          {allDone && (
             <p className="text-sm text-green-600 dark:text-green-400 font-medium text-center py-2">All done! 🎉</p>
           )}
 
-          {/* ── Waiting for Approval ── */}
-          {waitingApproval.length > 0 && (
-            <div>
-              <h3 className="text-sm font-medium text-amber-600 dark:text-amber-400 mb-2">⏳ Waiting for Approval</h3>
-              <div className="space-y-2">
-                {waitingApproval.map((step) => (
-                  <div
-                    key={step.id}
-                    className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl"
-                    style={{ animation: 'chore-enter 350ms ease-out both' }}
-                  >
-                    <span className="w-5 h-5 rounded-full bg-amber-200 dark:bg-amber-700 flex items-center justify-center shrink-0 text-xs">⏳</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{step.name}</p>
-                      {step.description && (
-                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{step.description}</p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => handleToggle(step)}
-                      disabled={anyBusy}
-                      className="text-xs text-gray-500 hover:text-red-600 border border-gray-200 dark:border-gray-600 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors shrink-0"
-                    >
-                      Undo
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* ── Completed steps ── */}
-          {completedSteps.length > 0 && (
+          {expanded.done.length > 0 && (
             <div>
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Completed</h3>
               <div className="space-y-2">
-                {completedSteps.map((step) => (
+                {expanded.done.map((step) => (
                   <div
-                    key={step.id}
+                    key={`${step.id}-done-${step._instance}`}
                     className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-xl"
                     style={{ animation: 'chore-enter 350ms ease-out both' }}
                   >
@@ -685,18 +739,20 @@ export default function UserTaskDetailPage() {
                       </svg>
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 line-through">{step.name}</p>
-                      {step.description && (
-                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{step.description}</p>
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 line-through">{step._displayName}</p>
+                      {step._inputResponse && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 italic">{step._inputResponse}</p>
                       )}
                     </div>
-                    <button
-                      onClick={() => handleToggle(step)}
-                      disabled={anyBusy}
-                      className="text-xs text-red-500 hover:text-red-700 border border-red-200 dark:border-red-500 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors shrink-0"
-                    >
-                      Undo
-                    </button>
+                    {step._isLast && (
+                      <button
+                        onClick={() => handleToggle(step, true)}
+                        disabled={anyBusy}
+                        className="text-xs text-red-500 hover:text-red-700 border border-red-200 dark:border-red-500 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors shrink-0"
+                      >
+                        Undo
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>

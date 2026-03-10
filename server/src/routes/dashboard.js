@@ -115,7 +115,7 @@ router.get('/', authenticate, (req, res, next) => {
             ts.name,
             ts.emoji,
             ts.type,
-            (SELECT COUNT(*) FROM task_steps s WHERE s.task_set_id = ts.id AND s.is_active = 1) AS step_count,
+            (SELECT COALESCE(SUM(s.repeat_count), 0) FROM task_steps s WHERE s.task_set_id = ts.id AND s.is_active = 1) AS step_count,
             (SELECT COUNT(*) FROM task_step_completions c WHERE c.task_set_id = ts.id AND c.user_id = ta.user_id) AS completed_count,
             (SELECT MAX(completed_at) FROM task_step_completions c WHERE c.task_set_id = ts.id AND c.user_id = ta.user_id) AS earned_at
           FROM task_assignments ta
@@ -153,9 +153,9 @@ router.get('/', authenticate, (req, res, next) => {
         WHERE ta.user_id IN (${ph})
           AND ts.type = 'Award'
           AND ts.is_active = 1
-          AND (SELECT COUNT(*) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1) > 0
+          AND (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1) > 0
           AND (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ta.user_id)
-              = (SELECT COUNT(*) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)
+              >= (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)
         GROUP BY ta.user_id
       `).all(...memberIds);
       for (const row of trophyRows) {

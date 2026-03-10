@@ -18,7 +18,7 @@ const TYPE_OPTIONS = ['Project', 'Award'];
 const INPUT_CLS = 'w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
 const EMPTY_SET_FORM  = { name: '', type: 'Project', emoji: '', description: '', category: '', ticket_reward: 0 };
-const EMPTY_STEP_FORM = { name: '', description: '' };
+const EMPTY_STEP_FORM = { name: '', description: '', repeat_count: 1, limit_one_per_day: false, require_input: false, input_prompt: '' };
 
 // ── Sortable step row ─────────────────────────────────────────────────────────
 function SortableStep({ step, index, onEdit, onDelete }) {
@@ -43,7 +43,24 @@ function SortableStep({ step, index, onEdit, onDelete }) {
         {index + 1}
       </span>
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{step.name}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{step.name}</p>
+          {step.repeat_count > 1 && (
+            <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 leading-none">
+              ×{step.repeat_count}
+            </span>
+          )}
+          {!!step.limit_one_per_day && (
+            <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 leading-none">
+              1/day
+            </span>
+          )}
+          {!!step.require_input && (
+            <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 leading-none">
+              input
+            </span>
+          )}
+        </div>
         {step.description && (
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{step.description}</p>
         )}
@@ -213,7 +230,14 @@ export default function TaskSetDetailPage() {
 
   const openEditStep = (step) => {
     setEditStep(step);
-    setStepForm({ name: step.name, description: step.description || '' });
+    setStepForm({
+      name: step.name,
+      description: step.description || '',
+      repeat_count: step.repeat_count || 1,
+      limit_one_per_day: !!step.limit_one_per_day,
+      require_input: !!step.require_input,
+      input_prompt: step.input_prompt || '',
+    });
     setStepError('');
     setStepModal(true);
   };
@@ -224,7 +248,14 @@ export default function TaskSetDetailPage() {
     setStepSaving(true);
     setStepError('');
     try {
-      const payload = { name: stepForm.name.trim(), description: stepForm.description.trim() };
+      const payload = {
+        name: stepForm.name.trim(),
+        description: stepForm.description.trim(),
+        repeat_count: Number(stepForm.repeat_count) || 1,
+        limit_one_per_day: !!stepForm.limit_one_per_day,
+        require_input: !!stepForm.require_input,
+        input_prompt: stepForm.input_prompt.trim(),
+      };
       if (editStep) {
         const updated = await taskSetsApi.updateStep(id, editStep.id, payload);
         setSteps((prev) => prev.map((s) => s.id === editStep.id ? updated : s));
@@ -850,6 +881,65 @@ export default function TaskSetDetailPage() {
               className={`${INPUT_CLS} resize-none`}
             />
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Repeat <span className="text-xs text-gray-400 dark:text-gray-500">(times)</span>
+            </label>
+            <input
+              type="number"
+              value={stepForm.repeat_count}
+              onChange={(e) => setStepForm((f) => ({ ...f, repeat_count: e.target.value }))}
+              min="1"
+              className={`${INPUT_CLS} w-24`}
+            />
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">This step will repeat the number of times you set here. Use {'{'}<code>#</code>{'}'} in the name to show the count.</p>
+          </div>
+
+          {Number(stepForm.repeat_count) > 1 && (
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={stepForm.limit_one_per_day}
+                onChange={(e) => setStepForm((f) => ({ ...f, limit_one_per_day: e.target.checked }))}
+                className="mt-1 rounded border-gray-300 dark:border-gray-600 text-brand-500 focus:ring-brand-400"
+              />
+              <div>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Limit one per day</span>
+                <p className="text-xs text-gray-400 dark:text-gray-500">This step can only be checked off once per day.</p>
+              </div>
+            </label>
+          )}
+
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={stepForm.require_input}
+              onChange={(e) => setStepForm((f) => ({ ...f, require_input: e.target.checked }))}
+              className="mt-1 rounded border-gray-300 dark:border-gray-600 text-brand-500 focus:ring-brand-400"
+            />
+            <div>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Require input</span>
+              <p className="text-xs text-gray-400 dark:text-gray-500">The user can only check off this step if they type in a response.</p>
+            </div>
+          </label>
+
+          {stepForm.require_input && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Input prompt
+              </label>
+              <input
+                type="text"
+                value={stepForm.input_prompt}
+                onChange={(e) => setStepForm((f) => ({ ...f, input_prompt: e.target.value }))}
+                placeholder="e.g. Name of hymn learned"
+                maxLength={500}
+                className={INPUT_CLS}
+              />
+              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">This prompt will be shown to the user when they check off the step.</p>
+            </div>
+          )}
 
           {stepError && <p className="text-sm text-red-500">{stepError}</p>}
 
