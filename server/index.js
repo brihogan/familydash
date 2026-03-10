@@ -30,6 +30,7 @@ app.set('trust proxy', 1); // trust first proxy (Cloudflare tunnel)
 app.use(
   helmet({
     contentSecurityPolicy: {
+      useDefaults: false,
       directives: {
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
@@ -37,6 +38,10 @@ app.use(
         imgSrc: ["'self'", 'data:'],
         connectSrc: ["'self'"],
         workerSrc: ["'self'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'self'"],
+        objectSrc: ["'none'"],
       },
     },
     hsts: false, // Cloudflare handles HTTPS; HSTS breaks localhost access
