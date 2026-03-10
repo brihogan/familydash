@@ -6,12 +6,21 @@
     <meta name="description" content="Family chores, banking, tickets & rewards dashboard" />
     <meta name="theme-color" content="#6366f1" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Dashboard" />
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
-    <style>html, body { overflow-x: hidden; max-width: 100%; }</style>
+    <style>
+      html, body { overflow-x: hidden; max-width: 100%; }
+      /* iOS PWA safe areas + background behind notch/home indicator */
+      body {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+        background-color: #f9fafb;
+      }
+      html.dark body { background-color: #111827; }
+    </style>
     <title>Family Dashboard</title>
   </head>
   <body>
