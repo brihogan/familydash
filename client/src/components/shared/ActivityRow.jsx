@@ -33,6 +33,7 @@ export function getActivityPath(item) {
     case 'tickets_removed':
       return `/tickets/${item.subject_user_id}`;
     case 'reward_redeemed':
+    case 'reward_undone':
       return `/rewards`;
     default:
       return null;
@@ -55,12 +56,13 @@ export const EVENT_ICONS = {
   allowance:            '🎁',
   manual_adjustment:    '🔧',
   reward_redeemed:      '🏆',
+  reward_undone:        '↩️',
   tickets_added:        '🎟',
   tickets_removed:      '🎟',
 };
 
 const BANK_EVENTS   = new Set(['deposit', 'withdrawal', 'transfer_out', 'transfer_in', 'allowance', 'manual_adjustment']);
-const TICKET_EVENTS = new Set(['tickets_added', 'tickets_removed', 'chore_completed', 'chore_undone', 'taskset_completed', 'taskset_uncompleted']);
+const TICKET_EVENTS = new Set(['tickets_added', 'tickets_removed', 'chore_completed', 'chore_undone', 'taskset_completed', 'taskset_uncompleted', 'reward_undone']);
 
 /**
  * Single activity row used in both FamilyActivityPage and KidOverviewPage.
@@ -94,6 +96,11 @@ function dayLabel(localDateStr) {
 }
 
 export function GroupedActivityList({ activity, showAvatar = true, onUndone }) {
+  // Collect reference_ids that have been undone so we hide the Undo button on the original row
+  const undoneRefIds = new Set(
+    activity.filter(a => a.event_type === 'reward_undone' && a.reference_id).map(a => a.reference_id)
+  );
+
   const groups = [];
   for (const item of activity) {
     const day = toLocalDate(item.created_at);
@@ -110,7 +117,7 @@ export function GroupedActivityList({ activity, showAvatar = true, onUndone }) {
             <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{group.label}</span>
           </div>
           {group.items.map((item) => (
-            <ActivityRow key={item.id} item={item} showAvatar={showAvatar} onUndone={onUndone} />
+            <ActivityRow key={item.id} item={item} showAvatar={showAvatar} onUndone={onUndone} undoneRefIds={undoneRefIds} />
           ))}
         </div>
       ))}
@@ -120,7 +127,7 @@ export function GroupedActivityList({ activity, showAvatar = true, onUndone }) {
 
 // ─── Single row ───────────────────────────────────────────────────────────────
 
-export default function ActivityRow({ item, showAvatar = true, onUndone }) {
+export default function ActivityRow({ item, showAvatar = true, onUndone, undoneRefIds }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { useSets, useTickets } = useFamilySettings();
@@ -199,7 +206,7 @@ export default function ActivityRow({ item, showAvatar = true, onUndone }) {
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        {isParent && (item.event_type === 'chore_completed' || item.event_type === 'task_step_completed' || item.event_type === 'reward_redeemed') && item.reference_id && (
+        {isParent && (item.event_type === 'chore_completed' || item.event_type === 'task_step_completed' || (item.event_type === 'reward_redeemed' && !undoneRefIds?.has(item.reference_id))) && item.reference_id && (
           undone ? (
             <span className="text-xs text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 px-2 py-1 rounded">
               Undone

@@ -70,7 +70,7 @@ router.get('/:id/activity', authenticate, requireOwnOrParent, (req, res, next) =
 
 const VALID_EVENT_TYPES = new Set([
   'deposit', 'withdrawal', 'transfer_out', 'transfer_in', 'allowance', 'manual_adjustment',
-  'chore_completed', 'chore_undone', 'reward_redeemed', 'tickets_added', 'tickets_removed',
+  'chore_completed', 'chore_undone', 'reward_redeemed', 'reward_undone', 'tickets_added', 'tickets_removed',
   'task_step_completed', 'task_step_undone', 'taskset_completed', 'chores_all_done',
 ]);
 

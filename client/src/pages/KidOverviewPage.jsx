@@ -20,7 +20,7 @@ const TYPE_GROUPS = {
   bank:    ['deposit', 'withdrawal', 'transfer_out', 'transfer_in', 'allowance', 'manual_adjustment'],
   chores:  ['chore_completed', 'chore_undone', 'chores_all_done'],
   tasks:   ['task_step_completed', 'task_step_undone', 'taskset_completed'],
-  rewards: ['reward_redeemed'],
+  rewards: ['reward_redeemed', 'reward_undone'],
   tickets: ['tickets_added', 'tickets_removed'],
 };
 

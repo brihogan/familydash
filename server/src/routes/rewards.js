@@ -165,18 +165,26 @@ router.delete('/:id/rewards/redemptions/:redemptionId', authenticate, requireRol
       db.prepare('UPDATE users SET ticket_balance = ticket_balance + ? WHERE id = ?')
         .run(redemption.ticket_cost_at_time, userId);
 
-      // Remove the redemption ledger entry (negative amount for this redemption)
-      db.prepare(
-        "DELETE FROM ticket_ledger WHERE user_id = ? AND type = 'redemption' AND amount = ? AND description = ? AND id = (SELECT id FROM ticket_ledger WHERE user_id = ? AND type = 'redemption' AND amount = ? AND description = ? ORDER BY created_at DESC LIMIT 1)"
-      ).run(userId, -redemption.ticket_cost_at_time, `Redeemed: ${redemption.reward_name_at_time}`, userId, -redemption.ticket_cost_at_time, `Redeemed: ${redemption.reward_name_at_time}`);
+      // Add refund ledger entry (positive amount)
+      db.prepare(`
+        INSERT INTO ticket_ledger (user_id, amount, type, description, reference_type)
+        VALUES (?, ?, 'manual', ?, 'reward_redemption')
+      `).run(userId, redemption.ticket_cost_at_time, `Refund: ${redemption.reward_name_at_time}`);
 
       // Remove the redemption record
       db.prepare('DELETE FROM reward_redemptions WHERE id = ?').run(redemptionId);
 
-      // Remove the activity event
-      db.prepare(
-        "DELETE FROM activity WHERE reference_id = ? AND reference_type = 'reward_redemption' AND event_type = 'reward_redeemed'"
-      ).run(redemptionId);
+      // Log undo activity event
+      insertActivity({
+        familyId: req.user.familyId,
+        subjectUserId: userId,
+        actorUserId: req.user.userId,
+        eventType: 'reward_undone',
+        description: `Undid reward: ${redemption.reward_name_at_time} (+${redemption.ticket_cost_at_time} tickets refunded)`,
+        referenceId: redemptionId,
+        referenceType: 'reward_redemption',
+        amountCents: redemption.ticket_cost_at_time,
+      });
 
       return db.prepare('SELECT ticket_balance FROM users WHERE id = ?').get(userId).ticket_balance;
     });
