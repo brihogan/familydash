@@ -381,7 +381,7 @@ export default function RewardsPage() {
                 </select>
               </div>
             </div>
-            <RedemptionHistory redemptions={redemptions} isParent={isParent} />
+            <RedemptionHistory redemptions={redemptions} isParent={isParent} onUndone={fetchAll} />
           </div>
         </div>
       )}

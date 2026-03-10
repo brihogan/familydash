@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -159,27 +159,6 @@ export default function Layout() {
     return () => { document.body.style.overscrollBehavior = prev; };
   }, [bottomPanelOpen]);
 
-  const [dragY,      setDragY]      = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartY = useRef(null);
-
-  const handleDragStart = (e) => {
-    dragStartY.current = e.touches[0].clientY;
-    setIsDragging(true);
-  };
-  const handleDragMove = (e) => {
-    if (dragStartY.current === null) return;
-    const delta = e.touches[0].clientY - dragStartY.current;
-    setDragY(Math.max(0, delta)); // only allow downward drag
-  };
-  const handleDragEnd = (e) => {
-    if (dragStartY.current === null) return;
-    const delta = e.changedTouches[0].clientY - dragStartY.current;
-    dragStartY.current = null;
-    setIsDragging(false);
-    setDragY(0);
-    if (delta > 100) close(); // dragged far enough — dismiss
-  };
 
   // NavLink base class
   const navClass = ({ isActive }) =>
@@ -409,13 +388,15 @@ export default function Layout() {
           >
             {isDark ? <SunIcon /> : <MoonIcon />}
           </button>
-          <button
-            onClick={handleLogout}
-            className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-            title="Sign out"
-          >
-            <FontAwesomeIcon icon={faRightFromBracket} />
-          </button>
+          {user?.role !== 'kid' && (
+            <button
+              onClick={handleLogout}
+              className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              title="Sign out"
+            >
+              <FontAwesomeIcon icon={faRightFromBracket} />
+            </button>
+          )}
         </div>
       </aside>
 
@@ -435,6 +416,13 @@ export default function Layout() {
 
         {/* Mobile top bar */}
         <header className="lg:hidden sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3 shadow-sm">
+          <button
+            onClick={() => setBottomPanelOpen((o) => !o)}
+            className="p-1 -ml-1 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+            aria-label="Open navigation menu"
+          >
+            <HamburgerIcon />
+          </button>
           <Link to="/dashboard" className="font-bold text-brand-600 text-base hover:text-brand-700">Family Dashboard</Link>
           <div className="ml-auto flex items-center gap-2">
             {kidStats?.pendingDepositCount > 0 && (
@@ -457,59 +445,53 @@ export default function Layout() {
           </div>
         </header>
 
-        {/* Page content — extra bottom padding on mobile to clear the bottom bar */}
-        <main className={`flex-1 overflow-x-hidden overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6 ${bottomPanelOpen ? 'overflow-hidden' : ''}`}>
+        {/* Page content */}
+        <main className={`flex-1 overflow-x-hidden overflow-y-auto p-4 lg:p-6 ${bottomPanelOpen ? 'overflow-hidden' : ''}`}>
           <div className="max-w-6xl mx-auto">
             <Outlet />
           </div>
         </main>
 
-        {/* ── Bottom bar (mobile only) ── */}
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg">
-          <div className="flex items-center justify-between px-6 pt-2 pb-4">
-            <button
-              onClick={() => setBottomPanelOpen((o) => !o)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              aria-label="Toggle navigation menu"
-            >
-              <HamburgerIcon />
-              <span className="text-sm font-medium">Menu</span>
-            </button>
-            <button
-              onClick={toggleTheme}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              {isDark ? <SunIcon /> : <MoonIcon />}
-              <span className="text-sm font-medium">{isDark ? 'Light' : 'Dark'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* ── Bottom sheet panel (mobile only) ── */}
+        {/* ── Slide-in side panel (mobile only) ── */}
         <div
-          className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 rounded-t-2xl shadow-2xl max-h-[75vh] flex flex-col"
+          className="lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 shadow-2xl flex flex-col"
           style={{
-            transform:  isDragging ? `translateY(${dragY}px)` : bottomPanelOpen ? 'translateY(0)' : 'translateY(100%)',
-            transition: isDragging ? 'none' : 'transform 300ms ease-in-out',
+            transform: bottomPanelOpen ? 'translateX(0)' : 'translateX(-100%)',
+            transition: 'transform 300ms ease-in-out',
           }}
         >
-          {/* Drag handle — drag to reposition / release to snap */}
-          <div
-            onTouchStart={handleDragStart}
-            onTouchMove={handleDragMove}
-            onTouchEnd={handleDragEnd}
-            className="flex justify-center pt-3 pb-1"
-          >
-            <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
+          {/* Panel header */}
+          <div className="px-4 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <Link to="/dashboard" onClick={close} className="text-lg font-bold text-brand-600 hover:text-brand-700">Family Dashboard</Link>
+            <button
+              onClick={close}
+              className="p-1.5 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              aria-label="Close menu"
+            >
+              <CloseIcon />
+            </button>
           </div>
 
-          {/* User info row — outside drag target so buttons work reliably */}
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">
+          {/* Nav links */}
+          <Nav />
+
+          {/* Pending deposit banner (kid only) */}
+          {kidStats?.pendingDepositCount > 0 && (
+            <button
+              onClick={() => { close(); navigate(`/bank/${user.id}`, { state: { openReceive: true } }); }}
+              className="mx-3 mb-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-semibold hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
+            >
+              <FontAwesomeIcon icon={faMoneyBillWave} className="text-[11px]" />
+              Money to receive!
+            </button>
+          )}
+
+          {/* User info + theme toggle + logout (matches desktop sidebar) */}
+          <div className="px-4 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center gap-3">
             <button
               type="button"
               onClick={() => { setEmojiOpen(true); close(); }}
-              className="flex-shrink-0 rounded-full hover:opacity-80 transition-opacity"
+              className="flex-shrink-0 rounded-full hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-brand-400"
               title="Change avatar"
             >
               <Avatar name={user?.name || '?'} color={user?.avatarColor || '#6366f1'} emoji={user?.avatarEmoji} size="sm" />
@@ -519,24 +501,21 @@ export default function Layout() {
               <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">{user?.role}</p>
             </div>
             <button
-              onClick={handleLogout}
-              className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-              title="Sign out"
+              onClick={toggleTheme}
+              className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              <FontAwesomeIcon icon={faRightFromBracket} />
+              {isDark ? <SunIcon /> : <MoonIcon />}
             </button>
-            <button
-              onClick={close}
-              className="p-2 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              aria-label="Close menu"
-            >
-              <CloseIcon />
-            </button>
-          </div>
-
-          {/* Nav links */}
-          <div className="flex-1 overflow-y-auto overscroll-contain">
-            <Nav />
+            {user?.role !== 'kid' && (
+              <button
+                onClick={() => { close(); handleLogout(); }}
+                className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                title="Sign out"
+              >
+                <FontAwesomeIcon icon={faRightFromBracket} />
+              </button>
+            )}
           </div>
         </div>
 

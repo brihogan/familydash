@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { useFamilySettings } from '../../context/FamilySettingsContext.jsx';
 import { choresApi } from '../../api/chores.api.js';
 import { taskSetsApi } from '../../api/taskSets.api.js';
+import { rewardsApi } from '../../api/rewards.api.js';
 
 // Map each event type to the relevant page for that subject
 export function getActivityPath(item) {
@@ -132,7 +133,9 @@ export default function ActivityRow({ item, showAvatar = true, onUndone }) {
     e.stopPropagation();
     setUndoing(true);
     try {
-      if (item.event_type === 'task_step_completed') {
+      if (item.event_type === 'reward_redeemed') {
+        await rewardsApi.undoRedemption(item.subject_user_id, item.reference_id);
+      } else if (item.event_type === 'task_step_completed') {
         await taskSetsApi.toggleStep(item.subject_user_id, item.reference_id, item.amount_cents);
       } else {
         await choresApi.uncompleteChore(item.subject_user_id, item.reference_id);
@@ -196,7 +199,7 @@ export default function ActivityRow({ item, showAvatar = true, onUndone }) {
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        {isParent && (item.event_type === 'chore_completed' || item.event_type === 'task_step_completed') && item.reference_id && (
+        {isParent && (item.event_type === 'chore_completed' || item.event_type === 'task_step_completed' || item.event_type === 'reward_redeemed') && item.reference_id && (
           undone ? (
             <span className="text-xs text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 px-2 py-1 rounded">
               Undone

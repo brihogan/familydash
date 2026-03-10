@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTachographDigital, faCrown, faBroom } from '@fortawesome/free-solid-svg-icons';
+import { faTachographDigital, faCrown, faBroom, faChevronDown, faGear, faRightFromBracket } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { overviewApi } from '../api/overview.api.js';
@@ -199,7 +199,7 @@ function StatCard({ onClick, children, accent = 'brand' }) {
 
 export default function KidOverviewPage() {
   const { userId } = useParams();
-  const { user }   = useAuth();
+  const { user, logout } = useAuth();
   const { useBanking, useSets, useTickets } = useFamilySettings();
   const navigate   = useNavigate();
   const isParent   = user?.role === 'parent';
@@ -214,6 +214,8 @@ export default function KidOverviewPage() {
   const [actTypeKey,  setActTypeKey]  = useState('all');
   const [kids,        setKids]        = useState([]);
   const [memberRole,  setMemberRole]  = useState(null);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Fetch kid list for the switcher (parent only, once)
   useEffect(() => {
@@ -283,32 +285,46 @@ export default function KidOverviewPage() {
 
       {/* ── Header ── */}
       <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            <FontAwesomeIcon icon={faTachographDigital} className="mr-2 text-brand-500" />
-            {isParent ? `${memberName}'s Overview` : 'My Overview'}
-          </h1>
-          {isParent && kids.length > 1 && (
-            <div className="flex items-center gap-1.5 mt-1.5">
-              <span className="text-xs text-gray-400 dark:text-gray-500">Switch to:</span>
-              <select
-                value={userId}
-                onChange={(e) => navigate(`/kid/${e.target.value}`)}
-                className="text-sm font-medium text-brand-600 border border-brand-200 rounded-lg px-2.5 py-1 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-300 cursor-pointer hover:border-brand-400 transition-colors"
-              >
+        <div className="relative min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <FontAwesomeIcon icon={faTachographDigital} className="text-brand-500 text-2xl shrink-0" />
+            {isParent && kids.length > 1 ? (
+              <button onClick={() => setSwitcherOpen((o) => !o)} className="flex items-center gap-1.5 min-w-0">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">{memberName}'s Overview</h1>
+                <FontAwesomeIcon icon={faChevronDown} className={`text-gray-400 text-sm shrink-0 transition-transform ${switcherOpen ? 'rotate-180' : ''}`} />
+              </button>
+            ) : (
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
+                {isParent ? `${memberName}'s Overview` : 'My Overview'}
+              </h1>
+            )}
+          </div>
+          {switcherOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setSwitcherOpen(false)} />
+              <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
                 {kids.map((k) => (
-                  <option key={k.id} value={String(k.id)}>{k.name}</option>
+                  <button
+                    key={k.id}
+                    onClick={() => { setSwitcherOpen(false); navigate(`/kid/${k.id}`); }}
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                      String(k.id) === String(userId) ? 'font-semibold text-brand-600 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    {k.name}
+                  </button>
                 ))}
-              </select>
-            </div>
+              </div>
+            </>
           )}
         </div>
         {isParent && (
           <Link
-            to="/family-activity"
-            className="text-sm text-brand-600 hover:text-brand-700 hover:underline"
+            to={`/settings/users/${userId}`}
+            className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors shrink-0"
+            title="User settings"
           >
-            Full activity →
+            <FontAwesomeIcon icon={faGear} className="text-lg" />
           </Link>
         )}
       </div>
@@ -485,6 +501,44 @@ export default function KidOverviewPage() {
           )}
         </div>
       </div>
+
+      {/* Kid logout */}
+      {!isParent && (
+        <div className="mt-10 flex justify-center">
+          <button
+            onClick={() => setShowLogoutConfirm(true)}
+            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+          >
+            <FontAwesomeIcon icon={faRightFromBracket} />
+            Log out
+          </button>
+        </div>
+      )}
+
+      {/* Logout confirm dialog */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowLogoutConfirm(false)} />
+          <div className="relative z-10 bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-xs p-6 text-center">
+            <p className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-2">Log out?</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">Are you sure you want to log out?</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => { await logout(); navigate('/login'); }}
+                className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Log out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

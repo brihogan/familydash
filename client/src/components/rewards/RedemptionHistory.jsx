@@ -1,8 +1,26 @@
+import { useState } from 'react';
 import Avatar from '../shared/Avatar.jsx';
 import { relativeTime } from '../../utils/relativeTime.js';
 import EmptyState from '../shared/EmptyState.jsx';
+import { rewardsApi } from '../../api/rewards.api.js';
 
-export default function RedemptionHistory({ redemptions, isParent = true }) {
+export default function RedemptionHistory({ redemptions, isParent = true, onUndone }) {
+  const [undoneIds, setUndoneIds] = useState(new Set());
+  const [undoingId, setUndoingId] = useState(null);
+
+  const handleUndo = async (r) => {
+    setUndoingId(r.id);
+    try {
+      await rewardsApi.undoRedemption(r.user_id, r.id);
+      setUndoneIds((prev) => new Set(prev).add(r.id));
+      onUndone?.();
+    } catch {
+      // silently ignore
+    } finally {
+      setUndoingId(null);
+    }
+  };
+
   if (!redemptions.length) {
     return <EmptyState title="No redemptions yet" />;
   }
@@ -20,6 +38,21 @@ export default function RedemptionHistory({ redemptions, isParent = true }) {
             <p className="text-xs text-gray-400 dark:text-gray-500">{relativeTime(r.created_at)}</p>
           </div>
           <span className="text-xs font-medium text-brand-600">−🎟 {r.ticket_cost_at_time}</span>
+          {isParent && (
+            undoneIds.has(r.id) ? (
+              <span className="text-xs text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 px-2 py-1 rounded">
+                Undone
+              </span>
+            ) : (
+              <button
+                onClick={() => handleUndo(r)}
+                disabled={undoingId === r.id}
+                className="text-xs text-red-500 hover:text-red-700 border border-red-200 dark:border-red-500 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors"
+              >
+                {undoingId === r.id ? '…' : 'Undo'}
+              </button>
+            )
+          )}
         </div>
       ))}
     </div>

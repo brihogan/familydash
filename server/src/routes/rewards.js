@@ -146,6 +146,48 @@ router.post('/:id/rewards/redeem', authenticate, requireOwnOrParent, (req, res, 
   }
 });
 
+// ─── DELETE /api/users/:id/rewards/redemptions/:redemptionId ─────────────
+// Undo a reward redemption — refund tickets, remove ledger + redemption rows
+
+router.delete('/:id/rewards/redemptions/:redemptionId', authenticate, requireRole('parent'), (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const redemptionId = parseInt(req.params.redemptionId, 10);
+    assertSameFamily(userId, req.user.familyId);
+
+    const redemption = db.prepare(
+      'SELECT * FROM reward_redemptions WHERE id = ? AND user_id = ?'
+    ).get(redemptionId, userId);
+    if (!redemption) return res.status(404).json({ error: 'Redemption not found.' });
+
+    const undoTx = db.transaction(() => {
+      // Refund tickets
+      db.prepare('UPDATE users SET ticket_balance = ticket_balance + ? WHERE id = ?')
+        .run(redemption.ticket_cost_at_time, userId);
+
+      // Remove the redemption ledger entry (negative amount for this redemption)
+      db.prepare(
+        "DELETE FROM ticket_ledger WHERE user_id = ? AND type = 'redemption' AND amount = ? AND description = ? AND id = (SELECT id FROM ticket_ledger WHERE user_id = ? AND type = 'redemption' AND amount = ? AND description = ? ORDER BY created_at DESC LIMIT 1)"
+      ).run(userId, -redemption.ticket_cost_at_time, `Redeemed: ${redemption.reward_name_at_time}`, userId, -redemption.ticket_cost_at_time, `Redeemed: ${redemption.reward_name_at_time}`);
+
+      // Remove the redemption record
+      db.prepare('DELETE FROM reward_redemptions WHERE id = ?').run(redemptionId);
+
+      // Remove the activity event
+      db.prepare(
+        "DELETE FROM activity WHERE reference_id = ? AND reference_type = 'reward_redemption' AND event_type = 'reward_redeemed'"
+      ).run(redemptionId);
+
+      return db.prepare('SELECT ticket_balance FROM users WHERE id = ?').get(userId).ticket_balance;
+    });
+
+    const newBalance = undoTx();
+    res.json({ ok: true, ticketBalance: newBalance });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── GET /api/family/redemptions ──────────────────────────────────────────
 // Parents: see all family redemptions (optionally filtered by ?user_id=X)
 // Kids:    see only their own redemptions (user_id forced to self)

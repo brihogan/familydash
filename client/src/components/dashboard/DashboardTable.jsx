@@ -131,7 +131,7 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
         {/* Row 1: Balance + Tickets + Trophies side by side */}
         <div className={`grid gap-1 ${
           (member.role === 'kid' || member.choresEnabled)
-            ? { 3: 'grid-cols-3', 2: 'grid-cols-2', 1: 'grid-cols-1' }[[useBanking, useTickets, true].filter(Boolean).length]
+            ? { 3: 'grid-cols-[1fr_1fr_auto]', 2: 'grid-cols-2', 1: 'grid-cols-1' }[[useBanking, useTickets, true].filter(Boolean).length]
             : { 2: 'grid-cols-2', 1: 'grid-cols-1', 0: 'grid-cols-1' }[[useBanking, useTickets].filter(Boolean).length]
         }`}>
           {/* Balance → Bank */}

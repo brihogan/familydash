@@ -131,19 +131,10 @@ export default function ChoreTemplateForm({ initial, onSave, onCancel, loading, 
         </div>
       </div>
 
-      {showCopyToggle && (
-        <div className="flex items-center justify-between py-0.5">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Copy to all kids</label>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={copyToAll}
-            onClick={() => setCopyToAll((p) => !p)}
-            className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 ${copyToAll ? 'bg-brand-500' : 'bg-gray-200 dark:bg-gray-600'}`}
-          >
-            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${copyToAll ? 'translate-x-5' : 'translate-x-0'}`} />
-          </button>
-        </div>
+      {showCopyToggle && !initial && (
+        <p className="text-xs text-gray-400 dark:text-gray-500 italic">
+          Want more than one kid to have this chore? Use Common Chores instead.
+        </p>
       )}
 
       {error && <p className="text-sm text-red-500">{error}</p>}

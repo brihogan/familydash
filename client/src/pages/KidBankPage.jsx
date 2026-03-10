@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPiggyBank } from '@fortawesome/free-solid-svg-icons';
+import { faPiggyBank, faChevronDown } from '@fortawesome/free-solid-svg-icons';
 import { accountsApi } from '../api/accounts.api.js';
 import { familyApi } from '../api/family.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -186,6 +186,7 @@ export default function KidBankPage() {
   const [error, setError] = useState('');
   const [pendingDeposits, setPendingDeposits] = useState([]);
   const [receivePopover, setReceivePopover] = useState(null); // pending deposit to receive
+  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -307,30 +308,48 @@ export default function KidBankPage() {
   return (
     <div>
       <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            <FontAwesomeIcon icon={faPiggyBank} className="mr-2 text-brand-500" />
-            {isParent ? `${memberName || '…'}'s Bank` : 'My Bank'}
-          </h1>
-          {isParent && kids.length > 1 && (
-            <div className="flex items-center gap-1.5 mt-1.5">
-              <span className="text-xs text-gray-400 dark:text-gray-500">Switch to:</span>
-              <select
-                value={userId}
-                onChange={(e) => navigate(`/bank/${e.target.value}`)}
-                className="text-sm font-medium text-brand-600 border border-brand-200 rounded-lg px-2.5 py-1 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-300 cursor-pointer hover:border-brand-400 transition-colors"
+        <div className="relative min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <FontAwesomeIcon icon={faPiggyBank} className="text-brand-500 text-2xl shrink-0" />
+            {isParent && kids.length > 1 ? (
+              <button
+                onClick={() => setSwitcherOpen((o) => !o)}
+                className="flex items-center gap-1.5 min-w-0"
               >
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
+                  {memberName || '…'}'s Bank
+                </h1>
+                <FontAwesomeIcon icon={faChevronDown} className={`text-gray-400 text-sm shrink-0 transition-transform ${switcherOpen ? 'rotate-180' : ''}`} />
+              </button>
+            ) : (
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
+                {isParent ? `${memberName || '…'}'s Bank` : 'My Bank'}
+              </h1>
+            )}
+          </div>
+          {switcherOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setSwitcherOpen(false)} />
+              <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
                 {kids.map((k) => (
-                  <option key={k.id} value={String(k.id)}>{k.name}</option>
+                  <button
+                    key={k.id}
+                    onClick={() => { setSwitcherOpen(false); navigate(`/bank/${k.id}`); }}
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                      String(k.id) === String(userId) ? 'font-semibold text-brand-600 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    {k.name}
+                  </button>
                 ))}
-              </select>
-            </div>
+              </div>
+            </>
           )}
         </div>
         {isParent && memberRole !== 'parent' && (
           <button
             onClick={() => setAddAccountModal(true)}
-            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-sm rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-sm rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shrink-0"
           >
             + Sub-account
           </button>

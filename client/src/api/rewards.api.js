@@ -8,6 +8,8 @@ export const rewardsApi = {
 
   redeemReward: (userId, rewardId) =>
     client.post(`/users/${userId}/rewards/redeem`, { reward_id: rewardId }).then((r) => r.data),
+  undoRedemption: (userId, redemptionId) =>
+    client.delete(`/users/${userId}/rewards/redemptions/${redemptionId}`).then((r) => r.data),
   getRedemptions: (params) =>
     client.get('/family/redemptions', { params }).then((r) => r.data),
 };

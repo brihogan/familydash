@@ -9,10 +9,13 @@ export default function LoginPage() {
   const { login } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const [tab, setTab] = useState('parent'); // 'parent' | 'kid'
-  const [email, setEmail] = useState('');
+  const savedEmail = localStorage.getItem('rememberedEmail') || '';
+  const savedUsername = localStorage.getItem('rememberedUsername') || '';
+  const savedTab = localStorage.getItem('loginTab');
+  const [tab, setTab] = useState(savedTab === 'kid' || savedTab === 'parent' ? savedTab : (savedUsername && !savedEmail ? 'kid' : 'parent'));
+  const [email, setEmail] = useState(savedEmail);
   const [password, setPassword] = useState('');
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(savedUsername);
   const [pin, setPin] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
@@ -25,6 +28,19 @@ export default function LoginPage() {
     try {
       const creds = tab === 'parent' ? { email, password, rememberMe } : { username, pin, rememberMe };
       await login(creds);
+      localStorage.setItem('loginTab', tab);
+      if (rememberMe) {
+        if (tab === 'parent') {
+          localStorage.setItem('rememberedEmail', email);
+          localStorage.removeItem('rememberedUsername');
+        } else {
+          localStorage.setItem('rememberedUsername', username);
+          localStorage.removeItem('rememberedEmail');
+        }
+      } else {
+        localStorage.removeItem('rememberedEmail');
+        localStorage.removeItem('rememberedUsername');
+      }
       navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed.');

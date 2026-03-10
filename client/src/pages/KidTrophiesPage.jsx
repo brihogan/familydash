@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faChevronDown } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
@@ -38,6 +40,7 @@ export default function KidTrophiesPage() {
   const [kids,        setKids]        = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState('');
+  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const fetchTrophies = useCallback(async () => {
     setLoading(true);
@@ -168,13 +171,24 @@ export default function KidTrophiesPage() {
 
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 relative">
         <div className="flex items-center gap-2 pb-3 border-b border-amber-200 dark:border-amber-700/40">
-          <span className="text-lg">🏆</span>
+          <span className="text-lg shrink-0">🏆</span>
           <div className="flex-1 min-w-0">
-            <h1 className="font-bold text-xl text-amber-700 dark:text-amber-400 leading-tight">
-              {isParent ? `${memberName || '…'}'s Trophy Shelf` : 'My Trophy Shelf'}
-            </h1>
+            <div className="flex items-center gap-1.5 min-w-0">
+              {isParent && kids.length > 1 ? (
+                <button onClick={() => setSwitcherOpen((o) => !o)} className="flex items-center gap-1.5 min-w-0">
+                  <h1 className="font-bold text-xl text-amber-700 dark:text-amber-400 leading-tight truncate">
+                    {memberName || '…'}'s Trophy Shelf
+                  </h1>
+                  <FontAwesomeIcon icon={faChevronDown} className={`text-gray-400 text-sm shrink-0 transition-transform ${switcherOpen ? 'rotate-180' : ''}`} />
+                </button>
+              ) : (
+                <h1 className="font-bold text-xl text-amber-700 dark:text-amber-400 leading-tight truncate">
+                  {isParent ? `${memberName || '…'}'s Trophy Shelf` : 'My Trophy Shelf'}
+                </h1>
+              )}
+            </div>
             {!loading && (
               <p className="text-xs text-amber-600/70 dark:text-amber-500/70">
                 {trophies.length} {trophies.length === 1 ? 'achievement' : 'achievements'} earned
@@ -182,19 +196,23 @@ export default function KidTrophiesPage() {
             )}
           </div>
         </div>
-        {isParent && kids.length > 1 && (
-          <div className="flex items-center gap-1.5 mt-2">
-            <span className="text-xs text-gray-400 dark:text-gray-500">Switch to:</span>
-            <select
-              value={userId}
-              onChange={(e) => navigate(`/trophies/${e.target.value}`)}
-              className="text-sm font-medium text-brand-600 border border-brand-200 rounded-lg px-2.5 py-1 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-300 cursor-pointer hover:border-brand-400 transition-colors"
-            >
+        {switcherOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setSwitcherOpen(false)} />
+            <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
               {kids.map((k) => (
-                <option key={k.id} value={String(k.id)}>{k.name}</option>
+                <button
+                  key={k.id}
+                  onClick={() => { setSwitcherOpen(false); navigate(`/trophies/${k.id}`); }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                    String(k.id) === String(userId) ? 'font-semibold text-brand-600 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  {k.name}
+                </button>
               ))}
-            </select>
-          </div>
+            </div>
+          </>
         )}
       </div>
 

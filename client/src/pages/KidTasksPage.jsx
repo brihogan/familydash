@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMedal } from '@fortawesome/free-solid-svg-icons';
+import { faMedal, faChevronDown } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
@@ -21,6 +21,7 @@ export default function KidTasksPage() {
   const [kids,       setKids]       = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState('');
+  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
@@ -147,24 +148,37 @@ export default function KidTasksPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-          <FontAwesomeIcon icon={faMedal} className="mr-2 text-brand-500" />
-          {isParent ? `${memberName || '…'}'s Sets` : 'My Sets'}
-        </h1>
-        {isParent && kids.length > 1 && (
-          <div className="flex items-center gap-1.5 mt-1.5">
-            <span className="text-xs text-gray-400 dark:text-gray-500">Switch to:</span>
-            <select
-              value={userId}
-              onChange={(e) => navigate(`/tasks/${e.target.value}`)}
-              className="text-sm font-medium text-brand-600 border border-brand-200 rounded-lg px-2.5 py-1 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-300 cursor-pointer hover:border-brand-400 transition-colors"
-            >
+      <div className="mb-6 relative">
+        <div className="flex items-center gap-2 min-w-0">
+          <FontAwesomeIcon icon={faMedal} className="text-brand-500 text-2xl shrink-0" />
+          {isParent && kids.length > 1 ? (
+            <button onClick={() => setSwitcherOpen((o) => !o)} className="flex items-center gap-1.5 min-w-0">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">{memberName || '…'}'s Sets</h1>
+              <FontAwesomeIcon icon={faChevronDown} className={`text-gray-400 text-sm shrink-0 transition-transform ${switcherOpen ? 'rotate-180' : ''}`} />
+            </button>
+          ) : (
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
+              {isParent ? `${memberName || '…'}'s Sets` : 'My Sets'}
+            </h1>
+          )}
+        </div>
+        {switcherOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setSwitcherOpen(false)} />
+            <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
               {kids.map((k) => (
-                <option key={k.id} value={String(k.id)}>{k.name}</option>
+                <button
+                  key={k.id}
+                  onClick={() => { setSwitcherOpen(false); navigate(`/tasks/${k.id}`); }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                    String(k.id) === String(userId) ? 'font-semibold text-brand-600 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  {k.name}
+                </button>
               ))}
-            </select>
-          </div>
+            </div>
+          </>
         )}
       </div>
 
