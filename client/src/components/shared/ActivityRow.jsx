@@ -168,6 +168,24 @@ export default function ActivityRow({ item, showAvatar = true, onUndone, undoneR
   const showTickets = useTickets && TICKET_EVENTS.has(item.event_type) && item.amount_cents != null;
   const ticketPos   = item.amount_cents > 0;
 
+  const canUndo = isParent && (item.event_type === 'chore_completed' || item.event_type === 'task_step_completed' || (item.event_type === 'reward_redeemed' && !undoneRefIds?.has(item.reference_id))) && item.reference_id;
+
+  const undoEl = canUndo ? (
+    undone ? (
+      <span className="text-xs text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 px-2 py-1 rounded">
+        Undone
+      </span>
+    ) : (
+      <button
+        onClick={handleUndo}
+        disabled={undoing}
+        className="text-xs text-red-500 hover:text-red-700 border border-red-200 dark:border-red-500 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors"
+      >
+        {undoing ? '…' : 'Undo'}
+      </button>
+    )
+  ) : null;
+
   return (
     <div
       onClick={path ? () => navigate(path) : undefined}
@@ -175,18 +193,18 @@ export default function ActivityRow({ item, showAvatar = true, onUndone, undoneR
         path ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800' : ''
       }`}
     >
-      <span className="text-lg shrink-0">{EVENT_ICONS[item.event_type] || '📌'}</span>
-
-      {showAvatar && (
-        <div className="flex items-center gap-2 shrink-0">
+      {/* Left: icon + avatar — stacked on mobile, side-by-side on desktop */}
+      <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 shrink-0">
+        <span className="text-lg shrink-0">{EVENT_ICONS[item.event_type] || '📌'}</span>
+        {showAvatar && (
           <Avatar
             name={item.subject_name}
             color={item.avatar_color || '#6366f1'}
             emoji={item.avatar_emoji}
             size="sm"
           />
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="flex-1 min-w-0">
         <p className="text-sm text-gray-800 dark:text-gray-200">{item.description}</p>
@@ -205,29 +223,18 @@ export default function ActivityRow({ item, showAvatar = true, onUndone, undoneR
         </p>
       </div>
 
-      <div className="flex items-center gap-2 shrink-0">
-        {isParent && (item.event_type === 'chore_completed' || item.event_type === 'task_step_completed' || (item.event_type === 'reward_redeemed' && !undoneRefIds?.has(item.reference_id))) && item.reference_id && (
-          undone ? (
-            <span className="text-xs text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 px-2 py-1 rounded">
-              Undone
+      {/* Right: value + undo — stacked on mobile */}
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        <div className="flex items-center gap-2">
+          {showMoney && <CurrencyDisplay cents={item.amount_cents} />}
+          {showTickets && (
+            <span className={`font-mono text-sm font-medium ${ticketPos ? 'text-green-700' : 'text-red-600'}`}>
+              {ticketPos ? '+' : ''}{item.amount_cents} 🎟
             </span>
-          ) : (
-            <button
-              onClick={handleUndo}
-              disabled={undoing}
-              className="text-xs text-red-500 hover:text-red-700 border border-red-200 dark:border-red-500 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors"
-            >
-              {undoing ? '…' : 'Undo'}
-            </button>
-          )
-        )}
-        {showMoney && <CurrencyDisplay cents={item.amount_cents} />}
-        {showTickets && (
-          <span className={`font-mono text-sm font-medium ${ticketPos ? 'text-green-700' : 'text-red-600'}`}>
-            {ticketPos ? '+' : ''}{item.amount_cents} 🎟
-          </span>
-        )}
-        {path && <span className="text-gray-300 dark:text-gray-600 text-xs">›</span>}
+          )}
+          {path && <span className="text-gray-300 dark:text-gray-600 text-xs">›</span>}
+        </div>
+        {undoEl}
       </div>
     </div>
   );
