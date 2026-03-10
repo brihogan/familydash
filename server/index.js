@@ -36,6 +36,7 @@ app.use(
         scriptSrc: ["'self'"],
         imgSrc: ["'self'", 'data:'],
         connectSrc: ["'self'"],
+        workerSrc: ["'self'"],
       },
     },
   }),

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="0" ry="0" fill="#6366f1"/>
+  <!-- House roof (triangle) -->
+  <polygon points="256,80 420,240 92,240" fill="white"/>
+  <!-- House body (rectangle) -->
+  <rect x="132" y="240" width="248" height="192" fill="white"/>
+  <!-- Door -->
+  <rect x="224" y="320" width="64" height="112" rx="4" fill="#6366f1"/>
+</svg>

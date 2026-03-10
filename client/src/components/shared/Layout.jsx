@@ -17,6 +17,7 @@ import { taskSetsApi } from '../../api/taskSets.api.js';
 import { accountsApi } from '../../api/accounts.api.js';
 import { inboxApi } from '../../api/inbox.api.js';
 import { formatCents } from '../../utils/formatCents.js';
+import InstallPrompt from './InstallPrompt.jsx';
 
 function HamburgerIcon() {
   return (
@@ -451,6 +452,8 @@ export default function Layout() {
             <Outlet />
           </div>
         </main>
+
+        <InstallPrompt />
 
         {/* ── Slide-in side panel (mobile only) ── */}
         <div
