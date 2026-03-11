@@ -8,8 +8,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Family Dashboard',
-        short_name: 'Dashboard',
+        name: 'Family Dash',
+        short_name: 'Family Dash',
         description: 'Family chores, banking, tickets & rewards dashboard',
         theme_color: '#6366f1',
         background_color: '#f9fafb',

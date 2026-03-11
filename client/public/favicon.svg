@@ -1,9 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="0" ry="0" fill="#6366f1"/>
-  <!-- House roof (triangle) -->
-  <polygon points="256,80 420,240 92,240" fill="white"/>
-  <!-- House body (rectangle) -->
-  <rect x="132" y="240" width="248" height="192" fill="white"/>
-  <!-- Door -->
-  <rect x="224" y="320" width="64" height="112" rx="4" fill="#6366f1"/>
+  <rect width="512" height="512" rx="96" ry="96" fill="#6366f1"/>
+  <!-- Roof -->
+  <polygon points="256,60 440,200 72,200" fill="white"/>
+  <!-- Left person (adult) -->
+  <circle cx="160" cy="268" r="36" fill="white"/>
+  <path d="M112,380 C112,340 132,312 160,312 C188,312 208,340 208,380 Z" fill="white"/>
+  <!-- Center person (child, smaller) -->
+  <circle cx="256" cy="280" r="28" fill="white"/>
+  <path d="M218,380 C218,348 234,324 256,324 C278,324 294,348 294,380 Z" fill="white"/>
+  <!-- Right person (adult) -->
+  <circle cx="352" cy="268" r="36" fill="white"/>
+  <path d="M304,380 C304,340 324,312 352,312 C380,312 400,340 400,380 Z" fill="white"/>
+  <!-- Ground line -->
+  <rect x="80" y="380" width="352" height="20" rx="10" fill="white"/>
 </svg>

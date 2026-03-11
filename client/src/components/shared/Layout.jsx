@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faHouse, faTrophy, faTachographDigital, faBroom,
   faPiggyBank, faTicket, faUsers, faScroll, faRightFromBracket,
-  faMedal, faClipboardCheck, faGear, faInbox, faMoneyBillWave,
+  faMedal, faClipboardCheck, faGear, faInbox, faMoneyBillWave, faPeopleRoof,
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
@@ -365,7 +365,7 @@ export default function Layout() {
       <aside className="hidden lg:flex lg:flex-col lg:w-56 lg:shrink-0 bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 shadow-sm">
         {/* Sidebar header */}
         <div className="px-4 py-5 border-b border-gray-100 dark:border-gray-700">
-          <Link to="/dashboard" className="text-lg font-bold text-brand-600 hover:text-brand-700">Family Dashboard</Link>
+          <Link to="/dashboard" className="text-lg font-bold text-brand-600 hover:text-brand-700"><FontAwesomeIcon icon={faPeopleRoof} className="mr-2" />Family Dash</Link>
         </div>
 
         <Nav />
@@ -437,7 +437,7 @@ export default function Layout() {
           >
             <HamburgerIcon />
           </button>
-          <Link to="/dashboard" className="font-bold text-brand-600 text-base hover:text-brand-700">Family Dashboard</Link>
+          <Link to="/dashboard" className="font-bold text-brand-600 text-base hover:text-brand-700"><FontAwesomeIcon icon={faPeopleRoof} className="mr-2" />Family Dash</Link>
           <div className="ml-auto flex items-center gap-2">
             {kidStats?.pendingDepositCount > 0 && (
               <button
