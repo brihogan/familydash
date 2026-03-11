@@ -1,7 +1,9 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGear, faUsers, faClipboardCheck, faTrophy } from '@fortawesome/free-solid-svg-icons';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
+import { familyApi } from '../api/family.api.js';
 
 const SETTINGS_CARDS = [
   {
@@ -45,6 +47,22 @@ function Toggle({ checked, onChange }) {
 export default function SettingsPage() {
   const navigate = useNavigate();
   const { useBanking, updateUseBanking, useSets, updateUseSets, useTickets, updateUseTickets } = useFamilySettings();
+  const [trmnlUrl, setTrmnlUrl] = useState('');
+  const [trmnlSaved, setTrmnlSaved] = useState(false);
+
+  useEffect(() => {
+    familyApi.getSettings().then((data) => {
+      if (data.trmnlWebhookUrl !== undefined) setTrmnlUrl(data.trmnlWebhookUrl);
+    }).catch(() => {});
+  }, []);
+
+  const saveTrmnlUrl = async () => {
+    try {
+      await familyApi.updateSettings({ trmnl_webhook_url: trmnlUrl });
+      setTrmnlSaved(true);
+      setTimeout(() => setTrmnlSaved(false), 2000);
+    } catch { /* ignore */ }
+  };
 
   return (
     <div>
@@ -90,6 +108,32 @@ export default function SettingsPage() {
             </p>
           </div>
           <Toggle checked={useSets} onChange={updateUseSets} />
+        </div>
+      </div>
+
+      {/* ── Integrations ── */}
+      <div className="mb-6 space-y-3">
+        <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Integrations</h2>
+        <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+          <p className="font-medium text-gray-900 dark:text-gray-100 mb-1">TRMNL Display</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+            Paste your TRMNL webhook URL to push dashboard data to your e-ink display.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={trmnlUrl}
+              onChange={(e) => setTrmnlUrl(e.target.value)}
+              placeholder="https://trmnl.com/api/custom_plugins/..."
+              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-400"
+            />
+            <button
+              onClick={saveTrmnlUrl}
+              className="px-4 py-1.5 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium transition-colors shrink-0"
+            >
+              {trmnlSaved ? 'Saved!' : 'Save'}
+            </button>
+          </div>
         </div>
       </div>
 

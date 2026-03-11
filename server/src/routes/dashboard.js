@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/auth.js';
 import { processRecurringRules } from '../services/recurringRuleService.js';
 import { getOrGenerateLogs } from '../services/choreService.js';
 import { getKingOfCrowns } from '../services/streakService.js';
+import { pushToTrmnl } from '../services/trmnlService.js';
 
 const router = Router();
 
@@ -189,6 +190,9 @@ router.get('/', authenticate, (req, res, next) => {
     }
 
     res.json({ members });
+
+    // Fire-and-forget push to TRMNL (throttled, non-blocking)
+    pushToTrmnl(req.user.familyId).catch(() => {});
   } catch (err) {
     next(err);
   }

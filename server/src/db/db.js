@@ -323,4 +323,9 @@ try {
   db.exec(`ALTER TABLE recurring_rules ADD COLUMN bypass_currency_work INTEGER NOT NULL DEFAULT 0`);
 } catch (_) { /* column already exists */ }
 
+// v37: trmnl_webhook_url on families — per-family TRMNL e-ink display webhook
+try {
+  db.exec(`ALTER TABLE families ADD COLUMN trmnl_webhook_url TEXT DEFAULT NULL`);
+} catch (_) { /* column already exists */ }
+
 export default db;

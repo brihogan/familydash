@@ -363,9 +363,11 @@ router.delete('/users/:id/permanent', authenticate, requireRole('parent'), (req,
 
 router.get('/settings', authenticate, (req, res, next) => {
   try {
-    const family = db.prepare('SELECT use_banking, use_sets, use_tickets FROM families WHERE id = ?').get(req.user.familyId);
+    const family = db.prepare('SELECT use_banking, use_sets, use_tickets, trmnl_webhook_url FROM families WHERE id = ?').get(req.user.familyId);
     if (!family) return res.status(404).json({ error: 'Family not found.' });
-    res.json({ useBanking: family.use_banking === 1, useSets: family.use_sets === 1, useTickets: family.use_tickets === 1 });
+    const resp = { useBanking: family.use_banking === 1, useSets: family.use_sets === 1, useTickets: family.use_tickets === 1 };
+    if (req.user.role === 'parent') resp.trmnlWebhookUrl = family.trmnl_webhook_url || '';
+    res.json(resp);
   } catch (err) {
     next(err);
   }
@@ -376,7 +378,7 @@ router.get('/settings', authenticate, (req, res, next) => {
 
 router.patch('/settings', authenticate, requireRole('parent'), (req, res, next) => {
   try {
-    const { use_banking, use_sets, use_tickets } = req.body;
+    const { use_banking, use_sets, use_tickets, trmnl_webhook_url } = req.body;
     if (use_banking !== undefined) {
       db.prepare('UPDATE families SET use_banking = ? WHERE id = ?')
         .run(use_banking ? 1 : 0, req.user.familyId);
@@ -389,8 +391,12 @@ router.patch('/settings', authenticate, requireRole('parent'), (req, res, next) 
       db.prepare('UPDATE families SET use_tickets = ? WHERE id = ?')
         .run(use_tickets ? 1 : 0, req.user.familyId);
     }
-    const family = db.prepare('SELECT use_banking, use_sets, use_tickets FROM families WHERE id = ?').get(req.user.familyId);
-    res.json({ useBanking: family.use_banking === 1, useSets: family.use_sets === 1, useTickets: family.use_tickets === 1 });
+    if (trmnl_webhook_url !== undefined) {
+      db.prepare('UPDATE families SET trmnl_webhook_url = ? WHERE id = ?')
+        .run(trmnl_webhook_url || null, req.user.familyId);
+    }
+    const family = db.prepare('SELECT use_banking, use_sets, use_tickets, trmnl_webhook_url FROM families WHERE id = ?').get(req.user.familyId);
+    res.json({ useBanking: family.use_banking === 1, useSets: family.use_sets === 1, useTickets: family.use_tickets === 1, trmnlWebhookUrl: family.trmnl_webhook_url || '' });
   } catch (err) {
     next(err);
   }
