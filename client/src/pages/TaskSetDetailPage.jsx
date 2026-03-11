@@ -17,8 +17,8 @@ import { relativeTime } from '../utils/relativeTime.js';
 const TYPE_OPTIONS = ['Project', 'Award'];
 const INPUT_CLS = 'w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
-const EMPTY_SET_FORM  = { name: '', type: 'Project', emoji: '', description: '', category: '', ticket_reward: 0 };
-const EMPTY_STEP_FORM = { name: '', description: '', repeat_count: 1, limit_one_per_day: false, require_input: false, input_prompt: '' };
+const EMPTY_SET_FORM  = { name: '', type: 'Project', emoji: '', description: '', category: '', ticket_reward: 0, display_mode: 'list' };
+const EMPTY_STEP_FORM = { name: '', description: '', repeat_count: 1, limit_one_per_day: false, require_input: false, input_prompt: '', image: null, _imageFile: null, _removeImage: false };
 
 // ── Sortable step row ─────────────────────────────────────────────────────────
 function SortableStep({ step, index, onEdit, onDelete }) {
@@ -65,6 +65,9 @@ function SortableStep({ step, index, onEdit, onDelete }) {
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{step.description}</p>
         )}
       </div>
+      {step.image && (
+        <img src={`/api/uploads/steps/${step.image}`} alt="" className="w-10 h-10 object-cover rounded-lg flex-shrink-0" />
+      )}
       <div className="flex items-center gap-1.5 flex-shrink-0">
         <button
           onClick={() => onEdit(step)}
@@ -187,6 +190,7 @@ export default function TaskSetDetailPage() {
       description:   taskSet.description || '',
       category:      taskSet.category || '',
       ticket_reward: taskSet.ticket_reward ?? 0,
+      display_mode:  taskSet.display_mode || 'list',
     });
     setSetFormErr('');
     setPickerOpen(false);
@@ -210,6 +214,7 @@ export default function TaskSetDetailPage() {
         description:   setForm.description.trim(),
         category:      setForm.category.trim(),
         ticket_reward: Number(setForm.ticket_reward) || 0,
+        display_mode:  setForm.display_mode,
       });
       setTaskSet(updated);
       setSetModal(false);
@@ -237,6 +242,9 @@ export default function TaskSetDetailPage() {
       limit_one_per_day: !!step.limit_one_per_day,
       require_input: !!step.require_input,
       input_prompt: step.input_prompt || '',
+      image: step.image || null,
+      _imageFile: null,
+      _removeImage: false,
     });
     setStepError('');
     setStepModal(true);
@@ -256,12 +264,24 @@ export default function TaskSetDetailPage() {
         require_input: !!stepForm.require_input,
         input_prompt: stepForm.input_prompt.trim(),
       };
+      let savedStep;
       if (editStep) {
-        const updated = await taskSetsApi.updateStep(id, editStep.id, payload);
-        setSteps((prev) => prev.map((s) => s.id === editStep.id ? updated : s));
+        savedStep = await taskSetsApi.updateStep(id, editStep.id, payload);
       } else {
-        const created = await taskSetsApi.createStep(id, payload);
-        setSteps((prev) => [...prev, created]);
+        savedStep = await taskSetsApi.createStep(id, payload);
+      }
+      // Handle image upload or removal
+      if (stepForm._imageFile) {
+        const imgResult = await taskSetsApi.uploadStepImage(id, savedStep.id, stepForm._imageFile);
+        savedStep = { ...savedStep, image: imgResult.image };
+      } else if (stepForm._removeImage && editStep) {
+        await taskSetsApi.deleteStepImage(id, savedStep.id);
+        savedStep = { ...savedStep, image: null };
+      }
+      if (editStep) {
+        setSteps((prev) => prev.map((s) => s.id === editStep.id ? savedStep : s));
+      } else {
+        setSteps((prev) => [...prev, savedStep]);
       }
       setStepModal(false);
     } catch (err) {
@@ -825,6 +845,27 @@ export default function TaskSetDetailPage() {
             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Tickets awarded when all steps are completed.</p>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Display Mode</label>
+            <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+              {['list', 'card'].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setSetForm((f) => ({ ...f, display_mode: m }))}
+                  className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                    setForm.display_mode === m
+                      ? 'bg-brand-500 text-white'
+                      : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {m === 'list' ? 'List' : 'Card'}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Card view shows steps as a grid of cards.</p>
+          </div>
+
           {setFormErr && <p className="text-sm text-red-500">{setFormErr}</p>}
 
           <div className="flex gap-2 pt-1">
@@ -940,6 +981,41 @@ export default function TaskSetDetailPage() {
               <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">This prompt will be shown to the user when they check off the step.</p>
             </div>
           )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Image <span className="text-xs text-gray-400 dark:text-gray-500">(optional)</span>
+            </label>
+            {(stepForm._imageFile || (stepForm.image && !stepForm._removeImage)) ? (
+              <div className="flex items-center gap-3">
+                <img
+                  src={stepForm._imageFile ? URL.createObjectURL(stepForm._imageFile) : `/api/uploads/steps/${stepForm.image}`}
+                  alt="Step"
+                  className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => setStepForm((f) => ({ ...f, _imageFile: null, _removeImage: true }))}
+                  className="text-xs text-red-500 hover:text-red-700 border border-red-200 dark:border-red-500 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <label className="flex items-center justify-center w-full h-20 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-brand-400 transition-colors">
+                <span className="text-sm text-gray-400 dark:text-gray-500">Click to upload image</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) setStepForm((f) => ({ ...f, _imageFile: file, _removeImage: false }));
+                  }}
+                />
+              </label>
+            )}
+          </div>
 
           {stepError && <p className="text-sm text-red-500">{stepError}</p>}
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft } from '@fortawesome/free-solid-svg-icons';
@@ -8,6 +9,24 @@ import { IconDisplay } from '../components/shared/IconPicker.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { playChoreCheck, playVictory } from '../utils/sounds.js';
+import useScrollLock from '../hooks/useScrollLock.js';
+
+// ── Fullscreen image lightbox ─────────────────────────────────────────────────
+function ImageLightbox({ src, onClose }) {
+  useScrollLock(true);
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={(e) => { e.stopPropagation(); onClose(); }}>
+      <div className="absolute inset-0 bg-black/80" />
+      <img src={src} alt="" className="relative z-10 max-w-full max-h-full object-contain p-4" />
+    </div>,
+    document.body,
+  );
+}
 
 // ── Duration formatter ────────────────────────────────────────────────────────
 
@@ -27,6 +46,7 @@ function formatDuration(fromISO, toDate) {
 // ── Project completion modal ──────────────────────────────────────────────────
 
 function ProjectCompletionModal({ taskSet, stepCount, assignedAt, completedAt, onClose }) {
+  useScrollLock(true);
   // Keyboard dismiss
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
@@ -93,6 +113,7 @@ const AWARD_PALETTES = [
 ];
 
 function AwardCompletionModal({ taskSet, userId, assignedAt, completedAt, onClose }) {
+  useScrollLock(true);
   const navigate  = useNavigate();
   const canvasRef = useRef(null);
   // Mutable animation state lives in a ref so it doesn't cause re-renders
@@ -346,6 +367,7 @@ function StepItem({ step, onToggle, disabled }) {
   const [phase, setPhase] = useState('idle');
   const [inputValue, setInputValue] = useState('');
   const [showInput, setShowInput] = useState(false);
+  const [lightbox, setLightbox] = useState(false);
   const inputRef = useRef(null);
 
   const needsInput = !!step.require_input;
@@ -488,6 +510,231 @@ function StepItem({ step, onToggle, disabled }) {
           </div>
         )}
       </div>
+
+      {/* Step image (list view — small thumbnail on right) */}
+      {step.image && (
+        <img
+          src={`/api/uploads/steps/${step.image}`}
+          alt=""
+          className="w-10 h-10 object-cover rounded-lg flex-shrink-0 cursor-pointer"
+          onClick={(e) => { e.stopPropagation(); setLightbox(true); }}
+        />
+      )}
+      {lightbox && <ImageLightbox src={`/api/uploads/steps/${step.image}`} onClose={() => setLightbox(false)} />}
+    </div>
+  );
+}
+
+// ── Card-style step item ────────────────────────────────────────────────────
+function StepCard({ step, onToggle, disabled, done, isLast }) {
+  const [phase, setPhase] = useState('idle');
+  const [inputValue, setInputValue] = useState('');
+  const [showInput, setShowInput] = useState(false);
+  const [lightbox, setLightbox] = useState(false);
+  const inputRef = useRef(null);
+  const needsInput = !!step.require_input;
+
+  const handleCheck = () => {
+    if (done) return;
+    if (disabled || step._limitedToday || phase !== 'idle') return;
+    if (needsInput && !showInput) {
+      setShowInput(true);
+      setTimeout(() => inputRef.current?.focus(), 50);
+      return;
+    }
+    if (needsInput && !inputValue.trim()) return;
+    playChoreCheck();
+    setPhase('pop');
+    const response = needsInput ? inputValue.trim() : null;
+    setTimeout(() => setPhase('exit'), 420);
+    setTimeout(() => {
+      onToggle(step, false, response);
+      setPhase('idle');
+      setShowInput(false);
+      setInputValue('');
+    }, 780);
+  };
+
+  const isAnimating = phase !== 'idle';
+  const showDone = done || isAnimating;
+  const canCheck = !done && !disabled && !isAnimating && !step._limitedToday;
+
+  const cardStyle = (() => {
+    if (phase === 'exit') return { transition: 'opacity 360ms ease-out, transform 360ms ease-out', opacity: 0, transform: 'scale(0.9)' };
+    if (phase === 'pop') return { transition: 'transform 200ms', transform: 'scale(1.05)' };
+    return {};
+  })();
+
+  return (
+    <div
+      className={`relative flex flex-col rounded-xl border text-center overflow-hidden transition-colors ${
+        step.image ? 'p-0' : 'p-3 aspect-square items-center justify-center'
+      } ${
+        showDone
+          ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50'
+          : step._limitedToday
+            ? 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-60'
+            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+      }`}
+      style={{ ...cardStyle, animation: done ? 'chore-enter 350ms ease-out both' : undefined }}
+    >
+      {/* Image — tap opens fullscreen */}
+      {step.image && (
+        <img
+          src={`/api/uploads/steps/${step.image}`}
+          alt=""
+          className="w-full aspect-square object-cover cursor-pointer"
+          onClick={() => setLightbox(true)}
+        />
+      )}
+
+      {/* Undo button for last completed */}
+      {done && isLast && (
+        <button
+          onClick={() => onToggle(step, true)}
+          disabled={disabled}
+          className="absolute top-1.5 left-1.5 text-[10px] text-red-500 border border-red-200 dark:border-red-500 px-1.5 py-0.5 rounded bg-white/80 dark:bg-gray-800/80 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors"
+        >
+          Undo
+        </button>
+      )}
+
+      {/* Checkbox + name row */}
+      <div
+        className={`flex items-center gap-1.5 w-full ${step.image ? 'p-2' : ''} ${canCheck && !showInput ? 'cursor-pointer' : ''}`}
+        onClick={canCheck && !showInput ? handleCheck : undefined}
+      >
+        {/* Checkbox circle */}
+        <div className="relative shrink-0">
+          <span
+            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+              showDone
+                ? 'border-green-500 bg-green-500'
+                : 'border-gray-300 dark:border-gray-600'
+            }`}
+            style={phase === 'pop' ? { animation: 'chore-checkbox-pop 480ms cubic-bezier(0.36,0.07,0.19,0.97) both' } : undefined}
+          >
+            {showDone && (
+              <svg viewBox="0 0 12 10" className="w-2.5 h-2.5" fill="none" aria-hidden>
+                <polyline
+                  points="1,5 4,8 11,1"
+                  stroke="white"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeDasharray="20"
+                  style={phase === 'pop' ? { animation: 'chore-check-draw 320ms ease-out 60ms both' } : { strokeDashoffset: 0 }}
+                />
+              </svg>
+            )}
+          </span>
+          {/* Burst */}
+          {phase === 'pop' && BURST.map(({ angle, color }, i) => (
+            <span
+              key={i}
+              className="absolute w-1.5 h-1.5 rounded-full pointer-events-none"
+              style={{
+                top: '50%', left: '50%',
+                backgroundColor: color,
+                animation: `chore-burst 560ms ease-out ${i * 40}ms both`,
+                '--tx': `${Math.cos(angle * RAD) * (DIST * 0.6)}px`,
+                '--ty': `${Math.sin(angle * RAD) * (DIST * 0.6)}px`,
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Name */}
+        <p className={`text-xs font-medium leading-tight text-left flex-1 min-w-0 ${
+          showDone ? 'line-through text-gray-400 dark:text-gray-500' : step._limitedToday ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'
+        }`}>
+          {step._displayName || step.name}
+        </p>
+      </div>
+
+      {/* No-image cards: step number circle above checkbox row */}
+      {!step.image && !showDone && (
+        <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 order-first ${
+          'bg-brand-100 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400'
+        }`}>
+          {step.sort_order || '·'}
+        </span>
+      )}
+
+      {step._limitedToday && (
+        <p className="text-[10px] text-amber-500 dark:text-amber-400 px-2 pb-1">Tomorrow</p>
+      )}
+
+      {done && step._inputResponse && (
+        <p className="text-[10px] text-gray-500 dark:text-gray-400 italic truncate w-full px-2 pb-1">{step._inputResponse}</p>
+      )}
+
+      {/* Input prompt (inline for card) */}
+      {showInput && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-2 bg-white dark:bg-gray-800 rounded-xl border border-brand-400" onClick={(e) => e.stopPropagation()}>
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-1">{step.input_prompt || 'Your response'}</p>
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && inputValue.trim()) handleCheck(); else if (e.key === 'Escape') { setShowInput(false); setInputValue(''); } }}
+            maxLength={500}
+            className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-brand-400"
+          />
+          <button
+            onClick={handleCheck}
+            disabled={!inputValue.trim()}
+            className="mt-1 px-2 py-1 bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white rounded text-[10px] font-medium transition-colors"
+          >
+            Done
+          </button>
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightbox && <ImageLightbox src={`/api/uploads/steps/${step.image}`} onClose={() => setLightbox(false)} />}
+    </div>
+  );
+}
+
+// ── Completed step (list view) with lightbox support ─────────────────────────
+function CompletedStepItem({ step, onUndo, canUndo, disabled }) {
+  const [lightbox, setLightbox] = useState(false);
+  return (
+    <div
+      className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-xl"
+      style={{ animation: 'chore-enter 350ms ease-out both' }}
+    >
+      <span className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center shrink-0">
+        <svg viewBox="0 0 12 10" className="w-3 h-3" fill="none" aria-hidden>
+          <polyline points="1,5 4,8 11,1" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 line-through">{step._displayName}</p>
+        {step._inputResponse && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 italic">{step._inputResponse}</p>
+        )}
+      </div>
+      {step.image && (
+        <img
+          src={`/api/uploads/steps/${step.image}`}
+          alt=""
+          className="w-10 h-10 object-cover rounded-lg flex-shrink-0 cursor-pointer"
+          onClick={() => setLightbox(true)}
+        />
+      )}
+      {lightbox && <ImageLightbox src={`/api/uploads/steps/${step.image}`} onClose={() => setLightbox(false)} />}
+      {canUndo && (
+        <button
+          onClick={onUndo}
+          disabled={disabled}
+          className="text-xs text-red-500 hover:text-red-700 border border-red-200 dark:border-red-500 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors shrink-0"
+        >
+          Undo
+        </button>
+      )}
     </div>
   );
 }
@@ -702,7 +949,47 @@ export default function UserTaskDetailPage() {
 
       {steps.length === 0 ? (
         <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">No steps in this task set yet.</p>
+      ) : taskSet.display_mode === 'card' ? (
+        /* ── Card view ── */
+        <div className="space-y-6">
+          {expanded.todo.length > 0 && (
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
+              {expanded.todo.map((step) => (
+                <StepCard
+                  key={`${step.id}-${step._instance}`}
+                  step={step}
+                  onToggle={handleToggle}
+                  disabled={anyBusy}
+                  done={false}
+                />
+              ))}
+            </div>
+          )}
+
+          {allDone && (
+            <p className="text-sm text-green-600 dark:text-green-400 font-medium text-center py-2">All done! 🎉</p>
+          )}
+
+          {expanded.done.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Completed</h3>
+              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
+                {expanded.done.map((step) => (
+                  <StepCard
+                    key={`${step.id}-done-${step._instance}`}
+                    step={step}
+                    onToggle={handleToggle}
+                    disabled={anyBusy}
+                    done
+                    isLast={step._isLast}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
+        /* ── List view (default) ── */
         <div className="space-y-6">
           {/* ── Todo steps ── */}
           {expanded.todo.length > 0 && (
@@ -728,32 +1015,7 @@ export default function UserTaskDetailPage() {
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Completed</h3>
               <div className="space-y-2">
                 {expanded.done.map((step) => (
-                  <div
-                    key={`${step.id}-done-${step._instance}`}
-                    className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-xl"
-                    style={{ animation: 'chore-enter 350ms ease-out both' }}
-                  >
-                    <span className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center shrink-0">
-                      <svg viewBox="0 0 12 10" className="w-3 h-3" fill="none" aria-hidden>
-                        <polyline points="1,5 4,8 11,1" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 line-through">{step._displayName}</p>
-                      {step._inputResponse && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 italic">{step._inputResponse}</p>
-                      )}
-                    </div>
-                    {step._isLast && (
-                      <button
-                        onClick={() => handleToggle(step, true)}
-                        disabled={anyBusy}
-                        className="text-xs text-red-500 hover:text-red-700 border border-red-200 dark:border-red-500 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors shrink-0"
-                      >
-                        Undo
-                      </button>
-                    )}
-                  </div>
+                  <CompletedStepItem key={`${step.id}-done-${step._instance}`} step={step} onUndo={() => handleToggle(step, true)} canUndo={step._isLast} disabled={anyBusy} />
                 ))}
               </div>
             </div>

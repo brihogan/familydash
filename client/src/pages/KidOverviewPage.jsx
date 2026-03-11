@@ -8,6 +8,7 @@ import { overviewApi } from '../api/overview.api.js';
 import { activityApi } from '../api/activity.api.js';
 import { familyApi } from '../api/family.api.js';
 import { formatCents } from '../utils/formatCents.js';
+import useScrollLock from '../hooks/useScrollLock.js';
 import ActivityRow, { GroupedActivityList } from '../components/shared/ActivityRow.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import EmptyState from '../components/shared/EmptyState.jsx';
@@ -216,6 +217,7 @@ export default function KidOverviewPage() {
   const [memberRole,  setMemberRole]  = useState(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  useScrollLock(showLogoutConfirm);
 
   // Fetch kid list for the switcher (parent only, once)
   useEffect(() => {

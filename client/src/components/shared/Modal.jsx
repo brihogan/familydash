@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
+import useScrollLock from '../../hooks/useScrollLock.js';
 
 /**
  * Simple modal dialog.
  * @param {{ open: boolean, onClose: () => void, title: string, children: React.ReactNode }} props
  */
 export default function Modal({ open, onClose, title, children }) {
+  useScrollLock(open);
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
     if (open) document.addEventListener('keydown', handler);

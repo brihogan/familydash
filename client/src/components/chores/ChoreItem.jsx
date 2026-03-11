@@ -65,7 +65,7 @@ export default function ChoreItem({ log, onToggle, disabled }) {
       {/* Checkbox + burst container */}
       <div className="relative shrink-0">
         <button
-          onClick={handleClick}
+          onClick={(e) => { e.stopPropagation(); handleClick(); }}
           disabled={disabled || isAnimating}
           aria-label={showDone ? 'Mark incomplete' : 'Mark complete'}
           className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors disabled:cursor-not-allowed ${

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark, faObjectGroup, faArrowsSplitUpAndLeft, faArrowLeft, faArrowUpFromBracket, faRightLeft } from '@fortawesome/free-solid-svg-icons';
 import { formatCents } from '../../utils/formatCents.js';
+import useScrollLock from '../../hooks/useScrollLock.js';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 // Sorted highest → lowest; includes quarter between $1 and dime.
@@ -557,6 +558,7 @@ function FlipGhost({ oldDenom, newDenom, startX, startY, targetX, targetY,
 // ─── MoneyPopover ─────────────────────────────────────────────────────────────
 
 export default function MoneyPopover({ open, onClose, account, onSetAmount, receiveMode = false, receiveAmountCents = 0, receiveAllocations = [], onReceiveConfirm }) {
+  useScrollLock(open);
   const dragAreaRef       = useRef(null);
   const longPressTimerRef = useRef(null);
   const [size,      setSize]    = useState({ w: 0, h: 0 });

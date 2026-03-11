@@ -108,7 +108,8 @@ export default function ParentChoreHistoryPage() {
       }
       fetchAll();
     } catch (err) {
-      setError(err.response?.data?.error || 'Action failed.');
+      if (err.response?.status === 409) { fetchAll(); }
+      else setError(err.response?.data?.error || 'Action failed.');
     } finally {
       setActionLoading(false);
     }

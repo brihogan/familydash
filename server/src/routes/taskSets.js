@@ -1,8 +1,28 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
+import { mkdirSync, unlinkSync, existsSync } from 'fs';
+import { dirname, join, extname } from 'path';
 import db from '../db/db.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/requireRole.js';
+
+// Uploads directory — lives alongside the database so Docker volumes persist both
+const dbPath = process.env.DATABASE_PATH || join(dirname(new URL(import.meta.url).pathname), '../../../data/family.db');
+const uploadsDir = join(dirname(dbPath), 'uploads', 'steps');
+mkdirSync(uploadsDir, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${extname(file.originalname)}`),
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (_req, file, cb) => {
+    if (/^image\/(jpeg|png|gif|webp|svg\+xml)$/.test(file.mimetype)) cb(null, true);
+    else cb(new Error('Only image files are allowed.'));
+  },
+});
 
 const router = Router();
 
@@ -15,6 +35,7 @@ const TaskSetSchema = z.object({
   description:   z.string().max(1000).default(''),
   category:      z.string().max(100).default('').transform((s) => s.trim()),
   ticket_reward: z.number().int().min(0).default(0),
+  display_mode:  z.enum(['list', 'card']).default('list'),
 });
 
 const StepSchema = z.object({
@@ -82,8 +103,8 @@ router.post('/task-sets', authenticate, requireRole('parent'), (req, res, next) 
   try {
     const body = TaskSetSchema.parse(req.body);
     const result = db.prepare(
-      'INSERT INTO task_sets (family_id, name, type, emoji, description, category, ticket_reward) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(req.user.familyId, body.name, body.type, body.emoji ?? null, body.description, body.category, body.ticket_reward);
+      'INSERT INTO task_sets (family_id, name, type, emoji, description, category, ticket_reward, display_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(req.user.familyId, body.name, body.type, body.emoji ?? null, body.description, body.category, body.ticket_reward, body.display_mode);
     res.status(201).json(parseRow(db.prepare('SELECT * FROM task_sets WHERE id = ?').get(result.lastInsertRowid)));
   } catch (err) { next(err); }
 });
@@ -102,6 +123,7 @@ router.put('/task-sets/:id', authenticate, requireRole('parent'), (req, res, nex
     if (body.description   !== undefined) { updates.push('description = ?');   values.push(body.description); }
     if (body.category      !== undefined) { updates.push('category = ?');      values.push(body.category); }
     if (body.ticket_reward !== undefined) { updates.push('ticket_reward = ?'); values.push(body.ticket_reward); }
+    if (body.display_mode  !== undefined) { updates.push('display_mode = ?');  values.push(body.display_mode); }
     if (!updates.length) return res.status(400).json({ error: 'Nothing to update.' });
 
     values.push(id);
@@ -316,6 +338,55 @@ router.delete('/task-sets/:id/steps/:sid', authenticate, requireRole('parent'), 
         AND task_set_id IN (SELECT id FROM task_sets WHERE family_id = ?)
     `).run(stepId, setId, req.user.familyId);
     if (!result.changes) return res.status(404).json({ error: 'Step not found.' });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// ─── Step image upload ─────────────────────────────────────────────────────
+
+// POST /api/family/task-sets/:id/steps/:sid/image
+router.post('/task-sets/:id/steps/:sid/image', authenticate, requireRole('parent'), upload.single('image'), (req, res, next) => {
+  try {
+    const setId  = parseInt(req.params.id,  10);
+    const stepId = parseInt(req.params.sid, 10);
+    assertSetInFamily(setId, req.user.familyId);
+
+    const step = db.prepare(
+      'SELECT id, image FROM task_steps WHERE id = ? AND task_set_id = ? AND is_active = 1'
+    ).get(stepId, setId);
+    if (!step) return res.status(404).json({ error: 'Step not found.' });
+
+    if (!req.file) return res.status(400).json({ error: 'No image file provided.' });
+
+    // Delete old image if exists
+    if (step.image) {
+      const oldPath = join(uploadsDir, step.image);
+      if (existsSync(oldPath)) unlinkSync(oldPath);
+    }
+
+    const filename = req.file.filename;
+    db.prepare('UPDATE task_steps SET image = ? WHERE id = ?').run(filename, stepId);
+    res.json({ image: filename });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/family/task-sets/:id/steps/:sid/image
+router.delete('/task-sets/:id/steps/:sid/image', authenticate, requireRole('parent'), (req, res, next) => {
+  try {
+    const setId  = parseInt(req.params.id,  10);
+    const stepId = parseInt(req.params.sid, 10);
+    assertSetInFamily(setId, req.user.familyId);
+
+    const step = db.prepare(
+      'SELECT id, image FROM task_steps WHERE id = ? AND task_set_id = ? AND is_active = 1'
+    ).get(stepId, setId);
+    if (!step) return res.status(404).json({ error: 'Step not found.' });
+
+    if (step.image) {
+      const oldPath = join(uploadsDir, step.image);
+      if (existsSync(oldPath)) unlinkSync(oldPath);
+      db.prepare('UPDATE task_steps SET image = NULL WHERE id = ?').run(stepId);
+    }
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

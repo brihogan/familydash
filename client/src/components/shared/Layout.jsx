@@ -18,6 +18,7 @@ import { accountsApi } from '../../api/accounts.api.js';
 import { inboxApi } from '../../api/inbox.api.js';
 import { formatCents } from '../../utils/formatCents.js';
 import InstallPrompt from './InstallPrompt.jsx';
+import useScrollLock from '../../hooks/useScrollLock.js';
 
 function HamburgerIcon() {
   return (
@@ -59,6 +60,7 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
+  useScrollLock(bottomPanelOpen);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [defaultMemberId, setDefaultMemberId] = useState(null);
   const [kidStats, setKidStats] = useState(null);

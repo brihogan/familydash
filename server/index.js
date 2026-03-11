@@ -91,6 +91,11 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Serve uploaded step images
+const dataDir = process.env.DATABASE_PATH ? dirname(process.env.DATABASE_PATH) : join(__dirname, '..', 'data');
+const stepsUploadsDir = join(dataDir, 'uploads', 'steps');
+app.use('/api/uploads/steps', express.static(stepsUploadsDir));
+
 // Serve compiled React build in production
 const publicDir = join(__dirname, 'public');
 if (existsSync(publicDir)) {

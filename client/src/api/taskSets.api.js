@@ -11,6 +11,12 @@ export const taskSetsApi = {
   updateStep:    (setId, stepId, data) => client.put(`/family/task-sets/${setId}/steps/${stepId}`, data).then((r) => r.data),
   deleteStep:    (setId, stepId)       => client.delete(`/family/task-sets/${setId}/steps/${stepId}`).then((r) => r.data),
   reorderSteps:  (setId, order)        => client.patch(`/family/task-sets/${setId}/steps/reorder`, { order }).then((r) => r.data),
+  uploadStepImage: (setId, stepId, file) => {
+    const form = new FormData();
+    form.append('image', file);
+    return client.post(`/family/task-sets/${setId}/steps/${stepId}/image`, form).then((r) => r.data);
+  },
+  deleteStepImage: (setId, stepId)     => client.delete(`/family/task-sets/${setId}/steps/${stepId}/image`).then((r) => r.data),
 
   getAssignments:  (setId)                     => client.get(`/family/task-sets/${setId}/assignments`).then((r) => r.data),
   setAssignments:  (setId, userIds)            => client.put(`/family/task-sets/${setId}/assignments`, { userIds }).then((r) => r.data),

@@ -8,6 +8,7 @@ import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import Avatar from '../components/shared/Avatar.jsx';
 import EmojiPicker from '../components/shared/EmojiPicker.jsx';
+import useScrollLock from '../hooks/useScrollLock.js';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 
 function Toggle({ checked, onChange }) {
@@ -42,6 +43,7 @@ export default function SettingsUserDetailPage() {
   const [nameInput,       setNameInput]       = useState('');
   const [nameSaving,      setNameSaving]      = useState(false);
   const [deleteModal,     setDeleteModal]     = useState(false);
+  useScrollLock(deleteModal);
   const [deleteConfirm,   setDeleteConfirm]   = useState('');
   const [deleting,        setDeleting]        = useState(false);
   const [credOpen,        setCredOpen]        = useState(false);

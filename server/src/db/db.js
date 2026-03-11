@@ -292,4 +292,14 @@ try {
   db.exec(`ALTER TABLE task_step_completions ADD COLUMN input_response TEXT DEFAULT NULL`);
 } catch (_) { /* column already exists */ }
 
+// v32: display_mode on task_sets (list or card)
+try {
+  db.exec(`ALTER TABLE task_sets ADD COLUMN display_mode TEXT NOT NULL DEFAULT 'list'`);
+} catch (_) { /* column already exists */ }
+
+// v33: image on task_steps
+try {
+  db.exec(`ALTER TABLE task_steps ADD COLUMN image TEXT DEFAULT NULL`);
+} catch (_) { /* column already exists */ }
+
 export default db;

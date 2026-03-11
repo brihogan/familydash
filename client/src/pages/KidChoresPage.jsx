@@ -13,10 +13,12 @@ import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import Fireworks from '../components/shared/Fireworks.jsx';
 import { todayISO } from '../utils/formatDate.js';
 import { playVictory } from '../utils/sounds.js';
+import useScrollLock from '../hooks/useScrollLock.js';
 
 // ── Chores completion modal ────────────────────────────────────────────────────
 
 function ChoresCompletionModal({ choreCount, onClose }) {
+  useScrollLock(true);
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
@@ -116,7 +118,8 @@ export default function KidChoresPage() {
       await fetchChores();
       window.dispatchEvent(new CustomEvent('kid-stats-updated'));
     } catch (err) {
-      setError(err.response?.data?.error || 'Action failed.');
+      if (err.response?.status === 409) { await fetchChores(); }
+      else setError(err.response?.data?.error || 'Action failed.');
     } finally {
       setActionLoading(false);
     }

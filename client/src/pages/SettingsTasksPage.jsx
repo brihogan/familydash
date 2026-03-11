@@ -11,7 +11,7 @@ import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 
 const TYPE_OPTIONS = ['Project', 'Award'];
 
-const EMPTY_FORM = { name: '', type: 'Project', emoji: '', description: '', category: '', ticket_reward: 0 };
+const EMPTY_FORM = { name: '', type: 'Project', emoji: '', description: '', category: '', ticket_reward: 0, display_mode: 'list' };
 
 const INPUT_CLS = 'w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
@@ -77,7 +77,7 @@ export default function SettingsTasksPage() {
 
   const openEdit = (ts) => {
     setEditTarget(ts);
-    setForm({ name: ts.name, type: ts.type, emoji: ts.emoji || '', description: ts.description || '', category: ts.category || '', ticket_reward: ts.ticket_reward ?? 0 });
+    setForm({ name: ts.name, type: ts.type, emoji: ts.emoji || '', description: ts.description || '', category: ts.category || '', ticket_reward: ts.ticket_reward ?? 0, display_mode: ts.display_mode || 'list' });
     setFormError('');
     setPickerOpen(false);
     setModalOpen(true);
@@ -98,6 +98,7 @@ export default function SettingsTasksPage() {
         description:   form.description.trim(),
         category:      form.category.trim(),
         ticket_reward: Number(form.ticket_reward) || 0,
+        display_mode:  form.display_mode,
       };
       if (editTarget) {
         await taskSetsApi.updateTaskSet(editTarget.id, payload);
@@ -481,6 +482,27 @@ export default function SettingsTasksPage() {
               <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Tickets awarded when all steps are completed.</p>
             </div>
           )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Display Mode</label>
+            <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+              {['list', 'card'].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, display_mode: m }))}
+                  className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                    form.display_mode === m
+                      ? 'bg-brand-500 text-white'
+                      : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {m === 'list' ? 'List' : 'Card'}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Card view shows steps as a grid of cards.</p>
+          </div>
 
           {formError && <p className="text-sm text-red-500">{formError}</p>}
 
