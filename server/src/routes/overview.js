@@ -3,6 +3,7 @@ import db from '../db/db.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireOwnOrParent } from '../middleware/requireOwnOrParent.js';
 import { getOrGenerateLogs } from '../services/choreService.js';
+import { getKingOfCrowns } from '../services/streakService.js';
 
 const router = Router();
 
@@ -119,9 +120,11 @@ router.get('/:id/overview', authenticate, requireOwnOrParent, (req, res, next) =
       FROM task_assignments ta
       JOIN task_sets ts ON ts.id = ta.task_set_id
       WHERE ta.user_id = ? AND ts.type = 'Award' AND ts.is_active = 1 AND ta.is_active = 1
+        AND COALESCE(ta.completion_status, 'approved') != 'pending'
         AND (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1) > 0
         AND (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ta.user_id)
             >= (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)
+        AND (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ta.user_id AND approval_status = 'pending') = 0
     `).all(userId);
 
     const trophyCategoryMap = {};
@@ -148,7 +151,7 @@ router.get('/:id/overview', authenticate, requireOwnOrParent, (req, res, next) =
         stepCount:      r.step_count,
         completedCount: r.completed_count,
       })),
-      trophyCount:      trophyRows.length,
+      trophyCount:      trophyRows.length + (getKingOfCrowns(req.user.familyId).has(userId) ? 1 : 0),
       trophyCategories,
     });
   } catch (err) {

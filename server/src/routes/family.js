@@ -39,7 +39,7 @@ router.get('/', authenticate, (req, res, next) => {
     const members = db.prepare(`
       SELECT u.id, u.name, u.username, u.email, u.role, u.avatar_color, u.avatar_emoji, u.ticket_balance,
              u.is_active, u.sort_order, u.show_on_dashboard, u.show_balance_on_dashboard, u.require_task_approval,
-             u.allow_transfers, u.allow_withdraws, u.require_currency_work, u.chores_enabled, u.allow_login, u.created_at,
+             u.require_set_approval, u.allow_transfers, u.allow_withdraws, u.require_currency_work, u.chores_enabled, u.allow_login, u.created_at,
              COALESCE(ct.daily_potential, 0) AS daily_ticket_potential
       FROM users u
       LEFT JOIN (
@@ -216,6 +216,7 @@ const UpdateUserSchema = z.object({
   show_on_dashboard: z.boolean().optional(),
   show_balance_on_dashboard: z.boolean().optional(),
   require_task_approval: z.boolean().optional(),
+  require_set_approval: z.enum(['none', 'step', 'set']).optional(),
   allow_transfers: z.boolean().optional(),
   allow_withdraws: z.boolean().optional(),
   require_currency_work: z.boolean().optional(),
@@ -263,6 +264,9 @@ router.put('/users/:id', authenticate, requireRole('parent'), async (req, res, n
     }
     if (body.require_task_approval !== undefined) {
       updates.push('require_task_approval = ?'); values.push(body.require_task_approval ? 1 : 0);
+    }
+    if (body.require_set_approval !== undefined) {
+      updates.push('require_set_approval = ?'); values.push(body.require_set_approval);
     }
     if (body.allow_transfers !== undefined) {
       updates.push('allow_transfers = ?'); values.push(body.allow_transfers ? 1 : 0);

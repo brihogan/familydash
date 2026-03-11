@@ -59,6 +59,8 @@ export default function KidTasksPage() {
       const done = ts.step_count > 0 && ts.completed_count === ts.step_count;
       if (!done) return true;
       if (ts.type === 'Project') return true;
+      // Keep pending-approval sets visible
+      if (ts.completion_status === 'pending' || (ts.pending_step_count ?? 0) > 0) return true;
       return isToday(ts.earned_at);
     })
     .sort((a, b) => {
@@ -130,7 +132,10 @@ export default function KidTasksPage() {
         </div>
 
         {/* Completion / progress */}
-        {done && (
+        {done && (ts.completion_status === 'pending' || (ts.pending_step_count ?? 0) > 0) && (
+          <span className="mt-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">⏳ Awaiting approval</span>
+        )}
+        {done && ts.completion_status !== 'pending' && !(ts.pending_step_count > 0) && (
           <span className="mt-1.5 text-xs font-medium text-green-600 dark:text-green-400">Completed today!</span>
         )}
         {ts.description && (

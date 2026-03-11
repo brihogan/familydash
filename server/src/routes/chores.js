@@ -61,8 +61,8 @@ router.post('/:id/chores/:cid/complete', authenticate, requireOwnOrParent, requi
     const family = db.prepare('SELECT use_tickets FROM families WHERE id = ?').get(user.family_id);
     const useTickets = family?.use_tickets !== 0;
 
-    // If approval is required: mark pending, no tickets yet
-    if (user.require_task_approval) {
+    // If approval is required AND the actor is NOT a parent: mark pending, no tickets yet
+    if (user.require_task_approval && req.user.role !== 'parent') {
       db.prepare(`UPDATE chore_logs SET completed_at = datetime('now'), approval_status = 'pending' WHERE id = ?`).run(logId);
       const updated = db.prepare('SELECT * FROM chore_logs WHERE id = ?').get(logId);
       const balance = db.prepare('SELECT ticket_balance FROM users WHERE id = ?').get(userId).ticket_balance;

@@ -31,12 +31,13 @@ export default function InboxPage() {
 
   const allChoreIds = kids.flatMap((k) => k.chores.map((c) => c.id));
   const allStepIds  = kids.flatMap((k) => k.steps.map((s) => s.id));
-  const totalCount  = allChoreIds.length + allStepIds.length;
+  const allSetIds   = kids.flatMap((k) => (k.setCompletions || []).map((s) => s.id));
+  const totalCount  = allChoreIds.length + allStepIds.length + allSetIds.length;
 
   const handleApproveAll = async () => {
     setActionLoading(true);
     try {
-      await inboxApi.approve({ chore_log_ids: allChoreIds, step_completion_ids: allStepIds });
+      await inboxApi.approve({ chore_log_ids: allChoreIds, step_completion_ids: allStepIds, set_completion_ids: allSetIds });
       await fetchInbox();
       setSelectMode(false);
       setSelected(new Set());
@@ -46,7 +47,7 @@ export default function InboxPage() {
   const handleDenyAll = async () => {
     setActionLoading(true);
     try {
-      await inboxApi.deny({ chore_log_ids: allChoreIds, step_completion_ids: allStepIds });
+      await inboxApi.deny({ chore_log_ids: allChoreIds, step_completion_ids: allStepIds, set_completion_ids: allSetIds });
       await fetchInbox();
       setSelectMode(false);
       setSelected(new Set());
@@ -54,28 +55,32 @@ export default function InboxPage() {
   };
 
   const handleApproveSelected = async () => {
-    const choreIds = [], stepIds = [];
+    const choreIds = [], stepIds = [], setIds = [];
     for (const key of selected) {
       const [type, id] = key.split(':');
-      if (type === 'chore') choreIds.push(Number(id)); else stepIds.push(Number(id));
+      if (type === 'chore') choreIds.push(Number(id));
+      else if (type === 'step') stepIds.push(Number(id));
+      else if (type === 'set') setIds.push(Number(id));
     }
     setActionLoading(true);
     try {
-      await inboxApi.approve({ chore_log_ids: choreIds, step_completion_ids: stepIds });
+      await inboxApi.approve({ chore_log_ids: choreIds, step_completion_ids: stepIds, set_completion_ids: setIds });
       await fetchInbox();
       setSelected(new Set());
     } catch { setError('Failed to approve.'); } finally { setActionLoading(false); }
   };
 
   const handleDenySelected = async () => {
-    const choreIds = [], stepIds = [];
+    const choreIds = [], stepIds = [], setIds = [];
     for (const key of selected) {
       const [type, id] = key.split(':');
-      if (type === 'chore') choreIds.push(Number(id)); else stepIds.push(Number(id));
+      if (type === 'chore') choreIds.push(Number(id));
+      else if (type === 'step') stepIds.push(Number(id));
+      else if (type === 'set') setIds.push(Number(id));
     }
     setActionLoading(true);
     try {
-      await inboxApi.deny({ chore_log_ids: choreIds, step_completion_ids: stepIds });
+      await inboxApi.deny({ chore_log_ids: choreIds, step_completion_ids: stepIds, set_completion_ids: setIds });
       await fetchInbox();
       setSelected(new Set());
     } catch { setError('Failed to deny.'); } finally { setActionLoading(false); }
@@ -84,9 +89,10 @@ export default function InboxPage() {
   const handleApproveItem = async (type, id) => {
     setActionLoading(true);
     try {
-      const body = type === 'chore'
-        ? { chore_log_ids: [id], step_completion_ids: [] }
-        : { chore_log_ids: [], step_completion_ids: [id] };
+      const body = { chore_log_ids: [], step_completion_ids: [], set_completion_ids: [] };
+      if (type === 'chore') body.chore_log_ids = [id];
+      else if (type === 'step') body.step_completion_ids = [id];
+      else if (type === 'set') body.set_completion_ids = [id];
       await inboxApi.approve(body);
       await fetchInbox();
     } catch { setError('Failed to approve.'); } finally { setActionLoading(false); }
@@ -95,9 +101,10 @@ export default function InboxPage() {
   const handleUndoItem = async (type, id) => {
     setActionLoading(true);
     try {
-      const body = type === 'chore'
-        ? { chore_log_ids: [id], step_completion_ids: [] }
-        : { chore_log_ids: [], step_completion_ids: [id] };
+      const body = { chore_log_ids: [], step_completion_ids: [], set_completion_ids: [] };
+      if (type === 'chore') body.chore_log_ids = [id];
+      else if (type === 'step') body.step_completion_ids = [id];
+      else if (type === 'set') body.set_completion_ids = [id];
       await inboxApi.deny(body);
       await fetchInbox();
     } catch { setError('Failed to undo.'); } finally { setActionLoading(false); }
@@ -171,7 +178,7 @@ export default function InboxPage() {
       ) : (
         <div className="space-y-4">
           {kids.map((kid) => {
-            const itemCount  = kid.chores.length + kid.steps.length;
+            const itemCount  = kid.chores.length + kid.steps.length + (kid.setCompletions || []).length;
             const showInline = kids.length <= 1 || itemCount <= 5;
 
             return (
@@ -260,14 +267,33 @@ export default function InboxPage() {
                           </div>
                         </div>
                       ))}
-                      {Object.entries(stepsBySet).map(([tsId, group]) => (
-                        <div key={tsId}>
-                          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">{group.emoji || '📋'} {group.name}</p>
+                      {Object.entries(stepsBySet).map(([tsId, group]) => {
+                        const s0 = group.steps[0];
+                        const willComplete = s0.approved_step_count + group.steps.length >= s0.total_step_count;
+                        const isLastStep = group.steps.length === 1 && willComplete;
+                        const reward = s0.task_set_ticket_reward || 0;
+                        return (
+                          <div key={tsId}>
+                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">{group.emoji || '📋'} {group.name}</p>
+                            {willComplete && (
+                              <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">
+                                {isLastStep ? 'Final step — ' : 'Approving all steps '}completes this set{reward > 0 ? ` (+${reward} 🎟)` : ''}
+                              </p>
+                            )}
+                            <div className="space-y-2">
+                              {group.steps.map((step) => renderItem('step', step.id, step.step_name, null, `step:${step.id}`))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {(kid.setCompletions || []).length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Completed Sets</p>
                           <div className="space-y-2">
-                            {group.steps.map((step) => renderItem('step', step.id, step.step_name, null, `step:${step.id}`))}
+                            {kid.setCompletions.map((sc) => renderItem('set', sc.id, `${sc.task_set_emoji || '📋'} ${sc.task_set_name}`, `All steps completed — awaiting approval${sc.ticket_reward > 0 ? ` (+${sc.ticket_reward} 🎟)` : ''}`, `set:${sc.id}`))}
                           </div>
                         </div>
-                      ))}
+                      )}
                     </div>
                   );
                 })() : (

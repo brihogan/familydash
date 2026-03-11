@@ -340,6 +340,7 @@ export default function UnifiedBankDialog({
   const [showMoneyPopover, setShowMoneyPopover] = useState(false);
   // Allocation state: { [accountId]: { enabled, type: 'percent'|'flat', value } }
   const [allocations, setAllocations] = useState({});
+  const [bypassCurrencyWork, setBypassCurrencyWork] = useState(false);
 
   // Sub-accounts for the current source account (non-main accounts owned by this user)
   const subAccounts = (userAccounts || ownAccounts).filter(
@@ -358,6 +359,7 @@ export default function UnifiedBankDialog({
     setError('');
     setToAccountId('');
     setRecent(loadRecent());
+    setBypassCurrencyWork(false);
     // Default allocations: 10% per sub-account (only if accounts already loaded)
     const subs = (userAccounts || []).filter(
       (a) => a.user_id === parseInt(userId, 10) && a.type !== 'main'
@@ -428,17 +430,21 @@ export default function UnifiedBankDialog({
     if (mode === 'deposit') {
       const typeInfo = DEPOSIT_TYPES.find((t) => t.value === depositType);
       data = { type: typeInfo.apiType, amount_cents: Math.round(amount * 100), description };
-      // Attach allocations for currency-work kids
+      // Attach allocations for currency-work kids (unless bypass is active)
       if (isParent && requireCurrencyWork) {
-        const activeAllocs = subAccounts
-          .filter((a) => allocations[a.id]?.enabled)
-          .map((a) => ({
-            account_id: a.id,
-            account_name: a.name,
-            type: allocations[a.id].type,
-            value: allocations[a.id].value,
-          }));
-        if (activeAllocs.length) data.allocations = activeAllocs;
+        if (bypassCurrencyWork) {
+          data.bypass_currency_work = true;
+        } else {
+          const activeAllocs = subAccounts
+            .filter((a) => allocations[a.id]?.enabled)
+            .map((a) => ({
+              account_id: a.id,
+              account_name: a.name,
+              type: allocations[a.id].type,
+              value: allocations[a.id].value,
+            }));
+          if (activeAllocs.length) data.allocations = activeAllocs;
+        }
       }
     } else if (mode === 'withdraw') {
       data = { type: 'withdraw', amount_cents: Math.round(amount * 100), description };
@@ -633,6 +639,8 @@ export default function UnifiedBankDialog({
             subAccounts={subAccounts}
             allocations={allocations}
             onAllocationsChange={setAllocations}
+            bypass={bypassCurrencyWork}
+            onBypassChange={setBypassCurrencyWork}
           />
         )}
 

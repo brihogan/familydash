@@ -32,8 +32,11 @@ router.get('/', authenticate, requireRole('parent'), (req, res, next) => {
 
       const steps = db.prepare(`
         SELECT tsc.id, tsc.task_set_id, ts_set.name AS task_set_name,
-               ts_set.emoji AS task_set_emoji,
-               ts_step.id AS step_id, ts_step.name AS step_name, tsc.completed_at
+               ts_set.emoji AS task_set_emoji, ts_set.ticket_reward AS task_set_ticket_reward,
+               ts_step.id AS step_id, ts_step.name AS step_name, tsc.completed_at,
+               (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = tsc.task_set_id AND is_active = 1) AS total_step_count,
+               (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = tsc.task_set_id AND user_id = tsc.user_id AND (approval_status IS NULL OR approval_status = 'approved')) AS approved_step_count,
+               (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = tsc.task_set_id AND user_id = tsc.user_id AND approval_status = 'pending') AS pending_step_count
         FROM task_step_completions tsc
         JOIN task_sets  ts_set  ON ts_set.id  = tsc.task_set_id
         JOIN task_steps ts_step ON ts_step.id = tsc.task_step_id
@@ -41,8 +44,17 @@ router.get('/', authenticate, requireRole('parent'), (req, res, next) => {
         ORDER BY tsc.task_set_id ASC, tsc.completed_at ASC
       `).all(kid.id);
 
-      if (chores.length + steps.length > 0) {
-        result.push({ ...kid, chores, steps });
+      const setCompletions = db.prepare(`
+        SELECT ta.id, ta.task_set_id, ts.name AS task_set_name, ts.emoji AS task_set_emoji,
+               ts.ticket_reward
+        FROM task_assignments ta
+        JOIN task_sets ts ON ts.id = ta.task_set_id
+        WHERE ta.user_id = ? AND ta.completion_status = 'pending' AND ta.is_active = 1
+        ORDER BY ta.task_set_id ASC
+      `).all(kid.id);
+
+      if (chores.length + steps.length + setCompletions.length > 0) {
+        result.push({ ...kid, chores, steps, setCompletions });
       }
     }
 
@@ -75,7 +87,15 @@ router.get('/count', authenticate, requireRole('parent'), (req, res, next) => {
         AND tsc.approval_status = 'pending'
     `).get(familyId).cnt;
 
-    res.json({ count: choreCount + stepCount });
+    const setCount = db.prepare(`
+      SELECT COUNT(*) AS cnt
+      FROM task_assignments ta
+      JOIN users u ON u.id = ta.user_id
+      WHERE u.family_id = ? AND u.role = 'kid' AND u.is_active = 1
+        AND ta.completion_status = 'pending' AND ta.is_active = 1
+    `).get(familyId).cnt;
+
+    res.json({ count: choreCount + stepCount + setCount });
   } catch (err) {
     next(err);
   }
@@ -86,7 +106,7 @@ router.get('/count', authenticate, requireRole('parent'), (req, res, next) => {
 
 router.post('/approve', authenticate, requireRole('parent'), (req, res, next) => {
   try {
-    const { chore_log_ids = [], step_completion_ids = [] } = req.body;
+    const { chore_log_ids = [], step_completion_ids = [], set_completion_ids = [] } = req.body;
     const familyId = req.user.familyId;
     const family   = db.prepare('SELECT use_tickets FROM families WHERE id = ?').get(familyId);
     const useTickets = family?.use_tickets !== 0;
@@ -225,6 +245,43 @@ router.post('/approve', authenticate, requireRole('parent'), (req, res, next) =>
           });
         }
       }
+
+      // ── Approve set completions ─────────────────────────────────────────
+      for (const assignmentId of set_completion_ids) {
+        const assignment = db.prepare(`
+          SELECT ta.*, ts.name AS task_set_name, ts.ticket_reward
+          FROM task_assignments ta
+          JOIN task_sets ts ON ts.id = ta.task_set_id
+          WHERE ta.id = ? AND ta.completion_status = 'pending'
+        `).get(assignmentId);
+        if (!assignment) continue;
+        const owner = db.prepare('SELECT family_id FROM users WHERE id = ?').get(assignment.user_id);
+        if (owner?.family_id !== familyId) continue;
+
+        db.prepare("UPDATE task_assignments SET completion_status = 'approved' WHERE id = ?").run(assignmentId);
+
+        if (useTickets && assignment.ticket_reward > 0) {
+          db.prepare('UPDATE users SET ticket_balance = ticket_balance + ? WHERE id = ?')
+            .run(assignment.ticket_reward, assignment.user_id);
+          db.prepare(`
+            INSERT INTO ticket_ledger (user_id, amount, type, description, reference_id, reference_type)
+            VALUES (?, ?, 'manual', ?, ?, 'task_set')
+          `).run(assignment.user_id, assignment.ticket_reward,
+            `Completed task set: ${assignment.task_set_name} (+${assignment.ticket_reward} tickets)`,
+            assignment.task_set_id);
+        }
+
+        insertActivity({
+          familyId,
+          subjectUserId: assignment.user_id,
+          actorUserId:   req.user.userId,
+          eventType:     'taskset_completed',
+          description:   `Completed all steps in: ${assignment.task_set_name} 🎯`,
+          referenceId:   assignment.task_set_id,
+          referenceType: 'task_set',
+          amountCents:   useTickets && assignment.ticket_reward > 0 ? assignment.ticket_reward : null,
+        });
+      }
     });
 
     approveTx();
@@ -239,7 +296,7 @@ router.post('/approve', authenticate, requireRole('parent'), (req, res, next) =>
 
 router.post('/deny', authenticate, requireRole('parent'), (req, res, next) => {
   try {
-    const { chore_log_ids = [], step_completion_ids = [] } = req.body;
+    const { chore_log_ids = [], step_completion_ids = [], set_completion_ids = [] } = req.body;
     const familyId = req.user.familyId;
 
     const denyTx = db.transaction(() => {
@@ -261,6 +318,16 @@ router.post('/deny', authenticate, requireRole('parent'), (req, res, next) => {
         const owner = db.prepare('SELECT family_id FROM users WHERE id = ?').get(completion.user_id);
         if (owner?.family_id !== familyId) continue;
         db.prepare(`DELETE FROM task_step_completions WHERE id = ?`).run(completionId);
+      }
+
+      for (const assignmentId of set_completion_ids) {
+        const assignment = db.prepare(
+          `SELECT user_id FROM task_assignments WHERE id = ? AND completion_status = 'pending'`
+        ).get(assignmentId);
+        if (!assignment) continue;
+        const owner = db.prepare('SELECT family_id FROM users WHERE id = ?').get(assignment.user_id);
+        if (owner?.family_id !== familyId) continue;
+        db.prepare(`UPDATE task_assignments SET completion_status = NULL WHERE id = ?`).run(assignmentId);
       }
     });
 

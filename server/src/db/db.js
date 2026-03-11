@@ -302,4 +302,20 @@ try {
   db.exec(`ALTER TABLE task_steps ADD COLUMN image TEXT DEFAULT NULL`);
 } catch (_) { /* column already exists */ }
 
+// v34: set_approval_level on users — 'none', 'step', or 'set'
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN require_set_approval TEXT NOT NULL DEFAULT 'none'`);
+} catch (_) {
+  // Column exists — migrate from integer (0) to text ('none') if needed
+  const sample = db.prepare("SELECT typeof(require_set_approval) AS t FROM users LIMIT 1").get();
+  if (sample && sample.t === 'integer') {
+    db.exec(`UPDATE users SET require_set_approval = 'none' WHERE require_set_approval = 0 OR require_set_approval = ''`);
+  }
+}
+
+// v35: completion_status on task_assignments — pending approval for set-level approval
+try {
+  db.exec(`ALTER TABLE task_assignments ADD COLUMN completion_status TEXT DEFAULT NULL`);
+} catch (_) { /* column already exists */ }
+
 export default db;

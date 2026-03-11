@@ -71,12 +71,15 @@ export default function SettingsUserDetailPage() {
   }, [editingName]);
 
   const handleToggle = async (field, value) => {
-    setMember((prev) => ({ ...prev, [field]: value ? 1 : 0 }));
+    const isString = typeof value === 'string';
+    const optimistic = isString ? value : (value ? 1 : 0);
+    const rollback   = isString ? member[field] : (value ? 0 : 1);
+    setMember((prev) => ({ ...prev, [field]: optimistic }));
     try {
       await familyApi.updateUser(Number(userId), { [field]: value });
     } catch {
       setError('Failed to save setting.');
-      setMember((prev) => ({ ...prev, [field]: value ? 0 : 1 }));
+      setMember((prev) => ({ ...prev, [field]: rollback }));
     }
   };
 
@@ -196,6 +199,8 @@ export default function SettingsUserDetailPage() {
 
   const isKid = member.role === 'kid';
 
+  const hasLogin = !!member.allow_login;
+
   const toggles = [
     isKid && {
       field:       'show_on_dashboard',
@@ -207,17 +212,18 @@ export default function SettingsUserDetailPage() {
       label:       'Show Balance on Dashboard',
       description: `Display ${member.name}'s bank balance on the family dashboard.`,
     },
-    isKid && {
-      field:       'require_task_approval',
-      label:       'Require Task Approval',
-      description: "Kids can check off chores and steps but they'll show up under the parent's inbox before tickets are awarded.",
-    },
     !isKid && {
       field:       'chores_enabled',
       label:       'Enable Chores',
       description: 'Allow this parent to have their own chore list and appear on the dashboard.',
     },
   ].filter(Boolean);
+
+  const SET_APPROVAL_OPTIONS = [
+    { value: 'none', label: 'Auto-accepted' },
+    { value: 'step', label: 'Approve each step' },
+    { value: 'set',  label: 'Approve Set completion' },
+  ];
 
   return (
     <div>
@@ -354,8 +360,39 @@ export default function SettingsUserDetailPage() {
         </div>
       )}
 
-      {/* ── Banking toggles (kids only, when banking is enabled) ── */}
-      {isKid && useBanking && (() => {
+      {/* ── Approvals (kids only, when login is enabled) ── */}
+      {isKid && hasLogin && (
+        <div className="mb-6 space-y-3">
+          <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Approvals</h2>
+          {/* Require Chore Approval toggle */}
+          <div className="flex items-start justify-between gap-6 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-gray-900 dark:text-gray-100">Require Chore Approval</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Kids can check off chores but they'll show up under the parent's inbox before tickets are awarded.</p>
+            </div>
+            <Toggle checked={!!member.require_task_approval} onChange={(v) => handleToggle('require_task_approval', v)} />
+          </div>
+          {/* Set approval level dropdown */}
+          <div className="flex items-start justify-between gap-6 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-gray-900 dark:text-gray-100">Set & Step approval level</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Controls whether task set progress needs parent approval.</p>
+            </div>
+            <select
+              value={member.require_set_approval || 'none'}
+              onChange={(e) => handleToggle('require_set_approval', e.target.value)}
+              className="border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-400 shrink-0"
+            >
+              {SET_APPROVAL_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* ── Banking toggles (kids only, when banking is enabled and login is enabled) ── */}
+      {isKid && useBanking && hasLogin && (() => {
         const bankingToggles = [
           {
             field:       'require_currency_work',

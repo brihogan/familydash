@@ -84,7 +84,8 @@ export default function Layout() {
         ).length,
         completedTaskSetsCount: taskData.taskSets.filter(
           (ts) => ts.type === 'Award' && ts.step_count > 0 && ts.completed_count === ts.step_count
-        ).length,
+            && ts.completion_status !== 'pending' && !(ts.pending_step_count > 0)
+        ).length + (taskData.hasKingOfCrowns ? 1 : 0),
         pendingDepositCount:    (pdData.pending_deposits || []).length,
       });
     }).catch(() => {});
@@ -126,6 +127,16 @@ export default function Layout() {
       if (sorted.length > 0) setDefaultMemberId(sorted[0].id);
     }).catch(() => {});
   }, [user?.role, user?.id]);
+
+  // Sync defaultMemberId from URL when parent visits any individual page
+  useEffect(() => {
+    if (user?.role !== 'parent') return;
+    const match = location.pathname.match(/^\/(kid|chores|bank|tickets|tasks|trophies)\/(\d+)/);
+    if (match) {
+      const id = parseInt(match[2], 10);
+      if (id !== defaultMemberId) setDefaultMemberId(id);
+    }
+  }, [location.pathname, user?.role, defaultMemberId]);
 
   const handleEmojiPick = async (emoji) => {
     if (!user) return;

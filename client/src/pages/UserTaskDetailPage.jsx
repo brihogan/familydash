@@ -45,8 +45,9 @@ function formatDuration(fromISO, toDate) {
 
 // ── Project completion modal ──────────────────────────────────────────────────
 
-function ProjectCompletionModal({ taskSet, stepCount, assignedAt, completedAt, onClose }) {
+function ProjectCompletionModal({ taskSet, stepCount, assignedAt, completedAt, pendingApproval, onClose }) {
   useScrollLock(true);
+  const { useTickets } = useFamilySettings();
   // Keyboard dismiss
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
@@ -80,7 +81,9 @@ function ProjectCompletionModal({ taskSet, stepCount, assignedAt, completedAt, o
         )}
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Steps completed: {stepCount}</p>
         {useTickets && taskSet.ticket_reward > 0 && (
-          <p className="text-sm font-medium text-amber-600 dark:text-amber-400 mt-1">🎟 +{taskSet.ticket_reward} tickets earned!</p>
+          pendingApproval
+            ? <p className="text-sm font-medium text-amber-600 dark:text-amber-400 mt-1">🎟 After approval: +{taskSet.ticket_reward} tickets</p>
+            : <p className="text-sm font-medium text-amber-600 dark:text-amber-400 mt-1">🎟 +{taskSet.ticket_reward} tickets earned!</p>
         )}
         {assignedAt && completedAt && (
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
@@ -112,7 +115,7 @@ const AWARD_PALETTES = [
   ['#be123c', '#f43f5e', '#fb7185', '#fecdd3'], // rose
 ];
 
-function AwardCompletionModal({ taskSet, userId, assignedAt, completedAt, onClose }) {
+function AwardCompletionModal({ taskSet, userId, assignedAt, completedAt, pendingApproval, onClose }) {
   useScrollLock(true);
   const navigate  = useNavigate();
   const canvasRef = useRef(null);
@@ -321,7 +324,12 @@ function AwardCompletionModal({ taskSet, userId, assignedAt, completedAt, onClos
           </span>
         )}
         {taskSet.ticket_reward > 0 && (
-          <p className="text-sm font-medium text-amber-600 dark:text-amber-400 mt-2">🎟 +{taskSet.ticket_reward} tickets earned!</p>
+          pendingApproval
+            ? <p className="text-sm font-medium text-amber-600 dark:text-amber-400 mt-2">🎟 After approval: +{taskSet.ticket_reward} tickets</p>
+            : <p className="text-sm font-medium text-amber-600 dark:text-amber-400 mt-2">🎟 +{taskSet.ticket_reward} tickets earned!</p>
+        )}
+        {pendingApproval && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">⏳ A parent must approve before this appears on your trophy shelf.</p>
         )}
         {assignedAt && completedAt && (
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
@@ -331,15 +339,17 @@ function AwardCompletionModal({ taskSet, userId, assignedAt, completedAt, onClos
 
         {/* Buttons */}
         <div className="flex gap-2 w-full mt-5">
-          <button
-            onClick={() => navigate(`/trophies/${userId}`)}
-            className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            Go to Trophy Shelf
-          </button>
+          {!pendingApproval && (
+            <button
+              onClick={() => navigate(`/trophies/${userId}`)}
+              className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              Go to Trophy Shelf
+            </button>
+          )}
           <button
             onClick={onClose}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            className={`${pendingApproval ? 'flex-1' : ''} px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors`}
           >
             Close
           </button>
@@ -799,8 +809,9 @@ export default function UserTaskDetailPage() {
   const [showAwardModal,   setShowAwardModal]   = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [assignedAt,       setAssignedAt]       = useState(null);
+  const [completionStatus, setCompletionStatus] = useState(null);
+  const [pendingApproval,  setPendingApproval]  = useState(false);
   const completedAtRef = useRef(null);
-  const prevDoneCountRef = useRef(null);
 
   const fetchDetail = useCallback(async () => {
     setLoading(true);
@@ -810,6 +821,7 @@ export default function UserTaskDetailPage() {
       setSteps(data.steps);
       setCompletions(data.completions ?? []);
       setAssignedAt(data.assignedAt ?? null);
+      setCompletionStatus(data.completionStatus ?? null);
     } catch {
       setError('Failed to load task set.');
     } finally {
@@ -819,26 +831,15 @@ export default function UserTaskDetailPage() {
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
-  // Detect when the last step is checked off → fireworks + victory sound
-  useEffect(() => {
-    if (!steps.length) return;
-    const doneCount = steps.reduce((sum, s) => sum + (s.completed_count || 0), 0);
-    const total     = steps.reduce((sum, s) => sum + (s.repeat_count || 1), 0);
-    const prev = prevDoneCountRef.current;
-    if (prev !== null && doneCount > prev && doneCount >= total) {
-      completedAtRef.current = new Date();
-      setShowFireworks(true);
-      playVictory();
-      if (taskSet?.type === 'Award')   setShowAwardModal(true);
-      if (taskSet?.type === 'Project' || taskSet?.type === 'Countdown') setShowProjectModal(true);
-    }
-    prevDoneCountRef.current = doneCount;
-  }, [steps]);
-
   const handleToggle = async (step, undo = false, inputResponse = null) => {
     if (toggling.has(step.id)) return;
     setToggling((prev) => new Set([...prev, step.id]));
     const prevCount = step.completed_count || 0;
+
+    // Snapshot done-count before optimistic update for celebration detection
+    const doneBefore  = steps.reduce((sum, s) => sum + (s.completed_count || 0), 0);
+    const totalNeeded = steps.reduce((sum, s) => sum + (s.repeat_count || 1), 0);
+
     // Optimistic update
     setSteps((prev) => prev.map((s) => s.id === step.id
       ? { ...s, completed_count: undo ? Math.max(0, prevCount - 1) : prevCount + 1 }
@@ -851,12 +852,33 @@ export default function UserTaskDetailPage() {
       setSteps((prev) => prev.map((s) => s.id === step.id
         ? { ...s, completed_count: result.completed_count, completed_today: result.completed_today ?? 0 }
         : s));
+      if (result.set_pending_approval) setCompletionStatus('pending');
+      if (result.approval_status === 'pending') {
+        setCompletions((prev) => {
+          const updated = prev.filter((c) => !(c.task_step_id === step.id && c.instance === (step.completed_count || 0) + 1));
+          return [...updated, { task_step_id: step.id, instance: (step.completed_count || 0) + 1, input_response: inputResponse, approval_status: 'pending' }];
+        });
+      }
       if (undo) {
         setCompletions((prev) => {
           const idx = prev.findLastIndex((c) => c.task_step_id === step.id);
           if (idx >= 0) return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
           return prev;
         });
+      }
+
+      // Celebration: detect set just completed (transition from incomplete → complete)
+      if (!undo && doneBefore < totalNeeded) {
+        const doneAfter = doneBefore - prevCount + result.completed_count;
+        if (doneAfter >= totalNeeded) {
+          const isPending = !!(result.set_pending_approval || result.approval_status === 'pending');
+          completedAtRef.current = new Date();
+          setPendingApproval(isPending);
+          setShowFireworks(true);
+          playVictory();
+          if (taskSet?.type === 'Award')   setShowAwardModal(true);
+          if (taskSet?.type === 'Project' || taskSet?.type === 'Countdown') setShowProjectModal(true);
+        }
       }
     } catch {
       // Revert on failure
@@ -895,13 +917,17 @@ export default function UserTaskDetailPage() {
   const expanded = (() => {
     const todo = [];
     const done = [];
+    const pending = [];
     for (const step of steps) {
       const repeat = step.repeat_count || 1;
       const count = step.completed_count || 0;
       for (let i = 1; i <= count; i++) {
         const name = repeat > 1 ? step.name.replace('{#}', String(i)) : step.name;
         const completion = completions.find((c) => c.task_step_id === step.id && c.instance === i);
-        done.push({ ...step, _instance: i, _displayName: name, _isLast: i === count, _inputResponse: completion?.input_response || null });
+        const isPending = completion?.approval_status === 'pending';
+        const entry = { ...step, _instance: i, _displayName: name, _isLast: i === count, _inputResponse: completion?.input_response || null };
+        if (isPending) pending.push(entry);
+        else done.push(entry);
       }
       if (count < repeat) {
         const nextInst = count + 1;
@@ -910,7 +936,7 @@ export default function UserTaskDetailPage() {
         todo.push({ ...step, _instance: nextInst, _displayName: name, _limitedToday: disabled });
       }
     }
-    return { todo, done };
+    return { todo, done, pending };
   })();
 
   const totalCount     = steps.reduce((sum, s) => sum + (s.repeat_count || 1), 0);
@@ -928,6 +954,7 @@ export default function UserTaskDetailPage() {
           userId={userId}
           assignedAt={assignedAt}
           completedAt={completedAtRef.current}
+          pendingApproval={pendingApproval}
           onClose={() => setShowAwardModal(false)}
         />
       )}
@@ -937,6 +964,7 @@ export default function UserTaskDetailPage() {
           stepCount={steps.length}
           assignedAt={assignedAt}
           completedAt={completedAtRef.current}
+          pendingApproval={pendingApproval}
           onClose={() => setShowProjectModal(false)}
         />
       )}
@@ -991,6 +1019,14 @@ export default function UserTaskDetailPage() {
         </div>
       )}
 
+      {/* ── Set-level pending approval banner ── */}
+      {completionStatus === 'pending' && (
+        <div className="mb-4 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-lg">
+          <p className="text-sm font-medium text-amber-700 dark:text-amber-400">⏳ Waiting for parent to approve this set</p>
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">All steps are done! A parent needs to approve before rewards are given.</p>
+        </div>
+      )}
+
       {steps.length === 0 ? (
         <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">No steps in this task set yet.</p>
       ) : taskSet.display_mode === 'card' ? (
@@ -1010,8 +1046,27 @@ export default function UserTaskDetailPage() {
             </div>
           )}
 
-          {allDone && (
+          {allDone && completionStatus !== 'pending' && (
             <p className="text-sm text-green-600 dark:text-green-400 font-medium text-center py-2">All done! 🎉</p>
+          )}
+
+          {/* Pending approval steps (step mode) */}
+          {expanded.pending.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-amber-600 dark:text-amber-400 mb-2">⏳ Waiting for Approval</h3>
+              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
+                {expanded.pending.map((step) => (
+                  <StepCard
+                    key={`${step.id}-pending-${step._instance}`}
+                    step={step}
+                    onToggle={handleToggle}
+                    disabled={anyBusy}
+                    done
+                    isLast={step._isLast}
+                  />
+                ))}
+              </div>
+            </div>
           )}
 
           {expanded.done.length > 0 && (
@@ -1049,8 +1104,36 @@ export default function UserTaskDetailPage() {
             </div>
           )}
 
-          {allDone && (
+          {allDone && completionStatus !== 'pending' && (
             <p className="text-sm text-green-600 dark:text-green-400 font-medium text-center py-2">All done! 🎉</p>
+          )}
+
+          {/* ── Pending approval steps (step mode) ── */}
+          {expanded.pending.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-amber-600 dark:text-amber-400 mb-2">⏳ Waiting for Approval</h3>
+              <div className="space-y-2">
+                {expanded.pending.map((step) => (
+                  <div
+                    key={`${step.id}-pending-${step._instance}`}
+                    className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-lg"
+                  >
+                    <span className="text-amber-500 text-sm shrink-0">⏳</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{step._displayName}</p>
+                      <p className="text-xs text-amber-600 dark:text-amber-400">Waiting for parent to approve</p>
+                    </div>
+                    <button
+                      onClick={() => handleToggle(step, true)}
+                      disabled={anyBusy}
+                      className="text-xs text-gray-500 hover:text-red-600 border border-gray-200 dark:border-gray-600 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors shrink-0"
+                    >
+                      Undo
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* ── Completed steps ── */}

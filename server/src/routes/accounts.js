@@ -156,6 +156,7 @@ const TransactionSchema = z.object({
   description: z.string().default(''),
   to_account_id: z.number().int().optional(), // required for transfer_out
   allocations: z.array(AllocationSchema).optional(), // sub-account splits for pending deposits
+  bypass_currency_work: z.boolean().optional(), // skip pending deposit for currency-work kids
 });
 
 router.post('/:id/accounts/:aid/transactions', authenticate, requireOwnOrParent, (req, res, next) => {
@@ -248,8 +249,8 @@ router.post('/:id/accounts/:aid/transactions', authenticate, requireOwnOrParent,
       return res.status(400).json({ error: 'Insufficient balance.' });
     }
 
-    // If this is a credit to a kid with require_currency_work, create a pending deposit
-    if (isCredit && targetUser) {
+    // If this is a credit to a kid with require_currency_work, create a pending deposit (unless bypassed)
+    if (isCredit && targetUser && !body.bypass_currency_work) {
       const kid = db.prepare('SELECT require_currency_work, role FROM users WHERE id = ?').get(userId);
       if (kid && kid.role === 'kid' && kid.require_currency_work) {
         const allocJson = body.allocations?.length ? JSON.stringify(body.allocations) : null;

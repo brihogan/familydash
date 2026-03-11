@@ -3,6 +3,7 @@ import db from '../db/db.js';
 import { authenticate } from '../middleware/auth.js';
 import { processRecurringRules } from '../services/recurringRuleService.js';
 import { getOrGenerateLogs } from '../services/choreService.js';
+import { getKingOfCrowns } from '../services/streakService.js';
 
 const router = Router();
 
@@ -167,14 +168,23 @@ router.get('/', authenticate, (req, res, next) => {
         WHERE ta.user_id IN (${ph})
           AND ts.type = 'Award'
           AND ts.is_active = 1
+          AND ta.is_active = 1
+          AND COALESCE(ta.completion_status, 'approved') != 'pending'
           AND (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1) > 0
           AND (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ta.user_id)
               >= (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)
+          AND (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ta.user_id AND approval_status = 'pending') = 0
         GROUP BY ta.user_id
       `).all(...memberIds);
       for (const row of trophyRows) {
         const m = members.find((m) => m.id === row.user_id);
         if (m) m.trophyCount = row.trophy_count;
+      }
+
+      // King of Crowns moving trophy
+      const kingHolders = getKingOfCrowns(req.user.familyId);
+      for (const m of members) {
+        if (kingHolders.has(m.id)) m.trophyCount = (m.trophyCount || 0) + 1;
       }
     }
 

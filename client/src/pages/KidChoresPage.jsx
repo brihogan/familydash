@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBroom, faCrown, faChevronDown } from '@fortawesome/free-solid-svg-icons';
 import { choresApi } from '../api/chores.api.js';
 import { familyApi } from '../api/family.api.js';
+import { inboxApi } from '../api/inbox.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import ChoreList from '../components/chores/ChoreList.jsx';
 import ChoreHistoryList from '../components/chores/ChoreHistoryList.jsx';
@@ -205,7 +206,27 @@ export default function KidChoresPage() {
           {/* Waiting for Approval */}
           {waitingApproval.length > 0 && (
             <div>
-              <h3 className="text-sm font-medium text-amber-600 dark:text-amber-400 mb-2">⏳ Waiting for Approval</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-amber-600 dark:text-amber-400">⏳ Waiting for Approval</h3>
+                {isParent && waitingApproval.length > 1 && (
+                  <button
+                    onClick={async () => {
+                      setActionLoading(true);
+                      try {
+                        await inboxApi.approve({ chore_log_ids: waitingApproval.map((l) => l.id), step_completion_ids: [] });
+                        await fetchChores();
+                        window.dispatchEvent(new CustomEvent('kid-stats-updated'));
+                        window.dispatchEvent(new CustomEvent('inbox-updated'));
+                      } catch { setError('Failed to approve.'); }
+                      finally { setActionLoading(false); }
+                    }}
+                    disabled={actionLoading}
+                    className="text-xs bg-green-600 hover:bg-green-700 text-white px-2.5 py-1 rounded-lg disabled:opacity-50 transition-colors"
+                  >
+                    Approve All
+                  </button>
+                )}
+              </div>
               <div className="space-y-2">
                 {waitingApproval.map((log) => (
                   <div
@@ -217,13 +238,33 @@ export default function KidChoresPage() {
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{log.name}</p>
                       <p className="text-xs text-amber-600 dark:text-amber-400">Waiting for parent to approve</p>
                     </div>
-                    <button
-                      onClick={() => handleToggle(log, false)}
-                      disabled={actionLoading}
-                      className="text-xs text-gray-500 hover:text-red-600 border border-gray-200 dark:border-gray-600 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors shrink-0"
-                    >
-                      Undo
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {isParent && (
+                        <button
+                          onClick={async () => {
+                            setActionLoading(true);
+                            try {
+                              await inboxApi.approve({ chore_log_ids: [log.id], step_completion_ids: [] });
+                              await fetchChores();
+                              window.dispatchEvent(new CustomEvent('kid-stats-updated'));
+                              window.dispatchEvent(new CustomEvent('inbox-updated'));
+                            } catch { setError('Failed to approve.'); }
+                            finally { setActionLoading(false); }
+                          }}
+                          disabled={actionLoading}
+                          className="text-xs text-green-700 dark:text-green-400 border border-green-300 dark:border-green-700 px-2 py-1 rounded hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50 transition-colors"
+                        >
+                          Approve
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleToggle(log, false)}
+                        disabled={actionLoading}
+                        className="text-xs text-gray-500 hover:text-red-600 border border-gray-200 dark:border-gray-600 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors"
+                      >
+                        Undo
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
