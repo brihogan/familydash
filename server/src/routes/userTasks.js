@@ -36,7 +36,7 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
         AND (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ta.task_set_id AND is_active = 1) > 0
         AND (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ta.task_set_id AND user_id = ta.user_id)
             >= (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ta.task_set_id AND is_active = 1)
-        AND date((SELECT MAX(completed_at) FROM task_step_completions WHERE task_set_id = ta.task_set_id AND user_id = ta.user_id)) < date('now')
+        AND date((SELECT MAX(completed_at) FROM task_step_completions WHERE task_set_id = ta.task_set_id AND user_id = ta.user_id), 'localtime') < date('now', 'localtime')
     `).all(userId);
 
     if (toReset.length > 0) {
@@ -92,7 +92,7 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
     const steps = db.prepare(`
       SELECT ts.*,
         (SELECT COUNT(*) FROM task_step_completions WHERE task_step_id = ts.id AND user_id = ?) AS completed_count,
-        (SELECT COUNT(*) FROM task_step_completions WHERE task_step_id = ts.id AND user_id = ? AND date(completed_at) = date('now')) AS completed_today
+        (SELECT COUNT(*) FROM task_step_completions WHERE task_step_id = ts.id AND user_id = ? AND date(completed_at, 'localtime') = date('now', 'localtime')) AS completed_today
       FROM task_steps ts
       WHERE ts.task_set_id = ? AND ts.is_active = 1
       ORDER BY ts.sort_order ASC, ts.id ASC
@@ -211,7 +211,7 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
       }
       const newCount = completedCount - 1;
       const todayCount = db.prepare(
-        "SELECT COUNT(*) AS cnt FROM task_step_completions WHERE task_step_id = ? AND user_id = ? AND date(completed_at) = date('now')"
+        "SELECT COUNT(*) AS cnt FROM task_step_completions WHERE task_step_id = ? AND user_id = ? AND date(completed_at, 'localtime') = date('now', 'localtime')"
       ).get(stepId, userId).cnt;
       res.json({ completed_count: newCount, completed_today: todayCount });
     } else {
@@ -228,7 +228,7 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
       // Check limit_one_per_day
       if (step.limit_one_per_day) {
         const today = db.prepare(
-          "SELECT id FROM task_step_completions WHERE task_step_id = ? AND user_id = ? AND date(completed_at) = date('now')"
+          "SELECT id FROM task_step_completions WHERE task_step_id = ? AND user_id = ? AND date(completed_at, 'localtime') = date('now', 'localtime')"
         ).get(stepId, userId);
         if (today) return res.status(400).json({ error: 'Already completed today. Come back tomorrow!' });
       }
@@ -283,7 +283,7 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
       }
 
       const todayCount = db.prepare(
-        "SELECT COUNT(*) AS cnt FROM task_step_completions WHERE task_step_id = ? AND user_id = ? AND date(completed_at) = date('now')"
+        "SELECT COUNT(*) AS cnt FROM task_step_completions WHERE task_step_id = ? AND user_id = ? AND date(completed_at, 'localtime') = date('now', 'localtime')"
       ).get(stepId, userId).cnt;
       res.json({ completed_count: nextInstance, completed_today: todayCount });
     }

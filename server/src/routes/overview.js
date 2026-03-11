@@ -108,7 +108,7 @@ router.get('/:id/overview', authenticate, requireOwnOrParent, (req, res, next) =
       ) WHERE NOT (
         step_count > 0 AND completed_count = step_count
         AND type = 'Award'
-        AND date(earned_at) < date('now')
+        AND date(earned_at, 'localtime') < date('now', 'localtime')
       )
       ORDER BY CASE type WHEN 'Project' THEN 0 ELSE 1 END, name
     `).all(userId);

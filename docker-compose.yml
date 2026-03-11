@@ -7,6 +7,7 @@ services:
       - "3001:3001"
     environment:
       NODE_ENV: production
+      TZ: America/Denver
       DATABASE_PATH: /data/family.db
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}

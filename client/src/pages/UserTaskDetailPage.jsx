@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faStickyNote } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import Fireworks from '../components/shared/Fireworks.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
@@ -531,6 +531,7 @@ function StepCard({ step, onToggle, disabled, done, isLast }) {
   const [inputValue, setInputValue] = useState('');
   const [showInput, setShowInput] = useState(false);
   const [lightbox, setLightbox] = useState(false);
+  const [showNote, setShowNote] = useState(false);
   const inputRef = useRef(null);
   const needsInput = !!step.require_input;
 
@@ -578,14 +579,33 @@ function StepCard({ step, onToggle, disabled, done, isLast }) {
       }`}
       style={{ ...cardStyle, animation: done ? 'chore-enter 350ms ease-out both' : undefined }}
     >
-      {/* Image — tap opens fullscreen */}
+      {/* Image — tap opens fullscreen, note icon for description */}
       {step.image && (
-        <img
-          src={`/api/uploads/steps/${step.image}`}
-          alt=""
-          className="w-full aspect-square object-cover cursor-pointer"
-          onClick={() => setLightbox(true)}
-        />
+        <div className="relative">
+          <img
+            src={`/api/uploads/steps/${step.image}`}
+            alt=""
+            className="w-full aspect-square object-cover cursor-pointer"
+            onClick={() => setLightbox(true)}
+          />
+          {step.description && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowNote((v) => !v); }}
+              className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors"
+              aria-label="Show description"
+            >
+              <FontAwesomeIcon icon={faStickyNote} className="text-[10px]" />
+            </button>
+          )}
+          {showNote && step.description && (
+            <div
+              className="absolute inset-x-2 bottom-2 bg-black/75 text-white text-[11px] leading-snug rounded-lg px-2.5 py-2"
+              onClick={(e) => { e.stopPropagation(); setShowNote(false); }}
+            >
+              {step.description}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Undo button for last completed */}
@@ -659,6 +679,30 @@ function StepCard({ step, onToggle, disabled, done, isLast }) {
         }`}>
           {step.sort_order || '·'}
         </span>
+      )}
+
+      {/* No-image cards with description: note icon top-right */}
+      {!step.image && step.description && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowNote((v) => !v); }}
+          className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-300 flex items-center justify-center hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+          aria-label="Show description"
+        >
+          <FontAwesomeIcon icon={faStickyNote} className="text-[9px]" />
+        </button>
+      )}
+
+      {/* Note popup for no-image cards */}
+      {!step.image && showNote && step.description && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-8" onClick={(e) => { e.stopPropagation(); setShowNote(false); }}>
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-lg px-4 py-3 max-w-xs w-full text-sm text-gray-700 dark:text-gray-300" onClick={(e) => e.stopPropagation()}>
+            <p className="font-medium text-gray-900 dark:text-gray-100 mb-1">{step._displayName || step.name}</p>
+            <p className="text-gray-500 dark:text-gray-400 text-xs leading-relaxed">{step.description}</p>
+            <button onClick={() => setShowNote(false)} className="mt-2 w-full text-center text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">Dismiss</button>
+          </div>
+        </div>,
+        document.body,
       )}
 
       {step._limitedToday && (
