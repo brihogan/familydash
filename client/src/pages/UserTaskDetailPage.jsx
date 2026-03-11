@@ -11,18 +11,47 @@ import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { playChoreCheck, playVictory } from '../utils/sounds.js';
 import useScrollLock from '../hooks/useScrollLock.js';
 
-// ── Fullscreen image lightbox ─────────────────────────────────────────────────
-function ImageLightbox({ src, onClose }) {
+// ── Fullscreen step detail modal (image + description) ───────────────────────
+function StepDetailModal({ step, onClose }) {
   useScrollLock(true);
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
+  const hasImage = !!step.image;
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={(e) => { e.stopPropagation(); onClose(); }}>
-      <div className="absolute inset-0 bg-black/80" />
-      <img src={src} alt="" className="relative z-10 max-w-full max-h-full object-contain p-4" />
+    <div className="fixed inset-0 z-50 flex flex-col bg-black/90" onClick={(e) => { e.stopPropagation(); onClose(); }}>
+      {/* Close button */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-white/20 text-white flex items-center justify-center text-lg hover:bg-white/30 transition-colors"
+        aria-label="Close"
+      >
+        ×
+      </button>
+      {/* Image area */}
+      {hasImage && (
+        <div className="flex-1 min-h-0 flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+          <img
+            src={`/api/uploads/steps/${step.image}`}
+            alt=""
+            className="max-w-full max-h-full object-contain rounded-lg"
+          />
+        </div>
+      )}
+      {/* Description area */}
+      {step.description && (
+        <div
+          className={`${hasImage ? '' : 'flex-1 flex items-center justify-center'} px-6 ${hasImage ? 'pb-8 pt-2' : 'p-6'}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className={`${hasImage ? '' : 'w-full max-w-md'} bg-white/10 backdrop-blur rounded-xl px-5 py-4 max-h-[40vh] overflow-y-auto`}>
+            <p className="font-medium text-white text-sm mb-2">{step._displayName || step.name}</p>
+            <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{step.description}</p>
+          </div>
+        </div>
+      )}
     </div>,
     document.body,
   );
@@ -530,7 +559,17 @@ function StepItem({ step, onToggle, disabled }) {
           onClick={(e) => { e.stopPropagation(); setLightbox(true); }}
         />
       )}
-      {lightbox && <ImageLightbox src={`/api/uploads/steps/${step.image}`} onClose={() => setLightbox(false)} />}
+      {/* Note icon for description (no-image steps in list view) */}
+      {!step.image && step.description && !showInput && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setLightbox(true); }}
+          className="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex-shrink-0"
+          aria-label="Show description"
+        >
+          <FontAwesomeIcon icon={faStickyNote} className="text-[10px]" />
+        </button>
+      )}
+      {lightbox && <StepDetailModal step={step} onClose={() => setLightbox(false)} />}
     </div>
   );
 }
@@ -541,7 +580,6 @@ function StepCard({ step, onToggle, disabled, done, isLast }) {
   const [inputValue, setInputValue] = useState('');
   const [showInput, setShowInput] = useState(false);
   const [lightbox, setLightbox] = useState(false);
-  const [showNote, setShowNote] = useState(false);
   const inputRef = useRef(null);
   const needsInput = !!step.require_input;
 
@@ -578,9 +616,7 @@ function StepCard({ step, onToggle, disabled, done, isLast }) {
 
   return (
     <div
-      className={`relative flex flex-col rounded-xl border text-center overflow-hidden transition-colors ${
-        step.image ? 'p-0' : 'p-3 aspect-square items-center justify-center'
-      } ${
+      className={`relative flex flex-col rounded-xl border text-center overflow-hidden transition-colors p-0 ${
         showDone
           ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50'
           : step._limitedToday
@@ -589,34 +625,36 @@ function StepCard({ step, onToggle, disabled, done, isLast }) {
       }`}
       style={{ ...cardStyle, animation: done ? 'chore-enter 350ms ease-out both' : undefined }}
     >
-      {/* Image — tap opens fullscreen, note icon for description */}
-      {step.image && (
-        <div className="relative">
+      {/* Image area — real image or placeholder */}
+      <div
+        className={`relative w-full aspect-square ${step.image ? '' : 'bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center'} ${step.image || step.description ? 'cursor-pointer' : ''}`}
+        onClick={() => { if (step.image || step.description) setLightbox(true); }}
+      >
+        {step.image ? (
           <img
             src={`/api/uploads/steps/${step.image}`}
             alt=""
-            className="w-full aspect-square object-cover cursor-pointer"
-            onClick={() => setLightbox(true)}
+            className="w-full h-full object-cover"
           />
-          {step.description && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setShowNote((v) => !v); }}
-              className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors"
-              aria-label="Show description"
-            >
-              <FontAwesomeIcon icon={faStickyNote} className="text-[10px]" />
-            </button>
-          )}
-          {showNote && step.description && (
-            <div
-              className="absolute inset-x-2 bottom-2 bg-black/75 text-white text-[11px] leading-snug rounded-lg px-2.5 py-2"
-              onClick={(e) => { e.stopPropagation(); setShowNote(false); }}
-            >
-              {step.description}
-            </div>
-          )}
-        </div>
-      )}
+        ) : (
+          <span className="w-10 h-10 rounded-full bg-brand-100 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400 flex items-center justify-center text-sm font-bold">
+            {step.sort_order || '·'}
+          </span>
+        )}
+        {step.description && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setLightbox(true); }}
+            className={`absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+              step.image
+                ? 'bg-black/50 text-white hover:bg-black/70'
+                : 'bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
+            }`}
+            aria-label="Show description"
+          >
+            <FontAwesomeIcon icon={faStickyNote} className="text-[10px]" />
+          </button>
+        )}
+      </div>
 
       {/* Undo button for last completed */}
       {done && isLast && (
@@ -631,7 +669,7 @@ function StepCard({ step, onToggle, disabled, done, isLast }) {
 
       {/* Checkbox + name row */}
       <div
-        className={`flex items-center gap-1.5 w-full ${step.image ? 'p-2' : ''} ${canCheck && !showInput ? 'cursor-pointer' : ''}`}
+        className={`flex items-center gap-1.5 w-full p-2 ${canCheck && !showInput ? 'cursor-pointer' : ''}`}
         onClick={canCheck && !showInput ? handleCheck : undefined}
       >
         {/* Checkbox circle */}
@@ -682,39 +720,6 @@ function StepCard({ step, onToggle, disabled, done, isLast }) {
         </p>
       </div>
 
-      {/* No-image cards: step number circle above checkbox row */}
-      {!step.image && !showDone && (
-        <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 order-first ${
-          'bg-brand-100 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400'
-        }`}>
-          {step.sort_order || '·'}
-        </span>
-      )}
-
-      {/* No-image cards with description: note icon top-right */}
-      {!step.image && step.description && (
-        <button
-          onClick={(e) => { e.stopPropagation(); setShowNote((v) => !v); }}
-          className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-300 flex items-center justify-center hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
-          aria-label="Show description"
-        >
-          <FontAwesomeIcon icon={faStickyNote} className="text-[9px]" />
-        </button>
-      )}
-
-      {/* Note popup for no-image cards */}
-      {!step.image && showNote && step.description && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-8" onClick={(e) => { e.stopPropagation(); setShowNote(false); }}>
-          <div className="absolute inset-0 bg-black/40" />
-          <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-lg px-4 py-3 max-w-xs w-full text-sm text-gray-700 dark:text-gray-300" onClick={(e) => e.stopPropagation()}>
-            <p className="font-medium text-gray-900 dark:text-gray-100 mb-1">{step._displayName || step.name}</p>
-            <p className="text-gray-500 dark:text-gray-400 text-xs leading-relaxed">{step.description}</p>
-            <button onClick={() => setShowNote(false)} className="mt-2 w-full text-center text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">Dismiss</button>
-          </div>
-        </div>,
-        document.body,
-      )}
-
       {step._limitedToday && (
         <p className="text-[10px] text-amber-500 dark:text-amber-400 px-2 pb-1">Tomorrow</p>
       )}
@@ -746,8 +751,8 @@ function StepCard({ step, onToggle, disabled, done, isLast }) {
         </div>
       )}
 
-      {/* Lightbox */}
-      {lightbox && <ImageLightbox src={`/api/uploads/steps/${step.image}`} onClose={() => setLightbox(false)} />}
+      {/* Step detail modal */}
+      {lightbox && <StepDetailModal step={step} onClose={() => setLightbox(false)} />}
     </div>
   );
 }
@@ -779,7 +784,16 @@ function CompletedStepItem({ step, onUndo, canUndo, disabled }) {
           onClick={() => setLightbox(true)}
         />
       )}
-      {lightbox && <ImageLightbox src={`/api/uploads/steps/${step.image}`} onClose={() => setLightbox(false)} />}
+      {!step.image && step.description && (
+        <button
+          onClick={() => setLightbox(true)}
+          className="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex-shrink-0"
+          aria-label="Show description"
+        >
+          <FontAwesomeIcon icon={faStickyNote} className="text-[10px]" />
+        </button>
+      )}
+      {lightbox && <StepDetailModal step={step} onClose={() => setLightbox(false)} />}
       {canUndo && (
         <button
           onClick={onUndo}

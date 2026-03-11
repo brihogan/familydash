@@ -46,6 +46,20 @@ export default function RecurringRuleList({ rules, onDelete }) {
                 {rule.description && ` · ${rule.description}`}
                 {rule.to_account_name && ` → ${rule.to_account_name}`}
               </p>
+              {rule.type === 'deposit' && !rule.bypass_currency_work && rule.allocations && (() => {
+                try {
+                  const allocs = typeof rule.allocations === 'string' ? JSON.parse(rule.allocations) : rule.allocations;
+                  if (!Array.isArray(allocs) || !allocs.length) return null;
+                  return (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      📥 Receive · {allocs.map((a) => `${a.account_name} ${a.value}${a.type === 'percent' ? '%' : '$'}`).join(', ')}
+                    </p>
+                  );
+                } catch { return null; }
+              })()}
+              {rule.type === 'deposit' && rule.bypass_currency_work === 1 && (
+                <p className="text-xs text-green-600 dark:text-green-400">⚡ Bypass — deposits directly</p>
+              )}
             </div>
             {rule.last_run_date && (
               <span className="text-xs text-gray-400 dark:text-gray-500">Last: {formatLastRun(rule.last_run_date)}</span>

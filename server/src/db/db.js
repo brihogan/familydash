@@ -318,4 +318,9 @@ try {
   db.exec(`ALTER TABLE task_assignments ADD COLUMN completion_status TEXT DEFAULT NULL`);
 } catch (_) { /* column already exists */ }
 
+// v36: bypass_currency_work on recurring_rules — skip pending deposit for currency-work kids
+try {
+  db.exec(`ALTER TABLE recurring_rules ADD COLUMN bypass_currency_work INTEGER NOT NULL DEFAULT 0`);
+} catch (_) { /* column already exists */ }
+
 export default db;

@@ -1002,8 +1002,18 @@ export default function TaskSetDetailPage() {
                 </button>
               </div>
             ) : (
-              <label className="flex items-center justify-center w-full h-20 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-brand-400 transition-colors">
-                <span className="text-sm text-gray-400 dark:text-gray-500">Click to upload image</span>
+              <label
+                className="flex items-center justify-center w-full h-20 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-brand-400 transition-colors"
+                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-brand-400', 'bg-brand-50', 'dark:bg-brand-500/10'); }}
+                onDragLeave={(e) => { e.currentTarget.classList.remove('border-brand-400', 'bg-brand-50', 'dark:bg-brand-500/10'); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.remove('border-brand-400', 'bg-brand-50', 'dark:bg-brand-500/10');
+                  const file = e.dataTransfer.files?.[0];
+                  if (file && file.type.startsWith('image/')) setStepForm((f) => ({ ...f, _imageFile: file, _removeImage: false }));
+                }}
+              >
+                <span className="text-sm text-gray-400 dark:text-gray-500 pointer-events-none">Click or drag image here</span>
                 <input
                   type="file"
                   accept="image/*"

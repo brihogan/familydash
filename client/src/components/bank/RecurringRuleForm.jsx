@@ -14,6 +14,7 @@ export default function RecurringRuleForm({ accounts, onSave, onCancel, loading,
   const [toAccountId, setToAccountId] = useState('');
   const [error, setError] = useState('');
   const [allocations, setAllocations] = useState({});
+  const [bypass, setBypass] = useState(false);
 
   // Sub-accounts (non-main) for this user
   const subAccounts = useMemo(() => {
@@ -40,17 +41,20 @@ export default function RecurringRuleForm({ accounts, onSave, onCancel, loading,
       day_of_week: dayOfWeek,
       to_account_id: type === 'transfer' ? parseInt(toAccountId, 10) : undefined,
     };
-    // Attach allocations for currency-work deposits
+    // Attach allocations for currency-work deposits (unless bypass)
     if (type === 'deposit' && requireCurrencyWork) {
-      const activeAllocs = subAccounts
-        .filter((a) => allocations[a.id]?.enabled)
-        .map((a) => ({
-          account_id: a.id,
-          account_name: a.name,
-          type: allocations[a.id].type,
-          value: allocations[a.id].value,
-        }));
-      if (activeAllocs.length) ruleData.allocations = activeAllocs;
+      ruleData.bypass_currency_work = bypass;
+      if (!bypass) {
+        const activeAllocs = subAccounts
+          .filter((a) => allocations[a.id]?.enabled)
+          .map((a) => ({
+            account_id: a.id,
+            account_name: a.name,
+            type: allocations[a.id].type,
+            value: allocations[a.id].value,
+          }));
+        if (activeAllocs.length) ruleData.allocations = activeAllocs;
+      }
     }
     await onSave(ruleData);
   };
@@ -107,6 +111,8 @@ export default function RecurringRuleForm({ accounts, onSave, onCancel, loading,
           subAccounts={subAccounts}
           allocations={allocations}
           onAllocationsChange={setAllocations}
+          bypass={bypass}
+          onBypassChange={setBypass}
         />
       )}
 

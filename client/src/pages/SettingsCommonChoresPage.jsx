@@ -249,11 +249,13 @@ export default function SettingsCommonChoresPage() {
           <p className="text-sm">No common chores yet. Add one to get started.</p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-clip">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10 bg-white dark:bg-gray-800">
-                <tr className="border-b border-gray-200 dark:border-gray-700">
+              <thead className="sticky -top-4 lg:-top-6 z-10">
+                {/* Spacer row fills the gap created by negative top offset */}
+                <tr className="h-4 lg:h-6 bg-white dark:bg-gray-800" aria-hidden><td colSpan={999} className="p-0 border-0" /></tr>
+                <tr className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                   <th className="text-left px-4 py-3 font-semibold text-gray-700 dark:text-gray-300 min-w-[180px]">
                     Chore
                   </th>

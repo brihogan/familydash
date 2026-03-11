@@ -336,6 +336,7 @@ const RecurringRuleSchema = z.object({
   day_of_week: z.number().int().min(0).max(6),
   to_account_id: z.number().int().optional().nullable(),
   allocations: z.array(AllocationSchema).optional(),
+  bypass_currency_work: z.boolean().optional(),
 });
 
 router.post('/:id/recurring', authenticate, requireRole('parent'), (req, res, next) => {
@@ -349,9 +350,9 @@ router.post('/:id/recurring', authenticate, requireRole('parent'), (req, res, ne
     }
     const allocJson = body.allocations?.length ? JSON.stringify(body.allocations) : null;
     const result = db.prepare(`
-      INSERT INTO recurring_rules (account_id, amount_cents, type, description, day_of_week, to_account_id, allocations)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(body.account_id, body.amount_cents, body.type, body.description, body.day_of_week, body.to_account_id ?? null, allocJson);
+      INSERT INTO recurring_rules (account_id, amount_cents, type, description, day_of_week, to_account_id, allocations, bypass_currency_work)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(body.account_id, body.amount_cents, body.type, body.description, body.day_of_week, body.to_account_id ?? null, allocJson, body.bypass_currency_work ? 1 : 0);
     const rule = db.prepare('SELECT * FROM recurring_rules WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(rule);
   } catch (err) {
@@ -374,7 +375,10 @@ router.put('/:id/recurring/:rid', authenticate, requireRole('parent'), (req, res
     const body = RecurringRuleSchema.partial().parse(req.body);
     const updates = []; const values = [];
     for (const [k, v] of Object.entries(body)) {
-      if (v !== undefined) { updates.push(`${k} = ?`); values.push(v ?? null); }
+      if (v !== undefined) {
+        updates.push(`${k} = ?`);
+        values.push(k === 'bypass_currency_work' ? (v ? 1 : 0) : (v ?? null));
+      }
     }
     if (!updates.length) return res.status(400).json({ error: 'Nothing to update.' });
     values.push(ruleId);
