@@ -68,12 +68,12 @@ router.get('/', authenticate, (req, res, next) => {
         SELECT user_id,
           COUNT(*) AS total,
           COUNT(CASE WHEN completed_at IS NOT NULL THEN 1 END) AS done
-        FROM chore_logs WHERE log_date = date('now', 'localtime')
+        FROM chore_logs WHERE log_date = ?
         GROUP BY user_id
       ) ch ON ch.user_id = u.id
       WHERE u.family_id = ? AND u.is_active = 1
       ORDER BY u.sort_order ASC, u.role DESC, u.name ASC
-    `).all(req.user.familyId, req.user.familyId, req.user.familyId, req.user.familyId);
+    `).all(req.user.familyId, req.user.familyId, req.user.familyId, today, req.user.familyId);
 
     const members = rows.map((r) => ({
       id: r.id,
@@ -138,10 +138,10 @@ router.get('/', authenticate, (req, res, next) => {
         ) WHERE NOT (
           step_count > 0 AND completed_count = step_count
           AND type = 'Award'
-          AND date(earned_at, 'localtime') < date('now', 'localtime')
+          AND date(earned_at, 'localtime') < ?
         )
         ORDER BY user_id, CASE type WHEN 'Project' THEN 0 ELSE 1 END, name
-      `).all(...memberIds);
+      `).all(...memberIds, today);
 
       const tasksByUser = {};
       for (const row of taskRows) {
