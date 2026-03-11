@@ -2,12 +2,26 @@ import { Router } from 'express';
 import db from '../db/db.js';
 import { authenticate } from '../middleware/auth.js';
 import { processRecurringRules } from '../services/recurringRuleService.js';
+import { getOrGenerateLogs } from '../services/choreService.js';
 
 const router = Router();
+
+function localDateISO(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 router.get('/', authenticate, (req, res, next) => {
   try {
     processRecurringRules(req.user.familyId);
+
+    // Lazily generate today's chore logs for all family members
+    const today = localDateISO();
+    const familyMembers = db.prepare(
+      'SELECT id FROM users WHERE family_id = ? AND is_active = 1'
+    ).all(req.user.familyId);
+    for (const m of familyMembers) {
+      getOrGenerateLogs(m.id, today);
+    }
 
     const rows = db.prepare(`
       WITH latest_activity AS (
