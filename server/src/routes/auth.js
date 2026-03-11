@@ -21,7 +21,7 @@ const COOKIE_OPTS = {
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax',
   path: '/',
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
 };
 
 function issueTokens(res, payload, remember = true) {
@@ -29,7 +29,7 @@ function issueTokens(res, payload, remember = true) {
   const refreshToken = signRefreshToken(payload);
 
   // Store hashed refresh token
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
   db.prepare(`
     INSERT INTO refresh_tokens (user_id, token_hash, expires_at, remember)
     VALUES (?, ?, ?, ?)
