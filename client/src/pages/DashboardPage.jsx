@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faExpand, faHouse } from '@fortawesome/free-solid-svg-icons';
-import { dashboardApi } from '../api/dashboard.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
+import useOfflineDashboard from '../offline/hooks/useOfflineDashboard.js';
 import DashboardTable from '../components/dashboard/DashboardTable.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 
@@ -42,49 +42,9 @@ export default function DashboardPage() {
   const { useBanking, useTickets } = useFamilySettings();
   const isParent = user?.role === 'parent';
   const navigate = useNavigate();
-  const [members, setMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [sortKey, setSortKey] = useState('custom');
 
-  const lastFetchRef = useRef(Date.now());
-  const REFRESH_MS = 60 * 60 * 1000; // 1 hour
-
-  const fetchDashboard = useCallback(async () => {
-    lastFetchRef.current = Date.now();
-    setError('');
-    try {
-      const data = await dashboardApi.getDashboard();
-      setMembers(data.members);
-    } catch {
-      setError('Failed to load dashboard.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchDashboard();
-  }, [fetchDashboard]);
-
-  // Periodic auto-refresh every hour
-  useEffect(() => {
-    const interval = setInterval(fetchDashboard, REFRESH_MS);
-    return () => clearInterval(interval);
-  }, [fetchDashboard]);
-
-  // Refresh when the tab becomes visible again after 1+ hour
-  // Short delay lets the network and auth refresh settle after waking from background
-  useEffect(() => {
-    let timer;
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && Date.now() - lastFetchRef.current >= REFRESH_MS) {
-        timer = setTimeout(fetchDashboard, 1500);
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => { document.removeEventListener('visibilitychange', handleVisibility); clearTimeout(timer); };
-  }, [fetchDashboard]);
+  const { members, loading, refresh } = useOfflineDashboard();
 
   const sortedMembers = useMemo(
     () => sortMembers(members.filter((m) => m.showOnDashboard || (m.role === 'parent' && m.choresEnabled)), sortKey),
@@ -101,7 +61,7 @@ export default function DashboardPage() {
           </h1>
           <div className="flex items-center gap-3">
             <button
-              onClick={fetchDashboard}
+              onClick={refresh}
               className="text-sm text-brand-600 hover:underline"
             >
               Refresh
@@ -148,18 +108,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-4 py-3 mb-4 text-sm">
-          {error}
-        </div>
-      )}
-
       {loading ? (
         <LoadingSkeleton rows={4} />
       ) : (
         <DashboardTable
           members={sortedMembers}
-          onRefresh={fetchDashboard}
+          onRefresh={refresh}
           maskPrivateData={!isParent}
         />
       )}

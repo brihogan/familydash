@@ -91,3 +91,10 @@
   0%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); }
   50%       { opacity: 1; transform: scale(1.2) rotate(72deg); }
 }
+
+/* ── Toast notification ─────────────────────────────────────────────────── */
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

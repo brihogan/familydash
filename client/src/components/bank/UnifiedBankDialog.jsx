@@ -7,6 +7,9 @@ import MoneyPopover from './MoneyPopover.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { accountsApi } from '../../api/accounts.api.js';
 import { familyApi } from '../../api/family.api.js';
+import db from '../../offline/db.js';
+import { enqueue } from '../../offline/mutationQueue.js';
+import { showToast } from '../shared/Toast.jsx';
 import CurrencyWorkNotice, { buildDefaultAllocations } from './CurrencyWorkNotice.jsx';
 
 // Frontend deposit sub-types — all map to 'deposit' or 'allowance' / 'manual_adjustment' on the API
@@ -378,11 +381,25 @@ export default function UnifiedBankDialog({
         .then(({ accounts: accs }) => {
           setOwnAccounts(accs);
           if (!sourceAccount && accs.length) setSrcId(String(accs[0].id));
-          // Initialize allocations for async-loaded accounts
           const subs = accs.filter((a) => a.user_id === parseInt(userId, 10) && a.type !== 'main');
           if (subs.length) setAllocations(buildDefaultAllocations(subs));
+          // Cache to Dexie
+          const uid = Number(userId);
+          db.bankAccounts.where('userId').equals(uid).delete().then(() =>
+            db.bankAccounts.bulkPut(accs.map((a) => ({ ...a, userId: uid }))),
+          );
         })
-        .catch(() => {});
+        .catch(async () => {
+          // Offline fallback: load from Dexie
+          const uid = Number(userId);
+          const accs = await db.bankAccounts.where('userId').equals(uid).toArray();
+          if (accs.length) {
+            setOwnAccounts(accs);
+            if (!sourceAccount) setSrcId(String(accs[0].id));
+            const subs = accs.filter((a) => a.user_id === parseInt(userId, 10) && a.type !== 'main');
+            if (subs.length) setAllocations(buildDefaultAllocations(subs));
+          }
+        });
     }
   }, [open, userId]);
 
@@ -395,10 +412,31 @@ export default function UnifiedBankDialog({
     familyApi.getFamilyAccounts().then(({ accounts: all }) => {
       const filtered = filterDestAccounts(all, effectiveSrcId, user);
       setDestAccounts(filtered);
-      // Default to first own account if available, otherwise first in list
       const ownFirst = filtered.find((a) => a.user_id === user.id);
       setToAccountId(filtered.length ? String((ownFirst || filtered[0]).id) : '');
-    }).catch(() => {});
+    }).catch(async () => {
+      // Offline fallback: build dest list from cached Dexie data
+      const [allAccts, members] = await Promise.all([
+        db.bankAccounts.toArray(),
+        db.familyMembers.toArray(),
+      ]);
+      const memberMap = {};
+      for (const m of members) memberMap[m.id] = m;
+      const enriched = allAccts.map((a) => {
+        const owner = memberMap[a.user_id] || {};
+        return {
+          ...a,
+          owner_name: owner.name || '',
+          owner_avatar_emoji: owner.avatar_emoji || null,
+          owner_avatar_color: owner.avatar_color || '#6b7280',
+          owner_role: owner.role || 'kid',
+        };
+      });
+      const filtered = filterDestAccounts(enriched, effectiveSrcId, user);
+      setDestAccounts(filtered);
+      const ownFirst = filtered.find((a) => a.user_id === user.id);
+      setToAccountId(filtered.length ? String((ownFirst || filtered[0]).id) : '');
+    });
   }, [open, mode, effectiveSrcId]);
 
   // ── Recent helpers ────────────────────────────────────────────────────────
@@ -455,8 +493,78 @@ export default function UnifiedBankDialog({
     setSubmitting(true);
     setError('');
     try {
-      await accountsApi.createTransaction(userId, effectiveSrcId, data);
-      // Save to recents for deposit and withdraw (not transfer)
+      const uid = Number(userId);
+      const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+      const isCredit = ['deposit', 'allowance', 'manual_adjustment'].includes(data.type);
+      const signedAmount = isCredit ? data.amount_cents : -data.amount_cents;
+
+      // Currency-work kids: credits become pending deposits (not direct transactions)
+      const shouldPend = isCredit && requireCurrencyWork && !data.bypass_currency_work;
+
+      if (shouldPend) {
+        // Create a pending deposit instead of crediting the account
+        const mainAcct = (await db.bankAccounts.where('userId').equals(uid).toArray())
+          .find((a) => a.type === 'main');
+        await db.pendingDeposits.add({
+          id: -Date.now(),
+          userId: uid,
+          account_id: mainAcct?.id || effectiveSrcId,
+          account_name: mainAcct?.name || 'Main',
+          amount_cents: data.amount_cents,
+          description: data.description || '',
+          type: data.type,
+          created_by_user_id: null,
+          allocations: data.allocations ? JSON.stringify(data.allocations) : null,
+        });
+        // Update dashboard orange dot
+        await db.dashboardMembers.where('id').equals(uid).modify((member) => {
+          member.pendingDepositCount = (member.pendingDepositCount || 0) + 1;
+        });
+      } else {
+        // Optimistic: update account balance in Dexie
+        await db.bankAccounts.where('id').equals(effectiveSrcId).modify((acct) => {
+          acct.balance_cents = (acct.balance_cents || 0) + signedAmount;
+        });
+        // For transfers, also credit destination
+        if (data.type === 'transfer_out' && data.to_account_id) {
+          await db.bankAccounts.where('id').equals(data.to_account_id).modify((acct) => {
+            acct.balance_cents = (acct.balance_cents || 0) + data.amount_cents;
+          });
+        }
+        // Update dashboard balance if main account
+        const srcAcct = await db.bankAccounts.get(effectiveSrcId);
+        if (srcAcct && srcAcct.type === 'main') {
+          await db.dashboardMembers.where('id').equals(uid).modify((member) => {
+            member.mainBalanceCents = (member.mainBalanceCents || 0) + signedAmount;
+          });
+        }
+        // Add optimistic transaction
+        await db.bankTransactions.add({
+          accountId: effectiveSrcId, account_id: effectiveSrcId,
+          amount_cents: signedAmount, type: data.type,
+          description: data.description || '', created_at: now,
+          created_by_user_id: null, created_by_name: '',
+          linked_account_name: null, linked_account_owner_name: null, linked_account_owner_id: null,
+        });
+      }
+
+      // Try API call
+      if (navigator.onLine) {
+        try {
+          await accountsApi.createTransaction(userId, effectiveSrcId, data);
+          const { tryFlush } = await import('../../offline/syncEngine.js');
+          tryFlush();
+        } catch (err) {
+          if (!err.response || err.response.status >= 500) {
+            await enqueue('BANK_TRANSACTION', { userId, accountId: effectiveSrcId, data });
+            showToast('Saved locally — will sync when online');
+          }
+        }
+      } else {
+        await enqueue('BANK_TRANSACTION', { userId, accountId: effectiveSrcId, data });
+        showToast('Saved locally — will sync when online');
+      }
+
       if (mode !== 'transfer') {
         saveRecent({
           mode,

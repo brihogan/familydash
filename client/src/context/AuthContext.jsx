@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { authApi } from '../api/auth.api.js';
 import { setTokenGetter, setRefreshHandler } from '../api/client.js';
+import { cacheSession, getCachedSession, clearDataOnLogout } from '../offline/authOffline.js';
 
 const AuthContext = createContext(null);
 
@@ -8,6 +9,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [accessToken, setAccessToken] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isOfflineSession, setIsOfflineSession] = useState(false);
 
   // Register the token getter so the axios interceptor can read the latest token
   useEffect(() => {
@@ -24,15 +26,29 @@ export function AuthProvider({ children }) {
     });
   }, []);
 
-  // Attempt silent refresh on mount
+  // Attempt silent refresh on mount; fall back to cached session if offline
   useEffect(() => {
     authApi.refresh()
       .then((data) => {
         setAccessToken(data.accessToken);
-        setUser(userFromToken(data.accessToken));
+        const u = userFromToken(data.accessToken);
+        setUser(u);
+        cacheSession(u);
       })
-      .catch(() => {
-        // No valid refresh token — stay logged out
+      .catch(async () => {
+        // Network error or no valid refresh token — try offline fallback
+        const cached = await getCachedSession();
+        if (cached) {
+          setUser({
+            id: cached.userId,
+            familyId: cached.familyId,
+            role: cached.role,
+            name: cached.name,
+            avatarColor: cached.avatarColor,
+            avatarEmoji: cached.avatarEmoji,
+          });
+          setIsOfflineSession(true);
+        }
       })
       .finally(() => setLoading(false));
   }, []);
@@ -40,17 +56,20 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (credentials) => {
     const data = await authApi.login(credentials);
     setAccessToken(data.accessToken);
-    const user = userFromToken(data.accessToken);
-    setUser(user);
-    return user;
+    const u = userFromToken(data.accessToken);
+    setUser(u);
+    setIsOfflineSession(false);
+    cacheSession(u);
+    return u;
   }, []);
 
   const register = useCallback(async (info) => {
     const data = await authApi.register(info);
     setAccessToken(data.accessToken);
-    const user = userFromToken(data.accessToken);
-    setUser(user);
-    return user;
+    const u = userFromToken(data.accessToken);
+    setUser(u);
+    cacheSession(u);
+    return u;
   }, []);
 
   const logout = useCallback(async () => {
@@ -61,6 +80,8 @@ export function AuthProvider({ children }) {
     }
     setAccessToken(null);
     setUser(null);
+    setIsOfflineSession(false);
+    clearDataOnLogout();
   }, []);
 
   // Called by axios interceptor when a 401 triggers a refresh
@@ -77,7 +98,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, loading, login, logout, register, refreshToken, patchUser }}>
+    <AuthContext.Provider value={{ user, accessToken, loading, login, logout, register, refreshToken, patchUser, isOfflineSession }}>
       {children}
     </AuthContext.Provider>
   );

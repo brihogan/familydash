@@ -3,6 +3,9 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlusMinus, faPlus, faMinus } from '@fortawesome/free-solid-svg-icons';
 import Modal from '../shared/Modal.jsx';
 import { ticketsApi } from '../../api/tickets.api.js';
+import db from '../../offline/db.js';
+import { enqueue } from '../../offline/mutationQueue.js';
+import { showToast } from '../shared/Toast.jsx';
 
 const STORAGE_KEY = 'ticket_recent_adjustments';
 const MAX_RECENT  = 5;
@@ -62,12 +65,40 @@ export default function QuickTicketAdjust({ userId, ticketBalance = 0, onDone, i
     if (!description.trim()) { setError('Please enter a reason.'); return; }
     setLoading(true);
     setError('');
+    const signedAmount = mode === 'add' ? amount : -amount;
+    const desc = description.trim();
+    const uid = Number(userId);
     try {
-      await ticketsApi.adjustTickets(userId, {
-        amount: mode === 'add' ? amount : -amount,
-        description: description.trim(),
+      // Optimistic update to Dexie (instant UI feedback)
+      await db.dashboardMembers.where('id').equals(uid).modify((member) => {
+        member.ticketBalance = Math.max(0, (member.ticketBalance || 0) + signedAmount);
       });
-      saveRecent({ mode, amount, description: description.trim() });
+      const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+      await db.ticketLedger.add({
+        odxId: -Date.now(), userId: uid, user_id: uid,
+        amount: signedAmount, type: 'manual', description: desc,
+        reference_id: null, reference_type: null, created_at: now,
+      });
+
+      if (navigator.onLine) {
+        try {
+          await ticketsApi.adjustTickets(userId, { amount: signedAmount, description: desc });
+          const { tryFlush } = await import('../../offline/syncEngine.js');
+          tryFlush();
+        } catch (err) {
+          if (err.response?.status >= 400 && err.response?.status < 500) {
+            // Server rejected — sync will reconcile
+          } else {
+            await enqueue('ADJUST_TICKETS', { userId, amount: signedAmount, description: desc });
+            showToast('Saved locally — will sync when online');
+          }
+        }
+      } else {
+        await enqueue('ADJUST_TICKETS', { userId, amount: signedAmount, description: desc });
+        showToast('Saved locally — will sync when online');
+      }
+
+      saveRecent({ mode, amount, description: desc });
       setOpen(false);
       onDone();
     } catch (err) {

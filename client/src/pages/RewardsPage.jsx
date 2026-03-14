@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTrophy, faGear, faPlus } from '@fortawesome/free-solid-svg-icons';
 import { rewardsApi } from '../api/rewards.api.js';
-import { ticketsApi } from '../api/tickets.api.js';
-import { familyApi } from '../api/family.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import useOfflineRewards from '../offline/hooks/useOfflineRewards.js';
+import useOfflineFamily from '../offline/hooks/useOfflineFamily.js';
+import useOfflineTickets from '../offline/hooks/useOfflineTickets.js';
 import RewardCatalog from '../components/rewards/RewardCatalog.jsx';
 import RedemptionHistory from '../components/rewards/RedemptionHistory.jsx';
 import Modal from '../components/shared/Modal.jsx';
@@ -23,14 +24,14 @@ const DATE_OPTIONS = [
 
 const SELECT_CLS = 'border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-400';
 
-function localMidnightUTC(offsetDays = 0) {
+function localMidnightISO(offsetDays = 0) {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   if (offsetDays) d.setDate(d.getDate() - offsetDays);
   return d.toISOString().replace('T', ' ').slice(0, 19);
 }
 
-// ── Reward form (parent add / edit) ──────────────────────────────────────────
+// ── Reward form (parent add / edit — stays online-only) ──────────────────────
 
 const PRESET_EMOJIS = [
   '🎬', '🎮', '🍕', '🍦', '🍫', '🎯',
@@ -55,7 +56,6 @@ function RewardForm({ initial, onSave, onCancel, loading }) {
 
   const handlePreset = (e) => setEmoji((prev) => prev === e ? '' : e);
   const handleCustomChange = (val) => {
-    // Take only the first grapheme cluster (one emoji/char)
     const trimmed = [...val].slice(0, 1).join('');
     setCustomEmoji(trimmed);
     if (trimmed) setEmoji(trimmed);
@@ -79,52 +79,32 @@ function RewardForm({ initial, onSave, onCancel, loading }) {
           onChange={(e) => setTicketCost(parseInt(e.target.value, 10) || 1)}
           className="w-24 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-gray-200" />
       </div>
-
-      {/* Emoji picker */}
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
           Icon <span className="text-gray-400 dark:text-gray-500 font-normal">(optional)</span>
-          {emoji && (
-            <span className="ml-2 text-base leading-none">{emoji}</span>
-          )}
+          {emoji && <span className="ml-2 text-base leading-none">{emoji}</span>}
         </label>
         <div className="flex flex-wrap gap-1.5 mb-2">
           {PRESET_EMOJIS.map((e) => (
-            <button
-              key={e}
-              type="button"
-              onClick={() => handlePreset(e)}
+            <button key={e} type="button" onClick={() => handlePreset(e)}
               className={`w-9 h-9 rounded-lg text-xl flex items-center justify-center transition-colors ${
                 emoji === e
                   ? 'bg-brand-100 ring-2 ring-brand-400'
                   : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
-              }`}
-            >
-              {e}
-            </button>
+              }`}>{e}</button>
           ))}
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400 dark:text-gray-500">Custom:</span>
-          <input
-            type="text"
-            value={customEmoji}
-            onChange={(e) => handleCustomChange(e.target.value)}
+          <input type="text" value={customEmoji} onChange={(e) => handleCustomChange(e.target.value)}
             placeholder="Paste any emoji"
-            className="w-28 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
-          />
+            className="w-28 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200" />
           {emoji && (
-            <button
-              type="button"
-              onClick={() => { setEmoji(''); setCustomEmoji(''); }}
-              className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
-            >
-              Clear
-            </button>
+            <button type="button" onClick={() => { setEmoji(''); setCustomEmoji(''); }}
+              className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">Clear</button>
           )}
         </div>
       </div>
-
       {error && <p className="text-sm text-red-500">{error}</p>}
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={loading}
@@ -163,12 +143,8 @@ function EarningReference({ kids }) {
               <th className="text-left text-xs font-medium text-gray-400 dark:text-gray-500 pr-6 pb-2 whitespace-nowrap">Tickets</th>
               {kids.map((k) => (
                 <th key={k.id} className="text-left pr-6 pb-2">
-                  <Link
-                    to={`/settings/chores/${k.id}`}
-                    className="text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-brand-600 hover:underline"
-                  >
-                    {k.name}
-                  </Link>
+                  <Link to={`/settings/chores/${k.id}`}
+                    className="text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-brand-600 hover:underline">{k.name}</Link>
                   <div className="text-xs font-normal text-amber-600">🎟 {k.daily_ticket_potential}/day</div>
                 </th>
               ))}
@@ -201,32 +177,21 @@ function ProfilePicker({ kids, selectedKidId, onSelect }) {
   const isManageMode = selectedKidId === null;
   return (
     <div className="flex items-center gap-2 mb-5">
-      {/* Gear / management mode button */}
-      <button
-        onClick={() => onSelect(null)}
+      <button onClick={() => onSelect(null)}
         className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all ${
           isManageMode
             ? 'ring-2 ring-brand-500 ring-offset-2 dark:ring-offset-gray-900 bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400'
             : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 opacity-50 hover:opacity-75'
-        }`}
-        title="Manage rewards"
-      >
+        }`} title="Manage rewards">
         <FontAwesomeIcon icon={faGear} className="text-lg" />
       </button>
-      {/* Kid avatars */}
       {kids.map((kid) => {
         const isSelected = selectedKidId === kid.id;
         return (
-          <button
-            key={kid.id}
-            onClick={() => onSelect(kid.id)}
+          <button key={kid.id} onClick={() => onSelect(kid.id)}
             className={`rounded-full transition-all ${
-              isSelected
-                ? 'ring-2 ring-brand-500 ring-offset-2 dark:ring-offset-gray-900'
-                : 'opacity-40 hover:opacity-70'
-            }`}
-            title={kid.name}
-          >
+              isSelected ? 'ring-2 ring-brand-500 ring-offset-2 dark:ring-offset-gray-900' : 'opacity-40 hover:opacity-70'
+            }`} title={kid.name}>
             <Avatar name={kid.name} color={kid.avatar_color || '#6366f1'} emoji={kid.avatar_emoji} size="md" />
           </button>
         );
@@ -241,79 +206,67 @@ export default function RewardsPage() {
   const { user } = useAuth();
   const isParent = user?.role === 'parent';
 
-  const [rewards,         setRewards]         = useState([]);
-  const [redemptions,     setRedemptions]     = useState([]);
-  const [ticketBalance,   setTicketBalance]   = useState(0);
-  const [allKids,         setAllKids]         = useState([]);
-  const [kidsWithEarning, setKidsWithEarning] = useState([]);
-  const [loading,      setLoading]      = useState(true);
   const [redeemLoading, setRedeemLoading] = useState(false);
-  const [formLoading,  setFormLoading]  = useState(false);
-  const [dateKey,      setDateKey]      = useState('today');
-  const [error,        setError]        = useState('');
-  const [success,      setSuccess]      = useState('');
+  const [formLoading,   setFormLoading]   = useState(false);
+  const [dateKey,        setDateKey]       = useState('today');
+  const [error,          setError]         = useState('');
+  const [success,        setSuccess]       = useState('');
 
-  // Parent: reward management
+  // Parent: reward management (online-only)
   const [addModal,   setAddModal]   = useState(false);
   const [editReward, setEditReward] = useState(null);
 
-  // Parent: profile picker — null = manage mode, kid.id = viewing as that kid
+  // Parent: profile picker
   const [selectedKidId, setSelectedKidId] = useState(null);
 
   // Kid (or parent viewing-as-kid): confirm modal + celebration
   const [pendingRewardId, setPendingRewardId] = useState(null);
   const [showConfetti,    setShowConfetti]    = useState(false);
 
+  // Offline hooks
+  const { rewards, redemptions: allRedemptions, loading, redeemReward, refresh } =
+    useOfflineRewards({ isParent, selectedKidId });
+  const { kids, members } = useOfflineFamily();
+  const { ticketBalance } = useOfflineTickets(
+    isParent ? (selectedKidId || 0) : user?.id,
+  );
+
+  const allKids = useMemo(() =>
+    members.filter((m) => m.role === 'kid' && m.is_active)
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)),
+    [members],
+  );
+  const kidsWithEarning = useMemo(() =>
+    allKids.filter((k) => (k.daily_ticket_potential ?? 0) > 0),
+    [allKids],
+  );
+
   const pendingReward = rewards.find((r) => r.id === pendingRewardId);
 
-  // Determine effective view mode
   const viewingAsKid = isParent && selectedKidId !== null;
   const selectedKid = viewingAsKid ? allKids.find((k) => k.id === selectedKidId) : null;
-  const effectiveTicketBalance = viewingAsKid ? (selectedKid?.ticket_balance ?? 0) : ticketBalance;
+  const effectiveTicketBalance = viewingAsKid
+    ? ticketBalance
+    : (isParent ? 0 : ticketBalance);
 
-  const fetchAll = useCallback(async () => {
-    const redemptionParams = {};
+  // Filter redemptions by date (client-side)
+  const filteredRedemptions = useMemo(() => {
+    let filtered = allRedemptions;
     if (dateKey === 'today') {
-      redemptionParams.from = localMidnightUTC(0);
+      const from = localMidnightISO(0);
+      filtered = filtered.filter((r) => r.created_at >= from);
     } else if (dateKey === 'yesterday') {
-      redemptionParams.from = localMidnightUTC(1);
-      redemptionParams.to   = localMidnightUTC(0);
+      const from = localMidnightISO(1);
+      const to = localMidnightISO(0);
+      filtered = filtered.filter((r) => r.created_at >= from && r.created_at < to);
     } else if (dateKey === '7d') {
-      redemptionParams.from = localMidnightUTC(6);
+      const from = localMidnightISO(6);
+      filtered = filtered.filter((r) => r.created_at >= from);
     }
-    // When parent is viewing a specific kid, filter redemptions to that kid
-    if (isParent && selectedKidId !== null) {
-      redemptionParams.user_id = selectedKidId;
-    }
-    try {
-      const [rewardsData, redemptionsData, familyData] = await Promise.all([
-        rewardsApi.getRewards(),
-        rewardsApi.getRedemptions(redemptionParams),
-        isParent ? familyApi.getFamily() : Promise.resolve(null),
-      ]);
-      setRewards(rewardsData.rewards);
-      setRedemptions(redemptionsData.redemptions);
-      if (isParent && familyData) {
-        const kids = familyData.members
-          .filter((m) => m.role === 'kid' && m.is_active)
-          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name));
-        setAllKids(kids);
-        setKidsWithEarning(kids.filter((k) => (k.daily_ticket_potential ?? 0) > 0));
-      }
-      if (!isParent) {
-        const ticketsData = await ticketsApi.getTickets(user.id);
-        setTicketBalance(ticketsData.ticketBalance);
-      }
-    } catch {
-      setError('Failed to load rewards.');
-    } finally {
-      setLoading(false);
-    }
-  }, [user, isParent, dateKey, selectedKidId]);
+    return filtered;
+  }, [allRedemptions, dateKey]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
-
-  // ── Redemption flow (kid, or parent-on-behalf-of-kid) ────────────────────
+  // ── Redemption flow ────────────────────────────────────────────────────────
 
   const handleRedeemRequest = (rewardId) => setPendingRewardId(rewardId);
 
@@ -326,14 +279,12 @@ export default function RewardsPage() {
     setError('');
     setSuccess('');
     try {
-      const data = await rewardsApi.redeemReward(targetUserId, rewardId);
-      if (!viewingAsKid) setTicketBalance(data.ticketBalance);
+      await redeemReward(targetUserId, rewardId);
       playCashIn();
       setShowConfetti(true);
-      const msg = viewingAsKid ? `Reward redeemed for ${selectedKid?.name}! 🎉` : 'Reward redeemed! 🎉';
+      const msg = viewingAsKid ? `Reward redeemed for ${selectedKid?.name}!` : 'Reward redeemed!';
       setSuccess(msg);
       setTimeout(() => setSuccess(''), 4000);
-      fetchAll();
     } catch (err) {
       setError(err.response?.data?.error || 'Redemption failed.');
     } finally {
@@ -341,14 +292,14 @@ export default function RewardsPage() {
     }
   };
 
-  // ── Parent: reward management ────────────────────────────────────────────
+  // ── Parent: reward management (online-only) ────────────────────────────────
 
   const handleAdd = async (data) => {
     setFormLoading(true);
     try {
       await rewardsApi.createReward(data);
       setAddModal(false);
-      fetchAll();
+      refresh();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create reward.');
     } finally {
@@ -361,7 +312,7 @@ export default function RewardsPage() {
     try {
       await rewardsApi.updateReward(editReward.id, data);
       setEditReward(null);
-      fetchAll();
+      refresh();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to update reward.');
     } finally {
@@ -372,10 +323,9 @@ export default function RewardsPage() {
   const handleDelete = async (rewardId) => {
     if (!confirm('Remove this reward?')) return;
     await rewardsApi.deleteReward(rewardId);
-    fetchAll();
+    refresh();
   };
 
-  // In kid-view mode, show as non-parent (redeem buttons instead of edit/remove)
   const showAsParent = isParent && !viewingAsKid;
 
   return (
@@ -388,35 +338,26 @@ export default function RewardsPage() {
           Rewards
         </h1>
         <div className="flex items-center gap-3">
-          {/* Kid's own ticket balance */}
           {!isParent && (
             <span className="text-sm font-medium text-brand-600">🎟 {ticketBalance} tickets</span>
           )}
-          {/* Parent viewing as kid — show that kid's balance */}
           {viewingAsKid && selectedKid && (
             <span className="text-sm font-medium text-brand-600">
-              🎟 {selectedKid.ticket_balance} tickets
+              🎟 {effectiveTicketBalance} tickets
             </span>
           )}
           {showAsParent && (
-            <button
-              onClick={() => setAddModal(true)}
+            <button onClick={() => setAddModal(true)}
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm rounded-lg font-medium transition-colors"
-              aria-label="Add Reward"
-            >
+              aria-label="Add Reward">
               <FontAwesomeIcon icon={faPlus} />
             </button>
           )}
         </div>
       </div>
 
-      {/* Profile picker — parent only */}
       {isParent && !loading && allKids.length > 0 && (
-        <ProfilePicker
-          kids={allKids}
-          selectedKidId={selectedKidId}
-          onSelect={setSelectedKidId}
-        />
+        <ProfilePicker kids={allKids} selectedKidId={selectedKidId} onSelect={setSelectedKidId} />
       )}
 
       {error && (
@@ -449,36 +390,27 @@ export default function RewardsPage() {
               </h2>
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-gray-400 dark:text-gray-500">Date</span>
-                <select
-                  className={SELECT_CLS}
-                  value={dateKey}
-                  onChange={(e) => setDateKey(e.target.value)}
-                >
+                <select className={SELECT_CLS} value={dateKey} onChange={(e) => setDateKey(e.target.value)}>
                   {DATE_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
                 </select>
               </div>
             </div>
-            <RedemptionHistory redemptions={redemptions} isParent={isParent} onUndone={fetchAll} />
+            <RedemptionHistory redemptions={filteredRedemptions} isParent={isParent} onUndone={refresh} />
           </div>
         </div>
       )}
 
-      {/* Parent: add reward */}
       <Modal open={addModal} onClose={() => setAddModal(false)} title="Add Reward">
         <RewardForm onSave={handleAdd} onCancel={() => setAddModal(false)} loading={formLoading} />
       </Modal>
 
-      {/* Parent: edit reward */}
       <Modal open={!!editReward} onClose={() => setEditReward(null)} title="Edit Reward">
         <RewardForm initial={editReward} onSave={handleEdit} onCancel={() => setEditReward(null)} loading={formLoading} />
       </Modal>
 
-      {/* Confirm redemption (kid, or parent-on-behalf-of-kid) */}
       <Modal open={!!pendingRewardId} onClose={() => setPendingRewardId(null)} title="Redeem Reward">
         <div className="space-y-4">
-          {pendingReward?.emoji && (
-            <div className="text-4xl text-center">{pendingReward.emoji}</div>
-          )}
+          {pendingReward?.emoji && <div className="text-4xl text-center">{pendingReward.emoji}</div>}
           <p className="text-sm text-gray-700 dark:text-gray-300">
             {viewingAsKid ? (
               <>Redeem <strong>{pendingReward?.name}</strong> for <strong>{selectedKid?.name}</strong> ({' '}
@@ -495,16 +427,12 @@ export default function RewardsPage() {
             </span>
           </div>
           <div className="flex gap-2 pt-1">
-            <button
-              onClick={handleRedeemConfirm}
-              className="flex-1 bg-brand-500 hover:bg-brand-600 text-white py-2 rounded-lg text-sm font-medium transition-colors"
-            >
+            <button onClick={handleRedeemConfirm}
+              className="flex-1 bg-brand-500 hover:bg-brand-600 text-white py-2 rounded-lg text-sm font-medium transition-colors">
               Yes, redeem it!
             </button>
-            <button
-              onClick={() => setPendingRewardId(null)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
+            <button onClick={() => setPendingRewardId(null)}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
               Cancel
             </button>
           </div>

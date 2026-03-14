@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPiggyBank, faPlus } from '@fortawesome/free-solid-svg-icons';
 import { accountsApi } from '../api/accounts.api.js';
-import { familyApi } from '../api/family.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import useOfflineBank from '../offline/hooks/useOfflineBank.js';
+import useOfflineFamily from '../offline/hooks/useOfflineFamily.js';
 import AccountCard from '../components/bank/AccountCard.jsx';
 import TransactionList from '../components/bank/TransactionList.jsx';
 import UnifiedBankDialog from '../components/bank/UnifiedBankDialog.jsx';
@@ -25,7 +26,7 @@ const DATE_OPTIONS = [
 
 const SELECT_CLS = 'border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-400';
 
-function localMidnightUTC(offsetDays = 0) {
+function localMidnightISO(offsetDays = 0) {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   if (offsetDays) d.setDate(d.getDate() - offsetDays);
@@ -46,43 +47,30 @@ const TX_TYPE_GROUPS = {
 };
 
 const ACCOUNT_TYPES = ['savings', 'charity', 'custom'];
-
 const ALL_ACCOUNT_TYPES = ['main', 'savings', 'charity', 'custom'];
 
 function EditAccountForm({ account, onSave, onCancel, loading }) {
   const [name, setName] = useState(account?.name || '');
   const [type, setType] = useState(account?.type || 'savings');
   const [error, setError] = useState('');
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) { setError('Name is required.'); return; }
     setError('');
     await onSave({ name: name.trim(), type });
   };
-
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Name</label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={100}
-          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
-        />
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={100}
+          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200" />
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
-        >
-          {ALL_ACCOUNT_TYPES.map((t) => (
-            <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-          ))}
+        <select value={type} onChange={(e) => setType(e.target.value)}
+          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200">
+          {ALL_ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
         </select>
       </div>
       {error && <p className="text-sm text-red-500">{error}</p>}
@@ -104,53 +92,36 @@ function AddAccountForm({ onSave, onCancel, loading }) {
   const [name, setName] = useState('');
   const [type, setType] = useState('savings');
   const [error, setError] = useState('');
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) { setError('Name is required.'); return; }
     setError('');
     await onSave({ name: name.trim(), type });
   };
-
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Name</label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Tithing, Savings, Disney Fund"
           className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
-          maxLength={100}
-        />
+          maxLength={100} />
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
-        >
-          {ACCOUNT_TYPES.map((t) => (
-            <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-          ))}
+        <select value={type} onChange={(e) => setType(e.target.value)}
+          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200">
+          {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
         </select>
       </div>
       {error && <p className="text-sm text-red-500">{error}</p>}
       <div className="flex gap-2 pt-1">
-        <button
-          type="submit"
-          disabled={loading}
-          className="flex-1 bg-brand-500 hover:bg-brand-600 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
-        >
+        <button type="submit" disabled={loading}
+          className="flex-1 bg-brand-500 hover:bg-brand-600 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors">
           {loading ? 'Creating…' : 'Create Account'}
         </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-        >
+        <button type="button" onClick={onCancel}
+          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
           Cancel
         </button>
       </div>
@@ -165,18 +136,9 @@ export default function KidBankPage() {
   const location = useLocation();
   const isParent = user?.role === 'parent';
 
-  const [memberName, setMemberName] = useState('');
-  const [memberRole, setMemberRole] = useState(null);
-  const [allowTransfers, setAllowTransfers] = useState(true);
-  const [allowWithdraws, setAllowWithdraws] = useState(true);
-  const [requireCurrencyWork, setRequireCurrencyWork] = useState(false);
-  const [kids, setKids] = useState([]);
-  const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState(null);
-  const [transactions, setTransactions] = useState([]);
   const [rules, setRules] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [txModal, setTxModal] = useState(null); // 'deposit' | 'withdraw' | 'transfer' | null
+  const [txModal, setTxModal] = useState(null);
   const [ruleModal, setRuleModal] = useState(false);
   const [addAccountModal, setAddAccountModal] = useState(false);
   const [addAccountLoading, setAddAccountLoading] = useState(false);
@@ -185,46 +147,60 @@ export default function KidBankPage() {
   const [dateKey, setDateKey] = useState('today');
   const [txTypeKey, setTxTypeKey] = useState('all');
   const [error, setError] = useState('');
-  const [pendingDeposits, setPendingDeposits] = useState([]);
-  const [receivePopover, setReceivePopover] = useState(null); // pending deposit to receive
+  const [receivePopover, setReceivePopover] = useState(null);
 
-  const fetchAccounts = useCallback(async () => {
-    try {
-      const data = await accountsApi.getAccounts(userId);
-      setAccounts(data.accounts);
-      // Keep the selected account in sync (or pick first on initial load)
-      setSelectedAccount((prev) => {
-        if (!prev) return data.accounts[0] ?? null;
-        return data.accounts.find((a) => a.id === prev.id) ?? data.accounts[0] ?? null;
-      });
-    } catch {
-      setError('Failed to load accounts.');
-    } finally {
-      setLoading(false);
-    }
+  // Offline hooks
+  const { accounts, getTransactionsForAccount, pendingDeposits, loading, claimPendingDeposit, refresh } =
+    useOfflineBank(userId);
+  const { kids, members } = useOfflineFamily();
+
+  const member = useMemo(
+    () => members.find((m) => m.id === parseInt(userId, 10)),
+    [members, userId],
+  );
+  const memberName = member?.name || '';
+  const memberRole = member?.role || null;
+  const allowTransfers = member?.allow_transfers ?? true;
+  const allowWithdraws = member?.allow_withdraws ?? true;
+  const requireCurrencyWork = !!member?.require_currency_work;
+
+  // Keep selected account in sync with accounts list
+  useEffect(() => {
+    if (!accounts.length) return;
+    setSelectedAccount((prev) => {
+      if (!prev) return accounts[0] ?? null;
+      return accounts.find((a) => a.id === prev.id) ?? accounts[0] ?? null;
+    });
+  }, [accounts]);
+
+  // Reset on user change
+  useEffect(() => {
+    setSelectedAccount(null);
+    setError('');
   }, [userId]);
 
-  const fetchTransactions = useCallback(async () => {
-    if (!selectedAccount) return;
-    // Guard: selectedAccount may be stale from a previous kid when userId just changed
-    if (selectedAccount.user_id !== parseInt(userId, 10)) return;
-    try {
-      const params = {};
-      if (dateKey === 'today') {
-        params.from = localMidnightUTC(0);
-      } else if (dateKey === 'yesterday') {
-        params.from = localMidnightUTC(1);
-        params.to   = localMidnightUTC(0);
-      } else if (dateKey === '7d') {
-        params.from = localMidnightUTC(6);
-      }
-      const data = await accountsApi.getTransactions(userId, selectedAccount.id, params);
-      setTransactions(data.transactions);
-    } catch {
-      setError('Failed to load transactions.');
-    }
-  }, [userId, selectedAccount, dateKey]);
+  // Transactions for selected account, filtered client-side
+  const transactions = useMemo(() => {
+    if (!selectedAccount) return [];
+    let txs = getTransactionsForAccount(selectedAccount.id);
 
+    // Date filter
+    if (dateKey === 'today') {
+      const from = localMidnightISO(0);
+      txs = txs.filter((t) => t.created_at >= from);
+    } else if (dateKey === 'yesterday') {
+      const from = localMidnightISO(1);
+      const to = localMidnightISO(0);
+      txs = txs.filter((t) => t.created_at >= from && t.created_at < to);
+    } else if (dateKey === '7d') {
+      const from = localMidnightISO(6);
+      txs = txs.filter((t) => t.created_at >= from);
+    }
+
+    return txs;
+  }, [selectedAccount, getTransactionsForAccount, dateKey]);
+
+  // Fetch recurring rules (online-only feature)
   const fetchRules = useCallback(async () => {
     if (!isParent) return;
     try {
@@ -232,42 +208,12 @@ export default function KidBankPage() {
       setRules(data.rules);
     } catch {}
   }, [userId, isParent]);
-
-  const fetchPendingDeposits = useCallback(async () => {
-    try {
-      const data = await accountsApi.getPendingDeposits(userId);
-      setPendingDeposits(data.pending_deposits || []);
-    } catch {}
-  }, [userId]);
-
-  useEffect(() => {
-    familyApi.getFamily().then(({ members }) => {
-      const m = members.find((mem) => mem.id === parseInt(userId, 10));
-      if (m) {
-        setMemberName(m.name);
-        setMemberRole(m.role);
-        setAllowTransfers(!!m.allow_transfers);
-        setAllowWithdraws(!!m.allow_withdraws);
-        setRequireCurrencyWork(!!m.require_currency_work);
-      }
-      if (isParent) setKids(members.filter((mem) => (mem.role === 'kid' || !!mem.chores_enabled) && mem.is_active));
-    }).catch(() => {});
-  }, [userId, isParent]);
-
-  useEffect(() => {
-    setSelectedAccount(null);
-    setError('');
-    fetchAccounts();
-  }, [userId]);
-  useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
   useEffect(() => { fetchRules(); }, [fetchRules]);
-  useEffect(() => { fetchPendingDeposits(); }, [fetchPendingDeposits]);
 
   // Auto-open first pending deposit when navigated from dashboard indicator
   useEffect(() => {
     if (location.state?.openReceive && pendingDeposits.length > 0 && !receivePopover) {
       setReceivePopover(pendingDeposits[0]);
-      // Clear the state so refreshing doesn't re-open
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state?.openReceive, pendingDeposits, receivePopover, navigate, location.pathname]);
@@ -277,7 +223,7 @@ export default function KidBankPage() {
     try {
       await accountsApi.createAccount(userId, data);
       setAddAccountModal(false);
-      await fetchAccounts();
+      refresh();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create account.');
     } finally {
@@ -295,7 +241,7 @@ export default function KidBankPage() {
     try {
       await accountsApi.updateAccount(userId, renameAccount.id, { name, type });
       setRenameAccount(null);
-      await fetchAccounts();
+      refresh();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to update account.');
     } finally {
@@ -305,21 +251,23 @@ export default function KidBankPage() {
 
   if (loading) return <LoadingSkeleton rows={4} />;
 
+  const displayTx = txTypeKey === 'all'
+    ? transactions
+    : transactions.filter((tx) => TX_TYPE_GROUPS[txTypeKey]?.includes(tx.type));
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 min-w-0">
           <FontAwesomeIcon icon={faPiggyBank} className="text-brand-500 text-2xl shrink-0" />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
-            {isParent ? `${memberName || '…'}'s Bank` : 'My Bank'}
+            {isParent ? `${memberName || '...'}'s Bank` : 'My Bank'}
           </h1>
         </div>
         {isParent && memberRole !== 'parent' && (
-          <button
-            onClick={() => setAddAccountModal(true)}
+          <button onClick={() => setAddAccountModal(true)}
             className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm rounded-lg font-medium transition-colors"
-            aria-label="Add sub-account"
-          >
+            aria-label="Add sub-account">
             <FontAwesomeIcon icon={faPlus} />
           </button>
         )}
@@ -343,13 +291,8 @@ export default function KidBankPage() {
           {/* Accounts row */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
             {accounts.map((a) => (
-              <AccountCard
-                key={a.id}
-                account={a}
-                selected={selectedAccount?.id === a.id}
-                onClick={setSelectedAccount}
-                onEdit={isParent ? setRenameAccount : undefined}
-              />
+              <AccountCard key={a.id} account={a} selected={selectedAccount?.id === a.id}
+                onClick={setSelectedAccount} onEdit={isParent ? setRenameAccount : undefined} />
             ))}
           </div>
 
@@ -357,23 +300,16 @@ export default function KidBankPage() {
           {pendingDeposits.length > 0 && (
             <div className="mb-4 space-y-2">
               {pendingDeposits.map((pd) => (
-                <button
-                  key={pd.id}
-                  onClick={() => setReceivePopover(pd)}
-                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border-2 border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
-                >
+                <button key={pd.id} onClick={() => setReceivePopover(pd)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border-2 border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
                   <div className="text-left">
-                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                      Money to receive!
-                    </p>
+                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Money to receive!</p>
                     <p className="text-xs text-amber-600 dark:text-amber-400">
                       {formatCents(pd.amount_cents)} — {pd.account_name}
                       {pd.description ? ` · ${pd.description}` : ''}
                     </p>
                   </div>
-                  <span className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-semibold">
-                    Receive
-                  </span>
+                  <span className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-semibold">Receive</span>
                 </button>
               ))}
             </div>
@@ -383,34 +319,26 @@ export default function KidBankPage() {
           {selectedAccount && (
             <div className="grid grid-cols-2 sm:flex gap-2 mb-6">
               {isParent && (
-                <button
-                  onClick={() => setTxModal('deposit')}
-                  className="py-2 px-4 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg font-medium transition-colors"
-                >
+                <button onClick={() => setTxModal('deposit')}
+                  className="py-2 px-4 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg font-medium transition-colors">
                   + Deposit
                 </button>
               )}
               {(isParent || allowWithdraws) && (
-                <button
-                  onClick={() => setTxModal('withdraw')}
-                  className="py-2 px-4 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium transition-colors"
-                >
+                <button onClick={() => setTxModal('withdraw')}
+                  className="py-2 px-4 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium transition-colors">
                   Withdraw
                 </button>
               )}
               {allowTransfers && (
-                <button
-                  onClick={() => setTxModal('transfer')}
-                  className="py-2 px-4 bg-purple-500 hover:bg-purple-600 text-white text-sm rounded-lg font-medium transition-colors"
-                >
+                <button onClick={() => setTxModal('transfer')}
+                  className="py-2 px-4 bg-purple-500 hover:bg-purple-600 text-white text-sm rounded-lg font-medium transition-colors">
                   Transfer
                 </button>
               )}
               {isParent && (
-                <button
-                  onClick={() => setRuleModal(true)}
-                  className="py-2 px-4 border border-gray-300 dark:border-gray-600 text-sm rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors sm:ml-auto"
-                >
+                <button onClick={() => setRuleModal(true)}
+                  className="py-2 px-4 border border-gray-300 dark:border-gray-600 text-sm rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors sm:ml-auto">
                   + Recurring Rule
                 </button>
               )}
@@ -418,48 +346,34 @@ export default function KidBankPage() {
           )}
 
           {/* Transactions */}
-          {selectedAccount && (() => {
-            const displayTx = txTypeKey === 'all'
-              ? transactions
-              : transactions.filter((tx) => TX_TYPE_GROUPS[txTypeKey]?.includes(tx.type));
-            return (
-              <div className="mb-6">
-                <div className="mb-3">
-                  <h2 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    Transactions — {selectedAccount.name}
-                  </h2>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-gray-400 dark:text-gray-500">Date</span>
-                      <select
-                        className={SELECT_CLS}
-                        value={dateKey}
-                        onChange={(e) => setDateKey(e.target.value)}
-                      >
-                        {DATE_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-                      </select>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {TX_TYPE_OPTIONS.map((o) => (
-                        <button
-                          key={o.key}
-                          onClick={() => setTxTypeKey(o.key)}
-                          className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                            txTypeKey === o.key
-                              ? 'bg-brand-600 text-white'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
-                        >
-                          {o.label}
-                        </button>
-                      ))}
-                    </div>
+          {selectedAccount && (
+            <div className="mb-6">
+              <div className="mb-3">
+                <h2 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Transactions — {selectedAccount.name}
+                </h2>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-gray-400 dark:text-gray-500">Date</span>
+                    <select className={SELECT_CLS} value={dateKey} onChange={(e) => setDateKey(e.target.value)}>
+                      {DATE_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {TX_TYPE_OPTIONS.map((o) => (
+                      <button key={o.key} onClick={() => setTxTypeKey(o.key)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                          txTypeKey === o.key
+                            ? 'bg-brand-600 text-white'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        }`}>{o.label}</button>
+                    ))}
                   </div>
                 </div>
-                <TransactionList transactions={displayTx} viewingUserId={userId} />
               </div>
-            );
-          })()}
+              <TransactionList transactions={displayTx} viewingUserId={userId} />
+            </div>
+          )}
 
           {/* Recurring rules (parent only) */}
           {isParent && rules.length > 0 && (
@@ -478,31 +392,19 @@ export default function KidBankPage() {
             sourceAccount={selectedAccount}
             userAccounts={accounts}
             requireCurrencyWork={requireCurrencyWork}
-            onSuccess={async () => {
-              await fetchAccounts();
-              await fetchTransactions();
-              await fetchPendingDeposits();
-              window.dispatchEvent(new CustomEvent('kid-stats-updated'));
-            }}
+            onSuccess={() => {}}
           />
 
-          {/* Edit account modal (parent only) */}
+          {/* Edit account modal */}
           <Modal open={!!renameAccount} onClose={() => setRenameAccount(null)} title="Edit Account">
-            <EditAccountForm
-              account={renameAccount}
-              onSave={handleEditAccount}
-              onCancel={() => setRenameAccount(null)}
-              loading={renameLoading}
-            />
+            <EditAccountForm account={renameAccount} onSave={handleEditAccount}
+              onCancel={() => setRenameAccount(null)} loading={renameLoading} />
           </Modal>
 
           {/* Add sub-account modal */}
           <Modal open={addAccountModal} onClose={() => setAddAccountModal(false)} title="Add Sub-account">
-            <AddAccountForm
-              onSave={handleAddAccount}
-              onCancel={() => setAddAccountModal(false)}
-              loading={addAccountLoading}
-            />
+            <AddAccountForm onSave={handleAddAccount} onCancel={() => setAddAccountModal(false)}
+              loading={addAccountLoading} />
           </Modal>
 
           {/* Receive pending deposit popover */}
@@ -515,16 +417,8 @@ export default function KidBankPage() {
               receiveAmountCents={receivePopover.amount_cents}
               receiveAllocations={receivePopover.allocations ? JSON.parse(receivePopover.allocations) : []}
               onReceiveConfirm={async (cents, allocResults) => {
-                try {
-                  await accountsApi.claimPendingDeposit(userId, receivePopover.id, cents, allocResults);
-                  setReceivePopover(null);
-                  await fetchAccounts();
-                  await fetchTransactions();
-                  await fetchPendingDeposits();
-                  window.dispatchEvent(new CustomEvent('kid-stats-updated'));
-                } catch (err) {
-                  throw err;
-                }
+                await claimPendingDeposit(receivePopover.id, cents, allocResults);
+                setReceivePopover(null);
               }}
             />
           )}

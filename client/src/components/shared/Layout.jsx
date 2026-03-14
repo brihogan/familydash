@@ -19,6 +19,9 @@ import { inboxApi } from '../../api/inbox.api.js';
 import { formatCents } from '../../utils/formatCents.js';
 import InstallPrompt from './InstallPrompt.jsx';
 import useScrollLock from '../../hooks/useScrollLock.js';
+import useSyncStatus from '../../offline/hooks/useSyncStatus.js';
+import { useLiveQuery } from 'dexie-react-hooks';
+import db from '../../offline/db.js';
 
 function HamburgerIcon() {
   return (
@@ -65,6 +68,14 @@ export default function Layout() {
   const [defaultMemberId, setDefaultMemberId] = useState(null);
   const [kidStats, setKidStats] = useState(null);
   const [inboxCount, setInboxCount] = useState(0);
+  const { isOnline, pendingCount } = useSyncStatus();
+
+  // Reactive pending deposit count from Dexie (works offline)
+  const dexiePendingDepositCount = useLiveQuery(
+    () => user?.role === 'kid' ? db.pendingDeposits.where('userId').equals(user.id).count() : 0,
+    [user?.role, user?.id],
+    0,
+  );
 
   // Fetch nav badge stats for kids; re-fetch on 'kid-stats-updated' event
   const refreshKidStats = useCallback(() => {
@@ -364,14 +375,23 @@ export default function Layout() {
       {/* ── Sidebar (desktop only) ── */}
       <aside className="hidden lg:flex lg:flex-col lg:w-56 lg:shrink-0 bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 shadow-sm">
         {/* Sidebar header */}
-        <div className="px-4 py-5 border-b border-gray-100 dark:border-gray-700">
+        <div className="px-4 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
           <Link to="/dashboard" className="text-lg font-bold text-brand-600 hover:text-brand-700"><FontAwesomeIcon icon={faPeopleRoof} className="mr-2" />Family Dash</Link>
+          {!isOnline && (
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              pendingCount > 0
+                ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+            }`}>
+              Offline{pendingCount > 0 ? ` · ${pendingCount}` : ''}
+            </span>
+          )}
         </div>
 
         <Nav />
 
         {/* Pending deposit banner (kid only) */}
-        {kidStats?.pendingDepositCount > 0 && (
+        {(kidStats?.pendingDepositCount || dexiePendingDepositCount) > 0 && (
           <button
             onClick={() => navigate(`/bank/${user.id}`, { state: { openReceive: true } })}
             className="mx-3 mb-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-semibold hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
@@ -439,7 +459,16 @@ export default function Layout() {
           </button>
           <Link to="/dashboard" className="font-bold text-brand-600 text-base hover:text-brand-700"><FontAwesomeIcon icon={faPeopleRoof} className="mr-2" />Family Dash</Link>
           <div className="ml-auto flex items-center gap-2">
-            {kidStats?.pendingDepositCount > 0 && (
+            {!isOnline && (
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                pendingCount > 0
+                  ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+              }`}>
+                Offline{pendingCount > 0 ? ` · ${pendingCount}` : ''}
+              </span>
+            )}
+            {(kidStats?.pendingDepositCount || dexiePendingDepositCount) > 0 && (
               <button
                 onClick={() => navigate(`/bank/${user.id}`, { state: { openReceive: true } })}
                 className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-400 dark:bg-amber-500 text-amber-900 dark:text-amber-950 text-[10px] font-bold shadow-sm hover:bg-amber-300 dark:hover:bg-amber-400 transition-colors"
@@ -492,7 +521,7 @@ export default function Layout() {
           <Nav />
 
           {/* Pending deposit banner (kid only) */}
-          {kidStats?.pendingDepositCount > 0 && (
+          {(kidStats?.pendingDepositCount || dexiePendingDepositCount) > 0 && (
             <button
               onClick={() => { close(); navigate(`/bank/${user.id}`, { state: { openReceive: true } }); }}
               className="mx-3 mb-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-semibold hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"

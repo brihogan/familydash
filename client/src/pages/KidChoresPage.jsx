@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBroom, faCrown } from '@fortawesome/free-solid-svg-icons';
-import { choresApi } from '../api/chores.api.js';
-import { familyApi } from '../api/family.api.js';
 import { inboxApi } from '../api/inbox.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import useOfflineChores from '../offline/hooks/useOfflineChores.js';
+import useOfflineFamily from '../offline/hooks/useOfflineFamily.js';
 import ChoreList from '../components/chores/ChoreList.jsx';
 import ChoreHistoryList from '../components/chores/ChoreHistoryList.jsx';
 import ChoreProgress from '../components/chores/ChoreProgress.jsx';
@@ -34,7 +34,7 @@ function ChoresCompletionModal({ choreCount, onClose }) {
         className="relative z-10 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-xs p-6 flex flex-col items-center text-center"
         style={{ animation: 'award-pop 420ms cubic-bezier(0.34,1.56,0.64,1) both' }}
       >
-        <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mb-0.5">🎉 Congrats!</p>
+        <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mb-0.5">Congrats!</p>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">You've completed all your chores!</p>
 
         {/* Broom icon in dimmed circle */}
@@ -60,39 +60,18 @@ export default function KidChoresPage() {
   const { user } = useAuth();
   const isParent = user?.role === 'parent';
   const [date, setDate] = useState(todayISO());
-  const [kids, setKids] = useState([]);
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
   const [showConfetti,     setShowConfetti]     = useState(false);
   const [showChoresModal,  setShowChoresModal]  = useState(false);
   const prevDoneCountRef = useRef(null);
 
-  useEffect(() => {
-    if (!isParent) return;
-    familyApi.getFamily()
-      .then(({ members }) => setKids(members.filter((m) => (m.role === 'kid' || !!m.chores_enabled) && m.is_active)))
-      .catch(() => {});
-  }, [isParent]);
+  // Offline-first hooks
+  const { kids } = useOfflineFamily();
+  const { logs, loading, completeChore, uncompleteChore } = useOfflineChores(userId, date);
 
-  const fetchChores = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const data = await choresApi.getChores(userId, date);
-      setLogs(data.logs);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load chores.');
-    } finally {
-      setLoading(false);
-    }
-  }, [userId, date]);
-
-  useEffect(() => { fetchChores(); }, [fetchChores]);
-
-  // Reset the done-count tracker whenever the user navigates to a different date
-  useEffect(() => { prevDoneCountRef.current = null; }, [date]);
+  // Reset the done-count tracker whenever the user or date changes
+  useEffect(() => { prevDoneCountRef.current = null; }, [userId, date]);
 
   // Detect the moment the last chore is checked off → confetti + victory sound
   useEffect(() => {
@@ -111,15 +90,12 @@ export default function KidChoresPage() {
     setActionLoading(true);
     try {
       if (completing) {
-        await choresApi.completeChore(userId, log.id, date);
+        await completeChore(log.id);
       } else {
-        await choresApi.uncompleteChore(userId, log.id, date);
+        await uncompleteChore(log.id);
       }
-      await fetchChores();
-      window.dispatchEvent(new CustomEvent('kid-stats-updated'));
     } catch (err) {
-      if (err.response?.status === 409) { await fetchChores(); }
-      else setError(err.response?.data?.error || 'Action failed.');
+      setError(err.response?.data?.error || 'Action failed.');
     } finally {
       setActionLoading(false);
     }
@@ -142,7 +118,7 @@ export default function KidChoresPage() {
         <div className="flex items-center gap-2 min-w-0">
           <FontAwesomeIcon icon={faBroom} className="text-brand-500 text-2xl shrink-0" />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
-            {isParent ? `${kids.find((k) => String(k.id) === userId)?.name ?? '…'}'s Chores` : 'My Chores'}
+            {isParent ? `${kids.find((k) => String(k.id) === userId)?.name ?? '...'}'s Chores` : 'My Chores'}
           </h1>
         </div>
         <DateNav date={date} onChange={setDate} />
@@ -180,14 +156,13 @@ export default function KidChoresPage() {
           {waitingApproval.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium text-amber-600 dark:text-amber-400">⏳ Waiting for Approval</h3>
+                <h3 className="text-sm font-medium text-amber-600 dark:text-amber-400">Waiting for Approval</h3>
                 {isParent && waitingApproval.length > 1 && (
                   <button
                     onClick={async () => {
                       setActionLoading(true);
                       try {
                         await inboxApi.approve({ chore_log_ids: waitingApproval.map((l) => l.id), step_completion_ids: [] });
-                        await fetchChores();
                         window.dispatchEvent(new CustomEvent('kid-stats-updated'));
                         window.dispatchEvent(new CustomEvent('inbox-updated'));
                       } catch { setError('Failed to approve.'); }
@@ -206,7 +181,7 @@ export default function KidChoresPage() {
                     key={log.id}
                     className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-lg"
                   >
-                    <span className="text-amber-500 text-sm shrink-0">⏳</span>
+                    <span className="text-amber-500 text-sm shrink-0">&#x23F3;</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{log.name}</p>
                       <p className="text-xs text-amber-600 dark:text-amber-400">Waiting for parent to approve</p>
@@ -218,7 +193,6 @@ export default function KidChoresPage() {
                             setActionLoading(true);
                             try {
                               await inboxApi.approve({ chore_log_ids: [log.id], step_completion_ids: [] });
-                              await fetchChores();
                               window.dispatchEvent(new CustomEvent('kid-stats-updated'));
                               window.dispatchEvent(new CustomEvent('inbox-updated'));
                             } catch { setError('Failed to approve.'); }

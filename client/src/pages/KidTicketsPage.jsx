@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTicket } from '@fortawesome/free-solid-svg-icons';
-import { ticketsApi } from '../api/tickets.api.js';
-import { familyApi } from '../api/family.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import useOfflineTickets from '../offline/hooks/useOfflineTickets.js';
+import useOfflineFamily from '../offline/hooks/useOfflineFamily.js';
 import TicketBalance from '../components/tickets/TicketBalance.jsx';
 import TicketLedger from '../components/tickets/TicketLedger.jsx';
 import QuickTicketAdjust from '../components/dashboard/QuickTicketAdjust.jsx';
@@ -27,7 +27,7 @@ const TICKET_TYPE_OPTIONS = [
   { key: 'remove', label: 'Remove' },
 ];
 
-function localMidnightUTC(offsetDays = 0) {
+function localMidnightISO(offsetDays = 0) {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   if (offsetDays) d.setDate(d.getDate() - offsetDays);
@@ -39,47 +39,47 @@ export default function KidTicketsPage() {
   const { user } = useAuth();
   const isParent = user?.role === 'parent';
 
-  const [ticketBalance, setTicketBalance] = useState(0);
-  const [ledger, setLedger] = useState([]);
-  const [memberName, setMemberName] = useState('');
-  const [kids, setKids] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [dateKey, setDateKey] = useState('today');
   const [ticketTypeKey, setTicketTypeKey] = useState('all');
 
-  const fetch = useCallback(async () => {
-    try {
-      const params = {};
-      if (dateKey === 'today') {
-        params.from = localMidnightUTC(0);
-      } else if (dateKey === 'yesterday') {
-        params.from = localMidnightUTC(1);
-        params.to   = localMidnightUTC(0);
-      } else if (dateKey === '7d') {
-        params.from = localMidnightUTC(6);
-      }
-      const [ticketData, familyData] = await Promise.all([
-        ticketsApi.getTickets(userId, params),
-        familyApi.getFamily(),
-      ]);
-      setTicketBalance(ticketData.ticketBalance);
-      setLedger(ticketData.ledger);
-      const member = familyData.members.find((m) => m.id === parseInt(userId, 10));
-      if (member) setMemberName(member.name);
-      if (isParent) setKids(familyData.members.filter((m) => (m.role === 'kid' || !!m.chores_enabled) && m.is_active));
-    } finally {
-      setLoading(false);
-    }
-  }, [userId, isParent, dateKey]);
+  const { ticketBalance, ledger, loading } = useOfflineTickets(userId);
+  const { kids, members } = useOfflineFamily();
 
-  useEffect(() => { fetch(); }, [fetch]);
+  const memberName = useMemo(() => {
+    const m = members.find((m) => m.id === parseInt(userId, 10));
+    return m?.name || '';
+  }, [members, userId]);
+
+  // Filter ledger by date + type (client-side filtering of cached data)
+  const filteredLedger = useMemo(() => {
+    let filtered = ledger;
+
+    // Date filter
+    if (dateKey === 'today') {
+      const from = localMidnightISO(0);
+      filtered = filtered.filter((e) => e.created_at >= from);
+    } else if (dateKey === 'yesterday') {
+      const from = localMidnightISO(1);
+      const to = localMidnightISO(0);
+      filtered = filtered.filter((e) => e.created_at >= from && e.created_at < to);
+    } else if (dateKey === '7d') {
+      const from = localMidnightISO(6);
+      filtered = filtered.filter((e) => e.created_at >= from);
+    }
+
+    // Type filter
+    if (ticketTypeKey === 'chore')  return filtered.filter((e) => e.type === 'chore_reward');
+    if (ticketTypeKey === 'add')    return filtered.filter((e) => e.amount > 0 && e.type !== 'chore_reward');
+    if (ticketTypeKey === 'remove') return filtered.filter((e) => e.amount < 0);
+    return filtered;
+  }, [ledger, dateKey, ticketTypeKey]);
 
   return (
     <div>
       <div className="flex items-center gap-2 mb-4 min-w-0">
         <FontAwesomeIcon icon={faTicket} className="text-brand-500 text-2xl shrink-0" />
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
-          {isParent ? `${memberName || '…'}'s Tickets` : 'My Tickets'}
+          {isParent ? `${memberName || '...'}'s Tickets` : 'My Tickets'}
         </h1>
       </div>
       {isParent && kids.length > 1 && (
@@ -98,16 +98,18 @@ export default function KidTicketsPage() {
                 <QuickTicketAdjust
                   userId={userId}
                   ticketBalance={ticketBalance}
-                  onDone={fetch}
+                  onDone={() => {}}
                   initialMode="add"
                   variant="button"
+
                 />
                 <QuickTicketAdjust
                   userId={userId}
                   ticketBalance={ticketBalance}
-                  onDone={fetch}
+                  onDone={() => {}}
                   initialMode="remove"
                   variant="button"
+
                 />
               </div>
             )}
@@ -143,12 +145,7 @@ export default function KidTicketsPage() {
                 </div>
               </div>
             </div>
-            <TicketLedger ledger={(() => {
-              if (ticketTypeKey === 'chore')  return ledger.filter((e) => e.type === 'chore_reward');
-              if (ticketTypeKey === 'add')    return ledger.filter((e) => e.amount > 0 && e.type !== 'chore_reward');
-              if (ticketTypeKey === 'remove') return ledger.filter((e) => e.amount < 0);
-              return ledger;
-            })()} />
+            <TicketLedger ledger={filteredLedger} />
           </div>
         </div>
       )}

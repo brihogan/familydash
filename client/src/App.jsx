@@ -5,6 +5,7 @@ import ProtectedRoute from './components/shared/ProtectedRoute.jsx';
 import ParentRoute from './components/shared/ParentRoute.jsx';
 import Layout from './components/shared/Layout.jsx';
 import { FamilySettingsProvider } from './context/FamilySettingsContext.jsx';
+import ToastContainer from './components/shared/Toast.jsx';
 
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
@@ -76,6 +77,7 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <ToastContainer />
       </BrowserRouter>
     </FamilySettingsProvider>
     </AuthProvider>
