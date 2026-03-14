@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBroom, faCrown, faChevronDown } from '@fortawesome/free-solid-svg-icons';
+import { faBroom, faCrown } from '@fortawesome/free-solid-svg-icons';
 import { choresApi } from '../api/chores.api.js';
 import { familyApi } from '../api/family.api.js';
 import { inboxApi } from '../api/inbox.api.js';
@@ -12,6 +12,7 @@ import ChoreProgress from '../components/chores/ChoreProgress.jsx';
 import DateNav from '../components/shared/DateNav.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import Fireworks from '../components/shared/Fireworks.jsx';
+import KidProfilePicker from '../components/shared/KidProfilePicker.jsx';
 import { todayISO } from '../utils/formatDate.js';
 import { playVictory } from '../utils/sounds.js';
 import useScrollLock from '../hooks/useScrollLock.js';
@@ -57,7 +58,6 @@ function ChoresCompletionModal({ choreCount, onClose }) {
 export default function KidChoresPage() {
   const { userId } = useParams();
   const { user } = useAuth();
-  const navigate = useNavigate();
   const isParent = user?.role === 'parent';
   const [date, setDate] = useState(todayISO());
   const [kids, setKids] = useState([]);
@@ -68,7 +68,6 @@ export default function KidChoresPage() {
   const [showConfetti,     setShowConfetti]     = useState(false);
   const [showChoresModal,  setShowChoresModal]  = useState(false);
   const prevDoneCountRef = useRef(null);
-  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   useEffect(() => {
     if (!isParent) return;
@@ -139,44 +138,18 @@ export default function KidChoresPage() {
           onClose={() => setShowChoresModal(false)}
         />
       )}
-      <div className="flex items-start justify-between mb-6">
-        <div className="relative min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <FontAwesomeIcon icon={faBroom} className="text-brand-500 text-2xl shrink-0" />
-            {isParent && kids.length > 1 ? (
-              <button onClick={() => setSwitcherOpen((o) => !o)} className="flex items-center gap-1.5 min-w-0">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
-                  {kids.find((k) => String(k.id) === userId)?.name ?? '…'}'s Chores
-                </h1>
-                <FontAwesomeIcon icon={faChevronDown} className={`text-gray-400 text-sm shrink-0 transition-transform ${switcherOpen ? 'rotate-180' : ''}`} />
-              </button>
-            ) : (
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
-                {isParent ? `${kids.find((k) => String(k.id) === userId)?.name ?? '…'}'s Chores` : 'My Chores'}
-              </h1>
-            )}
-          </div>
-          {switcherOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setSwitcherOpen(false)} />
-              <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
-                {kids.map((k) => (
-                  <button
-                    key={k.id}
-                    onClick={() => { setSwitcherOpen(false); navigate(`/chores/${k.id}`); }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
-                      String(k.id) === String(userId) ? 'font-semibold text-brand-600 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300'
-                    }`}
-                  >
-                    {k.name}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2 min-w-0">
+          <FontAwesomeIcon icon={faBroom} className="text-brand-500 text-2xl shrink-0" />
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
+            {isParent ? `${kids.find((k) => String(k.id) === userId)?.name ?? '…'}'s Chores` : 'My Chores'}
+          </h1>
         </div>
         <DateNav date={date} onChange={setDate} />
       </div>
+      {isParent && kids.length > 1 && (
+        <KidProfilePicker kids={kids} currentId={userId} routePrefix="/chores" />
+      )}
 
       {!loading && logs.length > 0 && (
         <div className="mb-4">

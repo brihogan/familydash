@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTachographDigital, faCrown, faBroom, faChevronDown, faGear, faRightFromBracket } from '@fortawesome/free-solid-svg-icons';
+import { faTachographDigital, faCrown, faBroom, faGear, faRightFromBracket } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { overviewApi } from '../api/overview.api.js';
@@ -12,6 +12,7 @@ import useScrollLock from '../hooks/useScrollLock.js';
 import ActivityRow, { GroupedActivityList } from '../components/shared/ActivityRow.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import EmptyState from '../components/shared/EmptyState.jsx';
+import KidProfilePicker from '../components/shared/KidProfilePicker.jsx';
 import ProgressRing from '../components/dashboard/ProgressRing.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
 
@@ -215,7 +216,6 @@ export default function KidOverviewPage() {
   const [actTypeKey,  setActTypeKey]  = useState('all');
   const [kids,        setKids]        = useState([]);
   const [memberRole,  setMemberRole]  = useState(null);
-  const [switcherOpen, setSwitcherOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   useScrollLock(showLogoutConfirm);
 
@@ -286,39 +286,12 @@ export default function KidOverviewPage() {
     <div className="space-y-5">
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between">
-        <div className="relative min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <FontAwesomeIcon icon={faTachographDigital} className="text-brand-500 text-2xl shrink-0" />
-            {isParent && kids.length > 1 ? (
-              <button onClick={() => setSwitcherOpen((o) => !o)} className="flex items-center gap-1.5 min-w-0">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">{memberName}'s Overview</h1>
-                <FontAwesomeIcon icon={faChevronDown} className={`text-gray-400 text-sm shrink-0 transition-transform ${switcherOpen ? 'rotate-180' : ''}`} />
-              </button>
-            ) : (
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
-                {isParent ? `${memberName}'s Overview` : 'My Overview'}
-              </h1>
-            )}
-          </div>
-          {switcherOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setSwitcherOpen(false)} />
-              <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
-                {kids.map((k) => (
-                  <button
-                    key={k.id}
-                    onClick={() => { setSwitcherOpen(false); navigate(`/kid/${k.id}`); }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
-                      String(k.id) === String(userId) ? 'font-semibold text-brand-600 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300'
-                    }`}
-                  >
-                    {k.name}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2 min-w-0">
+          <FontAwesomeIcon icon={faTachographDigital} className="text-brand-500 text-2xl shrink-0" />
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
+            {isParent ? `${memberName}'s Overview` : 'My Overview'}
+          </h1>
         </div>
         {isParent && (
           <Link
@@ -330,6 +303,9 @@ export default function KidOverviewPage() {
           </Link>
         )}
       </div>
+      {isParent && kids.length > 1 && (
+        <KidProfilePicker kids={kids} currentId={userId} routePrefix="/kid" />
+      )}
 
       {/* ── 7-day chart ── */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">

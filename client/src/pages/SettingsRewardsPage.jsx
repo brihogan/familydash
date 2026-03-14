@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faGear } from '@fortawesome/free-solid-svg-icons';
+import { faGear, faPlus } from '@fortawesome/free-solid-svg-icons';
 import { rewardsApi } from '../api/rewards.api.js';
 import Modal from '../components/shared/Modal.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
@@ -112,8 +112,9 @@ export default function SettingsRewardsPage() {
           Manage Rewards
         </h1>
         <button onClick={() => setAddModal(true)}
-          className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium transition-colors">
-          + Add Reward
+          className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm rounded-lg font-medium transition-colors"
+          aria-label="Add Reward">
+          <FontAwesomeIcon icon={faPlus} />
         </button>
       </div>
 

@@ -100,25 +100,26 @@ router.post('/:id/chores/:cid/complete', authenticate, requireOwnOrParent, requi
 
     completeTx();
 
-    // Check if all chores for today are now completed → chores_all_done milestone
+    // Check if all chores for this log_date are now completed → chores_all_done milestone
     const allLogs = db.prepare(
       'SELECT completed_at FROM chore_logs WHERE user_id = ? AND log_date = ?'
     ).all(userId, date);
     if (allLogs.length > 0 && allLogs.every((l) => l.completed_at)) {
+      const refType = `log_date:${date}`;
       const alreadyLogged = db.prepare(`
         SELECT id FROM activity_feed
         WHERE subject_user_id = ? AND event_type = 'chores_all_done'
-          AND date(created_at, 'localtime') = ?
-      `).get(userId, date);
+          AND reference_type = ?
+      `).get(userId, refType);
       if (!alreadyLogged) {
         insertActivity({
           familyId: user.family_id,
           subjectUserId: userId,
           actorUserId: req.user.userId,
           eventType: 'chores_all_done',
-          description: 'Completed all chores for today! 🌟',
+          description: `Completed all chores for ${date}! 🌟`,
           referenceId: null,
-          referenceType: null,
+          referenceType: refType,
           amountCents: null,
         });
       }

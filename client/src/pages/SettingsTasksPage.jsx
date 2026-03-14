@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faClipboardCheck, faPen, faTrash, faChevronDown, faUserPlus } from '@fortawesome/free-solid-svg-icons';
+import { faClipboardCheck, faPen, faTrash, faChevronDown, faUserPlus, faPlus } from '@fortawesome/free-solid-svg-icons';
 import Modal from '../components/shared/Modal.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import IconPicker, { IconDisplay } from '../components/shared/IconPicker.jsx';
@@ -243,9 +243,10 @@ export default function SettingsTasksPage() {
         </div>
         <button
           onClick={openCreate}
-          className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium transition-colors"
+          className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm rounded-lg font-medium transition-colors"
+          aria-label="Add set"
         >
-          + Add Set
+          <FontAwesomeIcon icon={faPlus} />
         </button>
       </div>
 

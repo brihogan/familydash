@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBroom, faChevronLeft, faChevronDown } from '@fortawesome/free-solid-svg-icons';
+import { faBroom, faChevronLeft, faPlus } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { choresApi } from '../api/chores.api.js';
 import { familyApi } from '../api/family.api.js';
@@ -9,6 +9,7 @@ import ChoreTemplateList from '../components/chores/ChoreTemplateList.jsx';
 import ChoreTemplateForm from '../components/chores/ChoreTemplateForm.jsx';
 import Modal from '../components/shared/Modal.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
+import KidProfilePicker from '../components/shared/KidProfilePicker.jsx';
 
 // Bitmask convention: Mon=1, Tue=2, Wed=4, Thu=8, Fri=16, Sat=32, Sun=64
 const DAYS = [
@@ -47,7 +48,6 @@ export default function SettingsChoresPage() {
   const [selectedIds,  setSelectedIds]  = useState(new Set());
   const [batchSuccess, setBatchSuccess] = useState('');
   const [batchLoading, setBatchLoading] = useState(false);
-  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   // ── Everyone view state ───────────────────────────────────────────────────
   const [allKidsTemplates, setAllKidsTemplates] = useState({}); // { kidId: templates[] }
@@ -296,10 +296,6 @@ export default function SettingsChoresPage() {
     </div>
   );
 
-  // ── Kid switcher (shared) ─────────────────────────────────────────────────
-
-  const switcherItems = kids.length > 0 ? [{ id: '', name: 'Everyone' }, ...kids.map((k) => ({ id: String(k.id), name: k.name }))] : [];
-
   // ─────────────────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────────────────
@@ -307,86 +303,70 @@ export default function SettingsChoresPage() {
   return (
     <div>
       {/* ── Header ── */}
-      <div className="flex items-start justify-between mb-6">
-        <div className="relative min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            {!isEveryone && (
-              <button
-                onClick={() => navigate(-1)}
-                className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                aria-label="Back"
-              >
-                <FontAwesomeIcon icon={faChevronLeft} />
-              </button>
-            )}
-            <FontAwesomeIcon icon={faBroom} className="text-brand-500 text-2xl shrink-0" />
-            {switcherItems.length > 1 ? (
-              <button onClick={() => setSwitcherOpen((o) => !o)} className="flex items-center gap-1.5 min-w-0">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
-                  {isEveryone ? 'Chore Templates — Everyone' : (kidName ? `${kidName}'s Chore Templates` : 'Chore Templates')}
-                </h1>
-                <FontAwesomeIcon icon={faChevronDown} className={`text-gray-400 text-sm shrink-0 transition-transform ${switcherOpen ? 'rotate-180' : ''}`} />
-              </button>
-            ) : (
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
-                {isEveryone ? 'Chore Templates — Everyone' : (kidName ? `${kidName}'s Chore Templates` : 'Chore Templates')}
-              </h1>
-            )}
-          </div>
-          {switcherOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setSwitcherOpen(false)} />
-              <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
-                {switcherItems.map((k) => (
-                  <button
-                    key={k.id}
-                    onClick={() => { setSwitcherOpen(false); navigate(k.id ? `/settings/chores/${k.id}` : '/settings/chores'); }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
-                      String(k.id) === String(userId ?? '') ? 'font-semibold text-brand-600 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300'
-                    }`}
-                  >
-                    {k.name}
-                  </button>
-                ))}
-              </div>
-            </>
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-2 min-w-0">
+          {!isEveryone && (
+            <button
+              onClick={() => navigate(-1)}
+              className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              aria-label="Back"
+            >
+              <FontAwesomeIcon icon={faChevronLeft} />
+            </button>
           )}
+          <FontAwesomeIcon icon={faBroom} className="text-brand-500 text-2xl shrink-0" />
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
+            {isEveryone ? 'Chore Templates — Everyone' : (kidName ? `${kidName}'s Chore Templates` : 'Chore Templates')}
+          </h1>
         </div>
 
         {/* Per-kid actions only */}
         {!isEveryone && (
-          <div className="flex items-center gap-2">
-            {!selectMode && (
-              <>
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2">
+              {templates.length > 0 && (
                 <button
-                  onClick={() => navigate('/settings/common-chores')}
-                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm rounded-lg font-medium transition-colors"
+                  onClick={toggleSelectMode}
+                  className={`px-4 py-2 text-sm rounded-lg font-medium border transition-colors ${
+                    selectMode
+                      ? 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
                 >
-                  Common Chores
+                  {selectMode ? 'Cancel' : 'Select'}
                 </button>
+              )}
+              {!selectMode && (
                 <button
                   onClick={() => setAddModal(true)}
-                  className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium transition-colors"
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm rounded-lg font-medium transition-colors"
+                  aria-label="Add Chore"
                 >
-                  + Add Chore
+                  <FontAwesomeIcon icon={faPlus} />
                 </button>
-              </>
-            )}
-            {templates.length > 0 && (
+              )}
+            </div>
+            {!selectMode && (
               <button
-                onClick={toggleSelectMode}
-                className={`px-4 py-2 text-sm rounded-lg font-medium border transition-colors ${
-                  selectMode
-                    ? 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
+                onClick={() => navigate('/settings/common-chores')}
+                className="text-xs text-gray-400 dark:text-gray-500 hover:text-brand-500 dark:hover:text-brand-400 transition-colors"
               >
-                {selectMode ? 'Cancel' : 'Select'}
+                Common Chores
               </button>
             )}
           </div>
         )}
       </div>
+
+      {kids.length > 1 && (
+        <KidProfilePicker
+          kids={kids}
+          currentId={userId}
+          routePrefix="/settings/chores"
+          manageRoute="/settings/chores"
+          manageLabel="Everyone"
+        />
+      )}
 
       {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-4 py-3 mb-4 text-sm">{error}</div>}
       {batchSuccess && <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 rounded-lg px-4 py-3 mb-4 text-sm">{batchSuccess}</div>}

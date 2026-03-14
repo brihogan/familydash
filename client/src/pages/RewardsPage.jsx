@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTrophy } from '@fortawesome/free-solid-svg-icons';
+import { faTrophy, faGear, faPlus } from '@fortawesome/free-solid-svg-icons';
 import { rewardsApi } from '../api/rewards.api.js';
 import { ticketsApi } from '../api/tickets.api.js';
 import { familyApi } from '../api/family.api.js';
@@ -11,6 +11,7 @@ import RedemptionHistory from '../components/rewards/RedemptionHistory.jsx';
 import Modal from '../components/shared/Modal.jsx';
 import Confetti from '../components/shared/Confetti.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
+import Avatar from '../components/shared/Avatar.jsx';
 import { playCashIn } from '../utils/sounds.js';
 
 const DATE_OPTIONS = [
@@ -194,6 +195,46 @@ function EarningReference({ kids }) {
   );
 }
 
+// ── Profile picker (parent only) ─────────────────────────────────────────────
+
+function ProfilePicker({ kids, selectedKidId, onSelect }) {
+  const isManageMode = selectedKidId === null;
+  return (
+    <div className="flex items-center gap-2 mb-5">
+      {/* Gear / management mode button */}
+      <button
+        onClick={() => onSelect(null)}
+        className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all ${
+          isManageMode
+            ? 'ring-2 ring-brand-500 ring-offset-2 dark:ring-offset-gray-900 bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400'
+            : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 opacity-50 hover:opacity-75'
+        }`}
+        title="Manage rewards"
+      >
+        <FontAwesomeIcon icon={faGear} className="text-lg" />
+      </button>
+      {/* Kid avatars */}
+      {kids.map((kid) => {
+        const isSelected = selectedKidId === kid.id;
+        return (
+          <button
+            key={kid.id}
+            onClick={() => onSelect(kid.id)}
+            className={`rounded-full transition-all ${
+              isSelected
+                ? 'ring-2 ring-brand-500 ring-offset-2 dark:ring-offset-gray-900'
+                : 'opacity-40 hover:opacity-70'
+            }`}
+            title={kid.name}
+          >
+            <Avatar name={kid.name} color={kid.avatar_color || '#6366f1'} emoji={kid.avatar_emoji} size="md" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function RewardsPage() {
@@ -203,6 +244,7 @@ export default function RewardsPage() {
   const [rewards,         setRewards]         = useState([]);
   const [redemptions,     setRedemptions]     = useState([]);
   const [ticketBalance,   setTicketBalance]   = useState(0);
+  const [allKids,         setAllKids]         = useState([]);
   const [kidsWithEarning, setKidsWithEarning] = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [redeemLoading, setRedeemLoading] = useState(false);
@@ -215,11 +257,19 @@ export default function RewardsPage() {
   const [addModal,   setAddModal]   = useState(false);
   const [editReward, setEditReward] = useState(null);
 
-  // Kid: confirm modal + celebration
+  // Parent: profile picker — null = manage mode, kid.id = viewing as that kid
+  const [selectedKidId, setSelectedKidId] = useState(null);
+
+  // Kid (or parent viewing-as-kid): confirm modal + celebration
   const [pendingRewardId, setPendingRewardId] = useState(null);
   const [showConfetti,    setShowConfetti]    = useState(false);
 
   const pendingReward = rewards.find((r) => r.id === pendingRewardId);
+
+  // Determine effective view mode
+  const viewingAsKid = isParent && selectedKidId !== null;
+  const selectedKid = viewingAsKid ? allKids.find((k) => k.id === selectedKidId) : null;
+  const effectiveTicketBalance = viewingAsKid ? (selectedKid?.ticket_balance ?? 0) : ticketBalance;
 
   const fetchAll = useCallback(async () => {
     const redemptionParams = {};
@@ -231,6 +281,10 @@ export default function RewardsPage() {
     } else if (dateKey === '7d') {
       redemptionParams.from = localMidnightUTC(6);
     }
+    // When parent is viewing a specific kid, filter redemptions to that kid
+    if (isParent && selectedKidId !== null) {
+      redemptionParams.user_id = selectedKidId;
+    }
     try {
       const [rewardsData, redemptionsData, familyData] = await Promise.all([
         rewardsApi.getRewards(),
@@ -240,10 +294,11 @@ export default function RewardsPage() {
       setRewards(rewardsData.rewards);
       setRedemptions(redemptionsData.redemptions);
       if (isParent && familyData) {
-        const earning = familyData.members
-          .filter((m) => m.role === 'kid' && m.is_active && (m.daily_ticket_potential ?? 0) > 0)
+        const kids = familyData.members
+          .filter((m) => m.role === 'kid' && m.is_active)
           .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name));
-        setKidsWithEarning(earning);
+        setAllKids(kids);
+        setKidsWithEarning(kids.filter((k) => (k.daily_ticket_potential ?? 0) > 0));
       }
       if (!isParent) {
         const ticketsData = await ticketsApi.getTickets(user.id);
@@ -254,27 +309,29 @@ export default function RewardsPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, isParent, dateKey]);
+  }, [user, isParent, dateKey, selectedKidId]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // ── Kid: redemption flow ─────────────────────────────────────────────────
+  // ── Redemption flow (kid, or parent-on-behalf-of-kid) ────────────────────
 
   const handleRedeemRequest = (rewardId) => setPendingRewardId(rewardId);
 
   const handleRedeemConfirm = async () => {
     if (!pendingRewardId) return;
     const rewardId = pendingRewardId;
+    const targetUserId = viewingAsKid ? selectedKidId : user.id;
     setPendingRewardId(null);
     setRedeemLoading(true);
     setError('');
     setSuccess('');
     try {
-      const data = await rewardsApi.redeemReward(user.id, rewardId);
-      setTicketBalance(data.ticketBalance);
+      const data = await rewardsApi.redeemReward(targetUserId, rewardId);
+      if (!viewingAsKid) setTicketBalance(data.ticketBalance);
       playCashIn();
       setShowConfetti(true);
-      setSuccess('Reward redeemed! 🎉');
+      const msg = viewingAsKid ? `Reward redeemed for ${selectedKid?.name}! 🎉` : 'Reward redeemed! 🎉';
+      setSuccess(msg);
       setTimeout(() => setSuccess(''), 4000);
       fetchAll();
     } catch (err) {
@@ -318,29 +375,49 @@ export default function RewardsPage() {
     fetchAll();
   };
 
+  // In kid-view mode, show as non-parent (redeem buttons instead of edit/remove)
+  const showAsParent = isParent && !viewingAsKid;
+
   return (
     <div>
       {showConfetti && <Confetti onDone={() => setShowConfetti(false)} />}
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
           <FontAwesomeIcon icon={faTrophy} className="mr-2 text-brand-500" />
           Rewards
         </h1>
         <div className="flex items-center gap-3">
+          {/* Kid's own ticket balance */}
           {!isParent && (
             <span className="text-sm font-medium text-brand-600">🎟 {ticketBalance} tickets</span>
           )}
-          {isParent && (
+          {/* Parent viewing as kid — show that kid's balance */}
+          {viewingAsKid && selectedKid && (
+            <span className="text-sm font-medium text-brand-600">
+              🎟 {selectedKid.ticket_balance} tickets
+            </span>
+          )}
+          {showAsParent && (
             <button
               onClick={() => setAddModal(true)}
-              className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium transition-colors"
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm rounded-lg font-medium transition-colors"
+              aria-label="Add Reward"
             >
-              + Add Reward
+              <FontAwesomeIcon icon={faPlus} />
             </button>
           )}
         </div>
       </div>
+
+      {/* Profile picker — parent only */}
+      {isParent && !loading && allKids.length > 0 && (
+        <ProfilePicker
+          kids={allKids}
+          selectedKidId={selectedKidId}
+          onSelect={setSelectedKidId}
+        />
+      )}
 
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-4 py-3 mb-4 text-sm">{error}</div>
@@ -353,22 +430,22 @@ export default function RewardsPage() {
         <LoadingSkeleton rows={3} />
       ) : (
         <div className="space-y-8">
-          {isParent && <EarningReference kids={kidsWithEarning} />}
+          {showAsParent && <EarningReference kids={kidsWithEarning} />}
           <RewardCatalog
             rewards={rewards}
-            ticketBalance={ticketBalance}
+            ticketBalance={effectiveTicketBalance}
             onRedeem={handleRedeemRequest}
-            onEdit={setEditReward}
-            onDelete={handleDelete}
+            onEdit={showAsParent ? setEditReward : undefined}
+            onDelete={showAsParent ? handleDelete : undefined}
             loading={redeemLoading}
-            isParent={isParent}
+            isParent={showAsParent}
             kidsWithEarning={kidsWithEarning}
           />
 
           <div>
             <div className="mb-3">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">
-                {isParent ? 'Redemption History' : 'My Redemptions'}
+                {viewingAsKid ? `${selectedKid?.name}'s Redemptions` : isParent ? 'Redemption History' : 'My Redemptions'}
               </h2>
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-gray-400 dark:text-gray-500">Date</span>
@@ -396,20 +473,25 @@ export default function RewardsPage() {
         <RewardForm initial={editReward} onSave={handleEdit} onCancel={() => setEditReward(null)} loading={formLoading} />
       </Modal>
 
-      {/* Kid: confirm redemption */}
+      {/* Confirm redemption (kid, or parent-on-behalf-of-kid) */}
       <Modal open={!!pendingRewardId} onClose={() => setPendingRewardId(null)} title="Redeem Reward">
         <div className="space-y-4">
           {pendingReward?.emoji && (
             <div className="text-4xl text-center">{pendingReward.emoji}</div>
           )}
           <p className="text-sm text-gray-700 dark:text-gray-300">
-            Are you sure you want to redeem <strong>{pendingReward?.name}</strong> for{' '}
-            <strong>🎟 {pendingReward?.ticket_cost} tickets</strong>?
+            {viewingAsKid ? (
+              <>Redeem <strong>{pendingReward?.name}</strong> for <strong>{selectedKid?.name}</strong> ({' '}
+              <strong>🎟 {pendingReward?.ticket_cost} tickets</strong>)?</>
+            ) : (
+              <>Are you sure you want to redeem <strong>{pendingReward?.name}</strong> for{' '}
+              <strong>🎟 {pendingReward?.ticket_cost} tickets</strong>?</>
+            )}
           </p>
           <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-600 dark:text-gray-400 flex justify-between">
-            <span>Your balance after:</span>
+            <span>{viewingAsKid ? `${selectedKid?.name}'s balance after:` : 'Your balance after:'}</span>
             <span className="font-semibold text-brand-700">
-              🎟 {ticketBalance - (pendingReward?.ticket_cost ?? 0)} tickets
+              🎟 {effectiveTicketBalance - (pendingReward?.ticket_cost ?? 0)} tickets
             </span>
           </div>
           <div className="flex gap-2 pt-1">

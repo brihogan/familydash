@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBroom, faChevronLeft, faPen, faTrash } from '@fortawesome/free-solid-svg-icons';
+import { faBroom, faChevronDown, faChevronLeft, faChevronUp, faCheck, faPen, faTrash, faSquarePlus } from '@fortawesome/free-solid-svg-icons';
 import {
   DndContext,
   closestCenter,
@@ -94,6 +94,101 @@ function SortableRow({ template, kids, assigningCell, onToggleAssign, isAssigned
   );
 }
 
+function SortableMobileCard({ template, kids, assigningCell, onToggleAssign, isAssigned, onEdit, onDelete, expanded, onToggleExpand }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: template.id,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="border-b border-gray-100 dark:border-gray-700/50 last:border-0">
+      <div className="flex items-center gap-2 px-3 py-3">
+        <button
+          {...attributes}
+          {...listeners}
+          className="text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 cursor-grab active:cursor-grabbing shrink-0 touch-none"
+          aria-label="Drag to reorder"
+        >
+          ⠿
+        </button>
+        <button className="flex-1 min-w-0 text-left" onClick={() => onToggleExpand(template.id)}>
+          <p className="font-medium text-gray-800 dark:text-gray-200">{template.name}</p>
+          {template.description && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{template.description}</p>
+          )}
+          <span className="text-xs text-amber-600 dark:text-amber-300">🎟 {template.ticket_reward}</span>
+        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={() => onEdit(template)}
+            className="w-7 h-7 flex items-center justify-center rounded-md border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-brand-400 hover:text-brand-600 transition-colors"
+            title="Edit chore"
+          >
+            <FontAwesomeIcon icon={faPen} className="text-xs" />
+          </button>
+          <button
+            onClick={() => onDelete(template.id)}
+            className="w-7 h-7 flex items-center justify-center rounded-md border border-red-200 dark:border-red-800 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            title="Delete chore"
+          >
+            <FontAwesomeIcon icon={faTrash} className="text-xs" />
+          </button>
+          <button
+            onClick={() => onToggleExpand(template.id)}
+            className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500"
+            aria-label={expanded ? 'Collapse' : 'Expand'}
+          >
+            <FontAwesomeIcon icon={expanded ? faChevronUp : faChevronDown} className="text-xs" />
+          </button>
+        </div>
+      </div>
+      {expanded && (
+        <div className="px-3 pb-3 pl-9 flex flex-wrap gap-3">
+          {kids.map((k) => {
+            const assigned = isAssigned(template, k.id);
+            const cellKey = `${template.id}-${k.id}`;
+            const isToggling = assigningCell === cellKey;
+            return (
+              <button
+                key={k.id}
+                disabled={isToggling}
+                onClick={() => onToggleAssign(template.id, k.id, assigned)}
+                className="flex flex-col items-center gap-1 disabled:opacity-50"
+              >
+                <div className="relative">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-white shrink-0 transition-all ${
+                      assigned ? 'ring-2 ring-offset-2 ring-brand-500 dark:ring-offset-gray-800' : 'opacity-40'
+                    }`}
+                    style={{ backgroundColor: k.avatar_color }}
+                  >
+                    {k.avatar_emoji
+                      ? <span className="text-xl" style={{ lineHeight: 1 }}>{k.avatar_emoji}</span>
+                      : <span className="text-sm">{k.name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()}</span>
+                    }
+                  </div>
+                  {assigned && (
+                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-brand-500 rounded-full flex items-center justify-center ring-2 ring-white dark:ring-gray-800">
+                      <FontAwesomeIcon icon={faCheck} className="text-white text-[7px]" />
+                    </div>
+                  )}
+                </div>
+                <span className={`text-xs ${assigned ? 'font-medium text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}`}>
+                  {k.name}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsCommonChoresPage() {
   const navigate = useNavigate();
   const [templates, setTemplates] = useState([]);
@@ -104,6 +199,16 @@ export default function SettingsCommonChoresPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState('');
   const [assigningCell, setAssigningCell] = useState(null);
+  const [expandedIds, setExpandedIds] = useState(new Set());
+
+  const toggleExpand = (id) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -228,9 +333,10 @@ export default function SettingsCommonChoresPage() {
         </div>
         <button
           onClick={() => setAddModal(true)}
-          className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm rounded-lg font-medium transition-colors"
+          className="text-brand-500 hover:text-brand-600 transition-colors"
+          title="Add Chore"
         >
-          + Add Chore
+          <FontAwesomeIcon icon={faSquarePlus} className="text-2xl" />
         </button>
       </div>
 
@@ -249,46 +355,71 @@ export default function SettingsCommonChoresPage() {
           <p className="text-sm">No common chores yet. Add one to get started.</p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <table className="w-full text-sm">
-              <thead className="sticky -top-4 lg:-top-6 z-10">
-                {/* Spacer row fills the gap created by negative top offset */}
-                <tr className="h-4 lg:h-6 bg-white dark:bg-gray-800" aria-hidden><td colSpan={999} className="p-0 border-0" /></tr>
-                <tr className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                  <th className="text-left px-4 py-3 font-semibold text-gray-700 dark:text-gray-300 min-w-[180px]">
-                    Chore
-                  </th>
-                  {kids.map((k) => (
-                    <th key={k.id} className="px-3 py-3 text-center min-w-[80px]">
-                      <Link to={`/settings/chores/${k.id}`} className="flex flex-col items-center gap-1 hover:opacity-80 transition-opacity">
-                        <Avatar name={k.name} color={k.avatar_color} emoji={k.avatar_emoji} size="sm" />
-                        <span className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:underline">{k.name}</span>
-                      </Link>
-                    </th>
-                  ))}
-                  <th className="px-3 py-3 w-20" />
-                </tr>
-              </thead>
+        <>
+          {/* Mobile: collapsible cards */}
+          <div className="md:hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={templates.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                <tbody>
-                  {templates.map((t) => (
-                    <SortableRow
-                      key={t.id}
-                      template={t}
-                      kids={kids}
-                      assigningCell={assigningCell}
-                      onToggleAssign={handleToggleAssign}
-                      isAssigned={isAssigned}
-                      onEdit={setEditTemplate}
-                      onDelete={handleDelete}
-                    />
-                  ))}
-                </tbody>
+                {templates.map((t) => (
+                  <SortableMobileCard
+                    key={t.id}
+                    template={t}
+                    kids={kids}
+                    assigningCell={assigningCell}
+                    onToggleAssign={handleToggleAssign}
+                    isAssigned={isAssigned}
+                    onEdit={setEditTemplate}
+                    onDelete={handleDelete}
+                    expanded={expandedIds.has(t.id)}
+                    onToggleExpand={toggleExpand}
+                  />
+                ))}
               </SortableContext>
-            </table>
-          </DndContext>
-        </div>
+            </DndContext>
+          </div>
+
+          {/* Desktop: full table */}
+          <div className="hidden md:block bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <table className="w-full text-sm">
+                <thead className="sticky -top-4 lg:-top-6 z-10">
+                  {/* Spacer row fills the gap created by negative top offset */}
+                  <tr className="h-4 lg:h-6 bg-white dark:bg-gray-800" aria-hidden><td colSpan={999} className="p-0 border-0" /></tr>
+                  <tr className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                    <th className="text-left px-4 py-3 font-semibold text-gray-700 dark:text-gray-300 min-w-[180px]">
+                      Chore
+                    </th>
+                    {kids.map((k) => (
+                      <th key={k.id} className="px-3 py-3 text-center min-w-[80px]">
+                        <Link to={`/settings/chores/${k.id}`} className="flex flex-col items-center gap-1 hover:opacity-80 transition-opacity">
+                          <Avatar name={k.name} color={k.avatar_color} emoji={k.avatar_emoji} size="sm" />
+                          <span className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:underline">{k.name}</span>
+                        </Link>
+                      </th>
+                    ))}
+                    <th className="px-3 py-3 w-20" />
+                  </tr>
+                </thead>
+                <SortableContext items={templates.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                  <tbody>
+                    {templates.map((t) => (
+                      <SortableRow
+                        key={t.id}
+                        template={t}
+                        kids={kids}
+                        assigningCell={assigningCell}
+                        onToggleAssign={handleToggleAssign}
+                        isAssigned={isAssigned}
+                        onEdit={setEditTemplate}
+                        onDelete={handleDelete}
+                      />
+                    ))}
+                  </tbody>
+                </SortableContext>
+              </table>
+            </DndContext>
+          </div>
+        </>
       )}
 
       <Modal open={addModal} onClose={() => setAddModal(false)} title="Add Common Chore">

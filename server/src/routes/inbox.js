@@ -163,20 +163,21 @@ router.post('/approve', authenticate, requireRole('parent'), (req, res, next) =>
           (l) => l.completed_at && l.approval_status !== 'pending'
         );
         if (allApproved) {
+          const refType = `log_date:${date}`;
           const alreadyLogged = db.prepare(`
             SELECT id FROM activity_feed
             WHERE subject_user_id = ? AND event_type = 'chores_all_done'
-              AND date(created_at, 'localtime') = ?
-          `).get(uid, date);
+              AND reference_type = ?
+          `).get(uid, refType);
           if (!alreadyLogged) {
             insertActivity({
               familyId,
               subjectUserId: parseInt(uid),
               actorUserId:   req.user.userId,
               eventType:     'chores_all_done',
-              description:   'Completed all chores for today! 🌟',
+              description:   `Completed all chores for ${date}! 🌟`,
               referenceId:   null,
-              referenceType: null,
+              referenceType: refType,
               amountCents:   null,
             });
           }

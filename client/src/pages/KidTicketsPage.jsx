@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTicket, faChevronDown } from '@fortawesome/free-solid-svg-icons';
+import { faTicket } from '@fortawesome/free-solid-svg-icons';
 import { ticketsApi } from '../api/tickets.api.js';
 import { familyApi } from '../api/family.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -9,6 +9,7 @@ import TicketBalance from '../components/tickets/TicketBalance.jsx';
 import TicketLedger from '../components/tickets/TicketLedger.jsx';
 import QuickTicketAdjust from '../components/dashboard/QuickTicketAdjust.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
+import KidProfilePicker from '../components/shared/KidProfilePicker.jsx';
 
 const DATE_OPTIONS = [
   { key: 'today',     label: 'Today' },
@@ -36,7 +37,6 @@ function localMidnightUTC(offsetDays = 0) {
 export default function KidTicketsPage() {
   const { userId } = useParams();
   const { user } = useAuth();
-  const navigate = useNavigate();
   const isParent = user?.role === 'parent';
 
   const [ticketBalance, setTicketBalance] = useState(0);
@@ -46,7 +46,6 @@ export default function KidTicketsPage() {
   const [loading, setLoading] = useState(true);
   const [dateKey, setDateKey] = useState('today');
   const [ticketTypeKey, setTicketTypeKey] = useState('all');
-  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const fetch = useCallback(async () => {
     try {
@@ -77,39 +76,15 @@ export default function KidTicketsPage() {
 
   return (
     <div>
-      <div className="mb-6 relative">
-        <div className="flex items-center gap-2 min-w-0">
-          <FontAwesomeIcon icon={faTicket} className="text-brand-500 text-2xl shrink-0" />
-          {isParent && kids.length > 1 ? (
-            <button onClick={() => setSwitcherOpen((o) => !o)} className="flex items-center gap-1.5 min-w-0">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">{memberName || '…'}'s Tickets</h1>
-              <FontAwesomeIcon icon={faChevronDown} className={`text-gray-400 text-sm shrink-0 transition-transform ${switcherOpen ? 'rotate-180' : ''}`} />
-            </button>
-          ) : (
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
-              {isParent ? `${memberName || '…'}'s Tickets` : 'My Tickets'}
-            </h1>
-          )}
-        </div>
-        {switcherOpen && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setSwitcherOpen(false)} />
-            <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
-              {kids.map((k) => (
-                <button
-                  key={k.id}
-                  onClick={() => { setSwitcherOpen(false); navigate(`/tickets/${k.id}`); }}
-                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
-                    String(k.id) === String(userId) ? 'font-semibold text-brand-600 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300'
-                  }`}
-                >
-                  {k.name}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+      <div className="flex items-center gap-2 mb-4 min-w-0">
+        <FontAwesomeIcon icon={faTicket} className="text-brand-500 text-2xl shrink-0" />
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
+          {isParent ? `${memberName || '…'}'s Tickets` : 'My Tickets'}
+        </h1>
       </div>
+      {isParent && kids.length > 1 && (
+        <KidProfilePicker kids={kids} currentId={userId} routePrefix="/tickets" />
+      )}
       {loading ? (
         <LoadingSkeleton rows={3} />
       ) : (

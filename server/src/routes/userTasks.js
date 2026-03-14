@@ -167,11 +167,15 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
     }
 
     // ── Compute crown streak (consecutive days with all chores done) ───
+    // Query chore_logs directly by log_date so late completions don't break streaks
     const crownDates = db.prepare(`
-      SELECT DISTINCT date(created_at, 'localtime') AS crown_date
-      FROM activity_feed
-      WHERE subject_user_id = ? AND event_type = 'chores_all_done'
-      ORDER BY crown_date DESC
+      SELECT log_date AS crown_date
+      FROM chore_logs
+      WHERE user_id = ?
+      GROUP BY log_date
+      HAVING COUNT(*) > 0
+         AND COUNT(*) = SUM(CASE WHEN completed_at IS NOT NULL THEN 1 ELSE 0 END)
+      ORDER BY log_date DESC
     `).all(userId).map((r) => r.crown_date);
 
     let crownCurrent = 0;

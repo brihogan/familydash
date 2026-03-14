@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPiggyBank, faChevronDown } from '@fortawesome/free-solid-svg-icons';
+import { faPiggyBank, faPlus } from '@fortawesome/free-solid-svg-icons';
 import { accountsApi } from '../api/accounts.api.js';
 import { familyApi } from '../api/family.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -13,6 +13,7 @@ import RecurringRuleList from '../components/bank/RecurringRuleList.jsx';
 import RecurringRuleForm from '../components/bank/RecurringRuleForm.jsx';
 import Modal from '../components/shared/Modal.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
+import KidProfilePicker from '../components/shared/KidProfilePicker.jsx';
 import { formatCents } from '../utils/formatCents.js';
 
 const DATE_OPTIONS = [
@@ -186,7 +187,6 @@ export default function KidBankPage() {
   const [error, setError] = useState('');
   const [pendingDeposits, setPendingDeposits] = useState([]);
   const [receivePopover, setReceivePopover] = useState(null); // pending deposit to receive
-  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -307,54 +307,26 @@ export default function KidBankPage() {
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-6">
-        <div className="relative min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <FontAwesomeIcon icon={faPiggyBank} className="text-brand-500 text-2xl shrink-0" />
-            {isParent && kids.length > 1 ? (
-              <button
-                onClick={() => setSwitcherOpen((o) => !o)}
-                className="flex items-center gap-1.5 min-w-0"
-              >
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
-                  {memberName || '…'}'s Bank
-                </h1>
-                <FontAwesomeIcon icon={faChevronDown} className={`text-gray-400 text-sm shrink-0 transition-transform ${switcherOpen ? 'rotate-180' : ''}`} />
-              </button>
-            ) : (
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
-                {isParent ? `${memberName || '…'}'s Bank` : 'My Bank'}
-              </h1>
-            )}
-          </div>
-          {switcherOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setSwitcherOpen(false)} />
-              <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
-                {kids.map((k) => (
-                  <button
-                    key={k.id}
-                    onClick={() => { setSwitcherOpen(false); navigate(`/bank/${k.id}`); }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
-                      String(k.id) === String(userId) ? 'font-semibold text-brand-600 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300'
-                    }`}
-                  >
-                    {k.name}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2 min-w-0">
+          <FontAwesomeIcon icon={faPiggyBank} className="text-brand-500 text-2xl shrink-0" />
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
+            {isParent ? `${memberName || '…'}'s Bank` : 'My Bank'}
+          </h1>
         </div>
         {isParent && memberRole !== 'parent' && (
           <button
             onClick={() => setAddAccountModal(true)}
-            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-sm rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shrink-0"
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm rounded-lg font-medium transition-colors"
+            aria-label="Add sub-account"
           >
-            + Sub-account
+            <FontAwesomeIcon icon={faPlus} />
           </button>
         )}
       </div>
+      {isParent && kids.length > 1 && (
+        <KidProfilePicker kids={kids} currentId={userId} routePrefix="/bank" />
+      )}
 
       {memberRole === 'parent' && (
         <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-6 mb-4 text-center text-sm text-gray-500 dark:text-gray-400">

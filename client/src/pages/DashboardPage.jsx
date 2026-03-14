@@ -52,6 +52,7 @@ export default function DashboardPage() {
 
   const fetchDashboard = useCallback(async () => {
     lastFetchRef.current = Date.now();
+    setError('');
     try {
       const data = await dashboardApi.getDashboard();
       setMembers(data.members);
@@ -72,15 +73,17 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [fetchDashboard]);
 
-  // Refresh immediately when the tab becomes visible again after 1+ hour
+  // Refresh when the tab becomes visible again after 1+ hour
+  // Short delay lets the network and auth refresh settle after waking from background
   useEffect(() => {
+    let timer;
     const handleVisibility = () => {
       if (document.visibilityState === 'visible' && Date.now() - lastFetchRef.current >= REFRESH_MS) {
-        fetchDashboard();
+        timer = setTimeout(fetchDashboard, 1500);
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
+    return () => { document.removeEventListener('visibilitychange', handleVisibility); clearTimeout(timer); };
   }, [fetchDashboard]);
 
   const sortedMembers = useMemo(

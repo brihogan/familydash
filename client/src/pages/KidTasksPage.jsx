@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMedal, faChevronDown } from '@fortawesome/free-solid-svg-icons';
+import { faMedal } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
+import KidProfilePicker from '../components/shared/KidProfilePicker.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
 import { familyApi } from '../api/family.api.js';
@@ -21,7 +22,6 @@ export default function KidTasksPage() {
   const [kids,       setKids]       = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState('');
-  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
@@ -153,39 +153,15 @@ export default function KidTasksPage() {
 
   return (
     <div>
-      <div className="mb-6 relative">
-        <div className="flex items-center gap-2 min-w-0">
-          <FontAwesomeIcon icon={faMedal} className="text-brand-500 text-2xl shrink-0" />
-          {isParent && kids.length > 1 ? (
-            <button onClick={() => setSwitcherOpen((o) => !o)} className="flex items-center gap-1.5 min-w-0">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">{memberName || '…'}'s Sets</h1>
-              <FontAwesomeIcon icon={faChevronDown} className={`text-gray-400 text-sm shrink-0 transition-transform ${switcherOpen ? 'rotate-180' : ''}`} />
-            </button>
-          ) : (
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
-              {isParent ? `${memberName || '…'}'s Sets` : 'My Sets'}
-            </h1>
-          )}
-        </div>
-        {switcherOpen && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setSwitcherOpen(false)} />
-            <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-[160px]">
-              {kids.map((k) => (
-                <button
-                  key={k.id}
-                  onClick={() => { setSwitcherOpen(false); navigate(`/tasks/${k.id}`); }}
-                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
-                    String(k.id) === String(userId) ? 'font-semibold text-brand-600 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300'
-                  }`}
-                >
-                  {k.name}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+      <div className="flex items-center gap-2 mb-4 min-w-0">
+        <FontAwesomeIcon icon={faMedal} className="text-brand-500 text-2xl shrink-0" />
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
+          {isParent ? `${memberName || '…'}'s Sets` : 'My Sets'}
+        </h1>
       </div>
+      {isParent && kids.length > 1 && (
+        <KidProfilePicker kids={kids} currentId={userId} routePrefix="/tasks" />
+      )}
 
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-4 py-3 mb-4 text-sm">

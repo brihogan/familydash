@@ -168,9 +168,9 @@ export default function QuickTicketAdjust({ userId, ticketBalance = 0, onDone, i
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Number of tickets</label>
             <input
               type="number"
-              min={1}
+              min={0}
               value={amount}
-              onChange={(e) => setAmount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              onChange={(e) => { const v = e.target.value; setAmount(v === '' ? '' : Math.max(0, parseInt(v, 10) || 0)); }}
               className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
             />
           </div>
@@ -200,7 +200,7 @@ export default function QuickTicketAdjust({ userId, ticketBalance = 0, onDone, i
           <div className="flex gap-2 pt-1">
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !amount}
               className={`flex-1 py-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50 ${
                 mode === 'add' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'
               }`}
