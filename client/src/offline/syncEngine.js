@@ -8,6 +8,8 @@ import { familyApi } from '../api/family.api.js';
 import { ticketsApi } from '../api/tickets.api.js';
 import { rewardsApi } from '../api/rewards.api.js';
 import { accountsApi } from '../api/accounts.api.js';
+import { overviewApi } from '../api/overview.api.js';
+import { activityApi } from '../api/activity.api.js';
 import { todayISO, yesterdayISO } from '../utils/formatDate.js';
 
 let locked = false;
@@ -100,8 +102,10 @@ async function pullFreshData() {
     fetches.push(refreshChores(user.userId, yesterday));
     fetches.push(refreshTickets(user.userId));
     fetches.push(refreshBank(user.userId));
+    fetches.push(refreshOverview(user.userId));
+    fetches.push(refreshActivity(user.userId));
   } else {
-    // Parent — refresh chores + tickets + bank for all kids
+    // Parent — refresh chores + tickets + bank + overview for all kids
     const kids = await db.familyMembers
       .where('role').equals('kid')
       .toArray();
@@ -111,6 +115,8 @@ async function pullFreshData() {
       fetches.push(refreshChores(kid.id, yesterday));
       fetches.push(refreshTickets(kid.id));
       fetches.push(refreshBank(kid.id));
+      fetches.push(refreshOverview(kid.id));
+      fetches.push(refreshActivity(kid.id));
     }
   }
 
@@ -233,6 +239,28 @@ async function refreshTickets(userId) {
       });
       await db.syncMeta.put({ key: `tickets-${uid}`, lastSync: Date.now() });
     });
+  } catch { /* network error — skip */ }
+}
+
+async function refreshOverview(userId) {
+  try {
+    const uid = Number(userId);
+    const data = await overviewApi.getOverview(userId);
+    await db.overviewCache.put({ userId: uid, ...data, _ts: Date.now() });
+    await db.syncMeta.put({ key: `overview-${uid}`, lastSync: Date.now() });
+  } catch { /* network error — skip */ }
+}
+
+async function refreshActivity(userId) {
+  try {
+    const uid = Number(userId);
+    const data = await activityApi.getUserActivity(userId, { limit: 200 });
+    await db.activityCache.put({
+      userId: uid,
+      activity: data.activity ?? [],
+      _ts: Date.now(),
+    });
+    await db.syncMeta.put({ key: `activity-${uid}`, lastSync: Date.now() });
   } catch { /* network error — skip */ }
 }
 

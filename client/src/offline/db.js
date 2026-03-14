@@ -28,4 +28,9 @@ db.version(4).stores({
   pendingDeposits:    'id, userId',
 });
 
+db.version(5).stores({
+  overviewCache:      'userId',
+  activityCache:      'userId',
+});
+
 export default db;

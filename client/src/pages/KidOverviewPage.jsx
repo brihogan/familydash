@@ -1,12 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTachographDigital, faCrown, faBroom, faGear, faRightFromBracket } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
-import { overviewApi } from '../api/overview.api.js';
-import { activityApi } from '../api/activity.api.js';
-import { familyApi } from '../api/family.api.js';
+import useOfflineOverview from '../offline/hooks/useOfflineOverview.js';
+import useOfflineFamily from '../offline/hooks/useOfflineFamily.js';
 import { formatCents } from '../utils/formatCents.js';
 import useScrollLock from '../hooks/useScrollLock.js';
 import ActivityRow, { GroupedActivityList } from '../components/shared/ActivityRow.jsx';
@@ -206,69 +205,55 @@ export default function KidOverviewPage() {
   const navigate   = useNavigate();
   const isParent   = user?.role === 'parent';
 
-  const [overview,   setOverview]   = useState(null);
-  const [activity,   setActivity]   = useState([]);
-  const [loading,    setLoading]    = useState(true);
-  const [actLoading, setActLoading] = useState(true);
-  const [error,      setError]      = useState('');
+  const { overview, overviewLoading: loading, allActivity, activityLoading: actLoading, refreshActivity } =
+    useOfflineOverview(userId);
+  const { kids: allKids, members: familyMembers } = useOfflineFamily();
 
   const [actDateKey,  setActDateKey]  = useState('today');
   const [actTypeKey,  setActTypeKey]  = useState('all');
-  const [kids,        setKids]        = useState([]);
-  const [memberRole,  setMemberRole]  = useState(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   useScrollLock(showLogoutConfirm);
 
-  // Fetch kid list for the switcher (parent only, once)
-  useEffect(() => {
-    if (!isParent) return;
-    familyApi.getFamily()
-      .then(({ members }) => {
-        setKids(members.filter((m) => (m.role === 'kid' || !!m.chores_enabled) && m.is_active));
-        const viewed = members.find((m) => m.id === parseInt(userId, 10));
-        if (viewed) setMemberRole(viewed.role);
-      })
-      .catch(() => {});
-  }, [isParent, userId]);
+  // Kid list for the switcher (parent only)
+  const kids = isParent ? allKids : [];
+  const memberRole = useMemo(() => {
+    const viewed = familyMembers.find((m) => m.id === parseInt(userId, 10));
+    return viewed?.role ?? null;
+  }, [familyMembers, userId]);
 
-  // Fetch overview once per userId change
-  useEffect(() => {
-    setLoading(true);
-    setError('');
-    overviewApi.getOverview(userId)
-      .then(setOverview)
-      .catch(() => setError('Failed to load overview.'))
-      .finally(() => setLoading(false));
-  }, [userId]);
+  // Client-side activity filtering
+  const activity = useMemo(() => {
+    let filtered = allActivity;
 
-  // Fetch activity whenever userId or filters change
-  const fetchActivity = useCallback(() => {
-    setActLoading(true);
-    const params = { limit: 50 };
+    // Date filter
     if (actDateKey === 'today') {
-      params.from = localMidnightUTC(0);
+      const from = localMidnightUTC(0);
+      filtered = filtered.filter((a) => (a.created_at || a.occurred_at || '') >= from);
     } else if (actDateKey === 'yesterday') {
-      params.from = localMidnightUTC(1);
-      params.to   = localMidnightUTC(0);
+      const from = localMidnightUTC(1);
+      const to   = localMidnightUTC(0);
+      filtered = filtered.filter((a) => {
+        const ts = a.created_at || a.occurred_at || '';
+        return ts >= from && ts < to;
+      });
     } else if (actDateKey === '7d') {
-      params.from = localMidnightUTC(6);
+      const from = localMidnightUTC(6);
+      filtered = filtered.filter((a) => (a.created_at || a.occurred_at || '') >= from);
     }
-    // 'all' → no date params
+    // 'all' → no date filter
+
+    // Type filter
     if (actTypeKey !== 'all') {
-      params.event_types = TYPE_GROUPS[actTypeKey].join(',');
+      const types = TYPE_GROUPS[actTypeKey];
+      filtered = filtered.filter((a) => types.includes(a.event_type));
     }
-    activityApi.getUserActivity(userId, params)
-      .then((d) => setActivity(d.activity ?? []))
-      .catch(() => {})
-      .finally(() => setActLoading(false));
-  }, [userId, actDateKey, actTypeKey]);
 
-  useEffect(() => { fetchActivity(); }, [fetchActivity]);
+    return filtered.slice(0, 50);
+  }, [allActivity, actDateKey, actTypeKey]);
 
-  if (loading) return <LoadingSkeleton rows={6} />;
-  if (error)   return (
-    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-4 py-3 text-sm">{error}</div>
-  );
+  const fetchActivity = refreshActivity;
+
+  if (loading && !overview) return <LoadingSkeleton rows={6} />;
   if (!overview) return null;
 
   const { memberName, ticketBalance, accounts, choreProgressToday, last7Days,
