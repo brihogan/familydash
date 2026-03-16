@@ -64,56 +64,58 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData, mini }) {
         }`}
       >
         <div
-          className={`px-3 py-2.5 flex items-center gap-2.5 ${nameClickable ? 'cursor-pointer' : ''}`}
+          className={`px-3 py-2 flex items-center gap-2.5 ${nameClickable ? 'cursor-pointer' : ''}`}
           onClick={nameClickable ? () => navigate(`/kid/${member.id}`) : undefined}
         >
-          <Avatar name={member.name} color={member.avatarColor} emoji={member.avatarEmoji} size="md" />
+          <Avatar name={member.name} color={member.avatarColor} emoji={member.avatarEmoji} size="lg" />
 
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm text-gray-800 dark:text-gray-100 leading-tight truncate">{member.name}</p>
           </div>
 
-          {/* Inline stats */}
-          <div className="flex items-center gap-4 shrink-0">
-            {useBanking && member.role === 'kid' && (
-              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                <span
-                  className={`text-sm font-mono font-semibold text-gray-700 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
-                  onClick={statsClickable ? () => navigate(`/bank/${member.id}`) : undefined}
-                >
-                  {showBalance ? formatCents(member.mainBalanceCents) : '—'}
-                </span>
-                {!readOnly && isParent && (
-                  <QuickBankAdjust userId={member.id} onDone={onRefresh} requireCurrencyWork={member.requireCurrencyWork} />
-                )}
-              </div>
-            )}
-            {useTickets && (
-              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                <span
-                  className={`text-sm font-semibold text-gray-700 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
-                  onClick={statsClickable ? () => navigate(`/tickets/${member.id}`) : undefined}
-                >
-                  {member.ticketBalance} 🎟
-                </span>
-                {!readOnly && isParent && member.role === 'kid' && (
-                  <QuickTicketAdjust userId={member.id} ticketBalance={member.ticketBalance} onDone={onRefresh} />
-                )}
-              </div>
-            )}
-          </div>
+          {/* Stacked balance + tickets */}
+          {(useBanking || useTickets) && member.role === 'kid' && (
+            <div className="shrink-0 flex flex-col items-end gap-0.5" onClick={(e) => e.stopPropagation()}>
+              {useBanking && (
+                <div className="flex items-center gap-1">
+                  <span
+                    className={`text-sm font-mono font-semibold text-gray-700 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
+                    onClick={statsClickable ? () => navigate(`/bank/${member.id}`) : undefined}
+                  >
+                    {showBalance ? formatCents(member.mainBalanceCents) : '—'}
+                  </span>
+                  {!readOnly && isParent && (
+                    <QuickBankAdjust userId={member.id} onDone={onRefresh} requireCurrencyWork={member.requireCurrencyWork} large />
+                  )}
+                </div>
+              )}
+              {useTickets && (
+                <div className="flex items-center gap-1">
+                  <span
+                    className={`text-sm font-semibold text-gray-700 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
+                    onClick={statsClickable ? () => navigate(`/tickets/${member.id}`) : undefined}
+                  >
+                    {member.ticketBalance} 🎟
+                  </span>
+                  {!readOnly && isParent && (
+                    <QuickTicketAdjust userId={member.id} ticketBalance={member.ticketBalance} onDone={onRefresh} large />
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* Chore ring only — default colors like table row */}
+          {/* Chore ring */}
           {(member.role === 'kid' || (member.choresEnabled && member.choreTotal > 0)) && (
             <div className="shrink-0 rounded-full bg-gray-100 dark:bg-gray-700">
               <ProgressRing
                 pct={chorePct}
                 done={choreDone}
-                size={40}
+                size={46}
                 title={`Chores: ${member.choreDone}/${member.choreTotal}`}
                 onClick={(isInteractiveKidRow || (isOwnRow && member.choresEnabled)) ? (e) => { e.stopPropagation(); navigate(`/chores/${member.id}`); } : undefined}
               >
-                <FontAwesomeIcon icon={choreDone ? faCrown : faBroom} className={`text-[10px] ${choreDone ? 'text-yellow-400' : ''}`} />
+                <FontAwesomeIcon icon={choreDone ? faCrown : faBroom} className={`text-xs ${choreDone ? 'text-yellow-400' : ''}`} />
               </ProgressRing>
             </div>
           )}
