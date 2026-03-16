@@ -33,7 +33,7 @@ function darkenHex(hex, amount = 50) {
 
 // ── Mobile card ──────────────────────────────────────────────────────────────
 
-function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
+function DashboardCard({ member, onRefresh, readOnly, maskPrivateData, mini }) {
   const { user } = useAuth();
   const { isDark } = useTheme();
   const { useBanking, useSets, useTickets } = useFamilySettings();
@@ -55,6 +55,72 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
   const ringBgColor       = isDark ? darkenHex(member.avatarColor, 90) : lightenHex(member.avatarColor, 90);
   // Slightly darker shade for the filled (100%) ring in dark mode
   const ringDoneColor     = isDark ? lightenHex(member.avatarColor, 45) : darkenHex(member.avatarColor, 55);
+
+  if (mini) {
+    return (
+      <div
+        className={`rounded-xl overflow-hidden transition-colors bg-white dark:bg-gray-800 ${
+          isOwnRow ? 'ring-2 ring-brand-400' : 'border border-gray-200 dark:border-gray-700'
+        }`}
+      >
+        <div
+          className={`px-3 py-2.5 flex items-center gap-2.5 ${nameClickable ? 'cursor-pointer' : ''}`}
+          onClick={nameClickable ? () => navigate(`/kid/${member.id}`) : undefined}
+        >
+          <Avatar name={member.name} color={member.avatarColor} emoji={member.avatarEmoji} size="md" />
+
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm text-gray-800 dark:text-gray-100 leading-tight truncate">{member.name}</p>
+          </div>
+
+          {/* Inline stats */}
+          <div className="flex items-center gap-4 shrink-0">
+            {useBanking && member.role === 'kid' && (
+              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                <span
+                  className={`text-sm font-mono font-semibold text-gray-700 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
+                  onClick={statsClickable ? () => navigate(`/bank/${member.id}`) : undefined}
+                >
+                  {showBalance ? formatCents(member.mainBalanceCents) : '—'}
+                </span>
+                {!readOnly && isParent && (
+                  <QuickBankAdjust userId={member.id} onDone={onRefresh} requireCurrencyWork={member.requireCurrencyWork} />
+                )}
+              </div>
+            )}
+            {useTickets && (
+              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                <span
+                  className={`text-sm font-semibold text-gray-700 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
+                  onClick={statsClickable ? () => navigate(`/tickets/${member.id}`) : undefined}
+                >
+                  {member.ticketBalance} 🎟
+                </span>
+                {!readOnly && isParent && member.role === 'kid' && (
+                  <QuickTicketAdjust userId={member.id} ticketBalance={member.ticketBalance} onDone={onRefresh} />
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Chore ring only — default colors like table row */}
+          {(member.role === 'kid' || (member.choresEnabled && member.choreTotal > 0)) && (
+            <div className="shrink-0 rounded-full bg-gray-100 dark:bg-gray-700">
+              <ProgressRing
+                pct={chorePct}
+                done={choreDone}
+                size={40}
+                title={`Chores: ${member.choreDone}/${member.choreTotal}`}
+                onClick={(isInteractiveKidRow || (isOwnRow && member.choresEnabled)) ? (e) => { e.stopPropagation(); navigate(`/chores/${member.id}`); } : undefined}
+              >
+                <FontAwesomeIcon icon={choreDone ? faCrown : faBroom} className={`text-[10px] ${choreDone ? 'text-yellow-400' : ''}`} />
+              </ProgressRing>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -209,12 +275,12 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData }) {
 
 // ── Table + cards ─────────────────────────────────────────────────────────────
 
-export default function DashboardTable({ members, onRefresh, readOnly = false, maskPrivateData = false }) {
+export default function DashboardTable({ members, onRefresh, readOnly = false, maskPrivateData = false, miniCards = false }) {
   const { useBanking, useSets, useTickets } = useFamilySettings();
   return (
     <>
       {/* ── Mobile cards (below md) ── */}
-      <div className="md:hidden space-y-3">
+      <div className={`md:hidden ${miniCards ? 'space-y-1.5' : 'space-y-3'}`}>
         {members.map((m) => (
           <DashboardCard
             key={m.id}
@@ -222,6 +288,7 @@ export default function DashboardTable({ members, onRefresh, readOnly = false, m
             onRefresh={onRefresh}
             readOnly={readOnly}
             maskPrivateData={maskPrivateData}
+            mini={miniCards}
           />
         ))}
       </div>

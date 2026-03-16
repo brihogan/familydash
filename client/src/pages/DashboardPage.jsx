@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faExpand, faHouse } from '@fortawesome/free-solid-svg-icons';
+import { faExpand, faHouse, faGripLines, faGripLinesVertical } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import useOfflineDashboard from '../offline/hooks/useOfflineDashboard.js';
@@ -43,6 +43,11 @@ export default function DashboardPage() {
   const isParent = user?.role === 'parent';
   const navigate = useNavigate();
   const [sortKey, setSortKey] = useState('custom');
+  const [miniCards, setMiniCards] = useState(() => localStorage.getItem('dash_mini') === '1');
+
+  const toggleMini = () => {
+    setMiniCards((v) => { const next = !v; localStorage.setItem('dash_mini', next ? '1' : '0'); return next; });
+  };
 
   const { members, loading, refresh } = useOfflineDashboard();
 
@@ -89,6 +94,19 @@ export default function DashboardPage() {
               <option key={opt.key} value={opt.key}>{opt.label}</option>
             ))}
           </select>
+          {/* Mobile: mini-card toggle */}
+          <button
+            onClick={toggleMini}
+            className={`md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              miniCards
+                ? 'bg-brand-500 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+            }`}
+            title={miniCards ? 'Full cards' : 'Mini cards'}
+          >
+            <FontAwesomeIcon icon={miniCards ? faGripLines : faGripLinesVertical} className="text-[10px]" />
+            Mini
+          </button>
           {/* Desktop: pill buttons */}
           <div className="hidden md:flex items-center gap-2 flex-wrap">
             {SORT_OPTIONS.filter((opt) => (useBanking || opt.key !== 'balance') && (useTickets || opt.key !== 'tickets')).map((opt) => (
@@ -115,6 +133,7 @@ export default function DashboardPage() {
           members={sortedMembers}
           onRefresh={refresh}
           maskPrivateData={!isParent}
+          miniCards={miniCards}
         />
       )}
     </div>
