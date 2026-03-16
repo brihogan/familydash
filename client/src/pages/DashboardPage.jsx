@@ -1,7 +1,6 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faExpand, faHouse, faGripLines, faGripLinesVertical } from '@fortawesome/free-solid-svg-icons';
+import { faHouse, faCompress, faExpand, faArrowDownWideShort, faCheck } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import useOfflineDashboard from '../offline/hooks/useOfflineDashboard.js';
@@ -41,15 +40,26 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { useBanking, useTickets } = useFamilySettings();
   const isParent = user?.role === 'parent';
-  const navigate = useNavigate();
   const [sortKey, setSortKey] = useState('custom');
   const [miniCards, setMiniCards] = useState(() => localStorage.getItem('dash_mini') === '1');
+  const [sortOpen, setSortOpen] = useState(false);
+  const sortRef = useRef(null);
 
   const toggleMini = () => {
     setMiniCards((v) => { const next = !v; localStorage.setItem('dash_mini', next ? '1' : '0'); return next; });
   };
 
+  // Close sort dropdown on outside click
+  useEffect(() => {
+    if (!sortOpen) return;
+    const handler = (e) => { if (sortRef.current && !sortRef.current.contains(e.target)) setSortOpen(false); };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, [sortOpen]);
+
   const { members, loading, refresh } = useOfflineDashboard();
+
+  const filteredOptions = SORT_OPTIONS.filter((opt) => (useBanking || opt.key !== 'balance') && (useTickets || opt.key !== 'tickets'));
 
   const sortedMembers = useMemo(
     () => sortMembers(members.filter((m) => m.showOnDashboard || (m.role === 'parent' && m.choresEnabled)), sortKey),
@@ -59,71 +69,60 @@ export default function DashboardPage() {
   return (
     <div>
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             <FontAwesomeIcon icon={faHouse} className="mr-2 text-brand-500" />
             Dashboard
           </h1>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {/* Mobile: mini-card toggle */}
             <button
-              onClick={refresh}
-              className="text-sm text-brand-600 hover:underline"
+              onClick={toggleMini}
+              className={`md:hidden p-2 rounded-lg transition-colors ${
+                miniCards
+                  ? 'text-brand-600 dark:text-brand-400'
+                  : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
+              }`}
+              title={miniCards ? 'Full cards' : 'Compact cards'}
             >
-              Refresh
+              <FontAwesomeIcon icon={miniCards ? faExpand : faCompress} />
             </button>
-            {isParent && (
+
+            {/* Sort button with dropdown */}
+            <div className="relative" ref={sortRef}>
               <button
-                onClick={() => navigate('/display')}
-                title="Display view"
-                className="text-gray-400 dark:text-gray-500 hover:text-brand-600 transition-colors"
-              >
-                <FontAwesomeIcon icon={faExpand} />
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 dark:text-gray-500">Sort:</span>
-          {/* Mobile: dropdown */}
-          <select
-            className="md:hidden border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent"
-            value={sortKey}
-            onChange={(e) => setSortKey(e.target.value)}
-          >
-            {SORT_OPTIONS.filter((opt) => (useBanking || opt.key !== 'balance') && (useTickets || opt.key !== 'tickets')).map((opt) => (
-              <option key={opt.key} value={opt.key}>{opt.label}</option>
-            ))}
-          </select>
-          {/* Mobile: mini-card toggle */}
-          <button
-            onClick={toggleMini}
-            className={`md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              miniCards
-                ? 'bg-brand-500 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-            }`}
-            title={miniCards ? 'Full cards' : 'Mini cards'}
-          >
-            <FontAwesomeIcon icon={miniCards ? faGripLines : faGripLinesVertical} className="text-[10px]" />
-            Mini
-          </button>
-          {/* Desktop: pill buttons */}
-          <div className="hidden md:flex items-center gap-2 flex-wrap">
-            {SORT_OPTIONS.filter((opt) => (useBanking || opt.key !== 'balance') && (useTickets || opt.key !== 'tickets')).map((opt) => (
-              <button
-                key={opt.key}
-                onClick={() => setSortKey(opt.key)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  sortKey === opt.key
-                    ? 'bg-brand-500 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                onClick={() => setSortOpen((v) => !v)}
+                className={`p-2 rounded-lg transition-colors ${
+                  sortKey !== 'custom'
+                    ? 'text-brand-600 dark:text-brand-400'
+                    : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
                 }`}
+                title="Sort"
               >
-                {opt.label}
+                <FontAwesomeIcon icon={faArrowDownWideShort} />
               </button>
-            ))}
+              {sortOpen && (
+                <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-50 py-1 overflow-hidden">
+                  {filteredOptions.map((opt) => (
+                    <button
+                      key={opt.key}
+                      onClick={() => { setSortKey(opt.key); setSortOpen(false); }}
+                      className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between transition-colors ${
+                        sortKey === opt.key
+                          ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 font-medium'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      {opt.label}
+                      {sortKey === opt.key && <FontAwesomeIcon icon={faCheck} className="text-xs" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
+
       </div>
 
       {loading ? (
