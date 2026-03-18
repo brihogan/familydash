@@ -332,7 +332,13 @@ export default function KidOverviewPage() {
               {ticketBalance} <span className="text-lg">🎟</span>
             </p>
             <p className="text-xs text-gray-400 dark:text-gray-500">current balance</p>
-            <p className="text-xs text-brand-500 mt-3">View history →</p>
+            <p className="text-xs text-brand-500 mt-3">Ticket history →</p>
+            <button
+              onClick={(e) => { e.stopPropagation(); navigate(`/rewards?kidId=${userId}`); }}
+              className="text-xs text-amber-500 hover:text-amber-600 font-medium mt-1"
+            >
+              Redeem reward →
+            </button>
           </StatCard>
         )}
 

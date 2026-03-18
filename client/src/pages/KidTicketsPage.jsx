@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTicket } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -38,6 +38,7 @@ export default function KidTicketsPage() {
   const { userId } = useParams();
   const { user } = useAuth();
   const isParent = user?.role === 'parent';
+  const navigate = useNavigate();
 
   const [dateKey, setDateKey] = useState('today');
   const [ticketTypeKey, setTicketTypeKey] = useState('all');
@@ -111,6 +112,12 @@ export default function KidTicketsPage() {
                   variant="button"
 
                 />
+                <button
+                  onClick={() => navigate(`/rewards?kidId=${userId}`)}
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg border border-amber-300 dark:border-amber-600 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
+                >
+                  Redeem
+                </button>
               </div>
             )}
           </div>

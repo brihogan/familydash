@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTrophy, faGear, faPlus } from '@fortawesome/free-solid-svg-icons';
 import { rewardsApi } from '../api/rewards.api.js';
@@ -216,8 +216,12 @@ export default function RewardsPage() {
   const [addModal,   setAddModal]   = useState(false);
   const [editReward, setEditReward] = useState(null);
 
-  // Parent: profile picker
-  const [selectedKidId, setSelectedKidId] = useState(null);
+  // Parent: profile picker (initialize from ?kidId= query param if present)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedKidId, setSelectedKidId] = useState(() => {
+    const kidParam = searchParams.get('kidId');
+    return kidParam ? parseInt(kidParam, 10) : null;
+  });
 
   // Kid (or parent viewing-as-kid): confirm modal + celebration
   const [pendingRewardId, setPendingRewardId] = useState(null);
