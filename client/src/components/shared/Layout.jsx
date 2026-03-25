@@ -506,7 +506,7 @@ export default function Layout() {
           }}
         >
           {/* Panel header */}
-          <div className="px-4 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+          <div className="px-4 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between" style={{ paddingTop: 'max(1.25rem, env(safe-area-inset-top))' }}>
             <Link to="/dashboard" onClick={close} className="text-lg font-bold text-brand-600 hover:text-brand-700">Family Dashboard</Link>
             <button
               onClick={close}
