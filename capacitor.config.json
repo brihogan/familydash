@@ -3,7 +3,11 @@
   "appName": "Family Dash",
   "webDir": "client/dist",
   "server": {
-    "allowNavigation": ["*"],
-    "iosScheme": "http"
+    "allowNavigation": ["*"]
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
   }
 }

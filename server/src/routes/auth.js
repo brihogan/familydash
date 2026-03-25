@@ -48,7 +48,7 @@ function issueTokens(res, req, payload, remember = true) {
   if (!remember) delete cookieOpts.maxAge; // session cookie — expires when browser closes
 
   res.cookie(REFRESH_COOKIE, refreshToken, cookieOpts);
-  return accessToken;
+  return { accessToken, refreshToken };
 }
 
 // ─── Register ──────────────────────────────────────────────────────────────
@@ -89,9 +89,9 @@ router.post('/register', async (req, res, next) => {
 
     const { familyId, userId } = registerTx();
     const payload = { userId, familyId, role: 'parent', name: body.name, avatarColor: '#6366f1', avatarEmoji: null };
-    const accessToken = issueTokens(res, req, payload);
+    const { accessToken, refreshToken } = issueTokens(res, req, payload);
 
-    res.status(201).json({ accessToken, user: { id: userId, name: body.name, role: 'parent', familyId } });
+    res.status(201).json({ accessToken, refreshToken, user: { id: userId, name: body.name, role: 'parent', familyId } });
   } catch (err) {
     next(err);
   }
@@ -123,10 +123,11 @@ router.post('/login', async (req, res, next) => {
     }
 
     const payload = { userId: user.id, familyId: user.family_id, role: user.role, name: user.name, avatarColor: user.avatar_color, avatarEmoji: user.avatar_emoji || null };
-    const accessToken = issueTokens(res, req, payload, body.rememberMe !== false);
+    const { accessToken, refreshToken } = issueTokens(res, req, payload, body.rememberMe !== false);
 
     res.json({
       accessToken,
+      refreshToken,
       user: { id: user.id, name: user.name, role: user.role, familyId: user.family_id, avatarColor: user.avatar_color },
     });
   } catch (err) {
@@ -138,7 +139,8 @@ router.post('/login', async (req, res, next) => {
 
 router.post('/refresh', (req, res, next) => {
   try {
-    const rawToken = req.cookies?.[REFRESH_COOKIE];
+    // Accept refresh token from cookie (browser) OR request body (native apps)
+    const rawToken = req.cookies?.[REFRESH_COOKIE] || req.body?.refreshToken;
     if (!rawToken) return res.status(401).json({ error: 'No refresh token.' });
 
     const payload = verifyRefreshToken(rawToken);
@@ -159,9 +161,9 @@ router.post('/refresh', (req, res, next) => {
     if (!userRecord) return res.status(401).json({ error: 'User not found.' });
 
     const newPayload = { userId: payload.userId, familyId: payload.familyId, role: payload.role, name: userRecord.name, avatarColor: userRecord.avatar_color, avatarEmoji: userRecord.avatar_emoji || null };
-    const accessToken = issueTokens(res, req, newPayload, !!stored.remember);
+    const { accessToken, refreshToken } = issueTokens(res, req, newPayload, !!stored.remember);
 
-    res.json({ accessToken });
+    res.json({ accessToken, refreshToken });
   } catch (err) {
     next(err);
   }
@@ -171,7 +173,7 @@ router.post('/refresh', (req, res, next) => {
 
 router.post('/logout', authenticate, (req, res, next) => {
   try {
-    const rawToken = req.cookies?.[REFRESH_COOKIE];
+    const rawToken = req.cookies?.[REFRESH_COOKIE] || req.body?.refreshToken;
     if (rawToken) {
       db.prepare('DELETE FROM refresh_tokens WHERE token_hash = ?').run(hashToken(rawToken));
     }

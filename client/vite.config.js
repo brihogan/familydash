@@ -3,8 +3,20 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  build: {
+    // Ensure emoji and other Unicode characters are preserved in build output
+    cssTarget: 'safari15',
+    target: 'es2020',
+  },
   plugins: [
     react(),
+    // Add charset=utf-8 to script tags for Capacitor WKWebView compatibility
+    {
+      name: 'html-charset',
+      transformIndexHtml(html) {
+        return html.replace(/<script(?=[\s>])/g, '<script charset="utf-8"');
+      },
+    },
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
