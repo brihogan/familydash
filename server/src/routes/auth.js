@@ -16,6 +16,7 @@ import { authenticate } from '../middleware/auth.js';
 const router = Router();
 
 const REFRESH_COOKIE = 'refreshToken';
+const CAPACITOR_ORIGINS = ['capacitor://localhost', 'ionic://localhost', 'http://localhost'];
 const COOKIE_OPTS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
@@ -24,7 +25,15 @@ const COOKIE_OPTS = {
   maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
 };
 
-function issueTokens(res, payload, remember = true) {
+function getCookieOpts(req) {
+  const origin = req.headers.origin;
+  if (origin && CAPACITOR_ORIGINS.includes(origin)) {
+    return { ...COOKIE_OPTS, sameSite: 'none', secure: true };
+  }
+  return { ...COOKIE_OPTS };
+}
+
+function issueTokens(res, req, payload, remember = true) {
   const accessToken = signAccessToken(payload);
   const refreshToken = signRefreshToken(payload);
 
@@ -35,7 +44,7 @@ function issueTokens(res, payload, remember = true) {
     VALUES (?, ?, ?, ?)
   `).run(payload.userId, hashToken(refreshToken), expiresAt, remember ? 1 : 0);
 
-  const cookieOpts = { ...COOKIE_OPTS };
+  const cookieOpts = getCookieOpts(req);
   if (!remember) delete cookieOpts.maxAge; // session cookie — expires when browser closes
 
   res.cookie(REFRESH_COOKIE, refreshToken, cookieOpts);
@@ -80,7 +89,7 @@ router.post('/register', async (req, res, next) => {
 
     const { familyId, userId } = registerTx();
     const payload = { userId, familyId, role: 'parent', name: body.name, avatarColor: '#6366f1', avatarEmoji: null };
-    const accessToken = issueTokens(res, payload);
+    const accessToken = issueTokens(res, req, payload);
 
     res.status(201).json({ accessToken, user: { id: userId, name: body.name, role: 'parent', familyId } });
   } catch (err) {
@@ -114,7 +123,7 @@ router.post('/login', async (req, res, next) => {
     }
 
     const payload = { userId: user.id, familyId: user.family_id, role: user.role, name: user.name, avatarColor: user.avatar_color, avatarEmoji: user.avatar_emoji || null };
-    const accessToken = issueTokens(res, payload, body.rememberMe !== false);
+    const accessToken = issueTokens(res, req, payload, body.rememberMe !== false);
 
     res.json({
       accessToken,
@@ -150,7 +159,7 @@ router.post('/refresh', (req, res, next) => {
     if (!userRecord) return res.status(401).json({ error: 'User not found.' });
 
     const newPayload = { userId: payload.userId, familyId: payload.familyId, role: payload.role, name: userRecord.name, avatarColor: userRecord.avatar_color, avatarEmoji: userRecord.avatar_emoji || null };
-    const accessToken = issueTokens(res, newPayload, !!stored.remember);
+    const accessToken = issueTokens(res, req, newPayload, !!stored.remember);
 
     res.json({ accessToken });
   } catch (err) {
@@ -166,7 +175,8 @@ router.post('/logout', authenticate, (req, res, next) => {
     if (rawToken) {
       db.prepare('DELETE FROM refresh_tokens WHERE token_hash = ?').run(hashToken(rawToken));
     }
-    res.clearCookie(REFRESH_COOKIE, { httpOnly: true, secure: COOKIE_OPTS.secure, sameSite: COOKIE_OPTS.sameSite, path: '/' });
+    const opts = getCookieOpts(req);
+    res.clearCookie(REFRESH_COOKIE, { httpOnly: true, secure: opts.secure, sameSite: opts.sameSite, path: '/' });
     res.json({ ok: true });
   } catch (err) {
     next(err);

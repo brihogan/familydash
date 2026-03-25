@@ -2,6 +2,9 @@
 
 ## Session Start: 2026-03-25 ~8:00 PM
 
+### 2026-03-25 — Capacitor iOS setup
+- Installed Capacitor, added iOS platform. `npm run cap:build` builds + syncs, `npm run cap:open` opens Xcode.
+
 ### 2026-03-25 — Ticket count on chores page
 - Added live ticket balance display to `/chores/:userId`, positioned right of the profile picker row. Updates reactively as chores are checked off via the existing optimistic Dexie cache.
 

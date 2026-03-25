@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { API_BASE_URL } from './baseUrl.js';
 
 let getToken = () => null;
 let onRefresh = null;
@@ -14,7 +15,7 @@ export function setRefreshHandler(fn) {
 }
 
 const client = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   withCredentials: true, // send httpOnly cookie
 });
 

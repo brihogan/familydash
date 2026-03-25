@@ -7,4 +7,6 @@ dist/
 /data/
 server/public/
 client/dev-dist/
+ios/App/App/public/
+ios/App/CapApp-SPM/.build/
 TODO.md

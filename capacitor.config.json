@@ -1,0 +1,8 @@
+{
+  "appId": "com.familydash.app",
+  "appName": "Family Dash",
+  "webDir": "client/dist",
+  "server": {
+    "allowNavigation": ["*"]
+  }
+}

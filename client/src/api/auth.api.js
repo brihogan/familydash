@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { API_BASE_URL } from './baseUrl.js';
 
 // Use plain axios (no auth interceptor) for auth calls
-const plainClient = axios.create({ baseURL: '/api', withCredentials: true });
+const plainClient = axios.create({ baseURL: API_BASE_URL, withCredentials: true });
 
 // Deduplicate concurrent refresh calls (prevents React StrictMode double-invoke
 // from rotating the token twice and invalidating the session)
