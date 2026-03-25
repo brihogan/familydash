@@ -6,6 +6,7 @@ import { inboxApi } from '../api/inbox.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import useOfflineChores from '../offline/hooks/useOfflineChores.js';
 import useOfflineFamily from '../offline/hooks/useOfflineFamily.js';
+import useOfflineTickets from '../offline/hooks/useOfflineTickets.js';
 import ChoreList from '../components/chores/ChoreList.jsx';
 import ChoreHistoryList from '../components/chores/ChoreHistoryList.jsx';
 import ChoreProgress from '../components/chores/ChoreProgress.jsx';
@@ -13,6 +14,7 @@ import DateNav from '../components/shared/DateNav.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import Fireworks from '../components/shared/Fireworks.jsx';
 import KidProfilePicker from '../components/shared/KidProfilePicker.jsx';
+import RollingNumber from '../components/shared/RollingNumber.jsx';
 import { todayISO } from '../utils/formatDate.js';
 import { playVictory } from '../utils/sounds.js';
 import useScrollLock from '../hooks/useScrollLock.js';
@@ -65,13 +67,15 @@ export default function KidChoresPage() {
   const [showConfetti,     setShowConfetti]     = useState(false);
   const [showChoresModal,  setShowChoresModal]  = useState(false);
   const prevDoneCountRef = useRef(null);
+  const [animateTickets, setAnimateTickets] = useState(false);
 
   // Offline-first hooks
   const { kids } = useOfflineFamily();
   const { logs, loading, completeChore, uncompleteChore } = useOfflineChores(userId, date);
+  const { ticketBalance } = useOfflineTickets(userId);
 
-  // Reset the done-count tracker whenever the user or date changes
-  useEffect(() => { prevDoneCountRef.current = null; }, [userId, date]);
+  // Reset the done-count tracker and disable animation whenever the user or date changes
+  useEffect(() => { prevDoneCountRef.current = null; setAnimateTickets(false); }, [userId, date]);
 
   // Detect the moment the last chore is checked off → confetti + victory sound
   useEffect(() => {
@@ -88,6 +92,7 @@ export default function KidChoresPage() {
 
   const handleToggle = async (log, completing) => {
     setActionLoading(true);
+    setAnimateTickets(true);
     try {
       if (completing) {
         await completeChore(log.id);
@@ -121,15 +126,28 @@ export default function KidChoresPage() {
             {isParent ? `${kids.find((k) => String(k.id) === userId)?.name ?? '...'}'s Chores` : 'My Chores'}
           </h1>
         </div>
-        <DateNav date={date} onChange={setDate} />
+        <DateNav date={date} onChange={setDate} compact />
       </div>
       {isParent && kids.length > 1 && (
-        <KidProfilePicker kids={kids} currentId={userId} routePrefix="/chores" />
+        <div className="flex items-center justify-between mb-5">
+          <KidProfilePicker kids={kids} currentId={userId} routePrefix="/chores" className="flex items-center gap-2" />
+          <span className="text-2xl font-semibold text-gray-800 dark:text-gray-200">
+            <RollingNumber value={ticketBalance} animate={animateTickets} /> 🎟
+          </span>
+        </div>
       )}
 
       {!loading && logs.length > 0 && (
-        <div className="mb-4">
-          <ChoreProgress done={completed.length + waitingApproval.length} total={logs.length} />
+        <div className="flex items-center gap-3 mb-4">
+          <ChoreProgress done={completed.length + waitingApproval.length} total={logs.length} className="flex-1 min-w-0" />
+          {!isParent && (
+            <>
+              <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 shrink-0" />
+              <span className="text-2xl font-semibold text-gray-800 dark:text-gray-200 shrink-0 whitespace-nowrap">
+                <RollingNumber value={ticketBalance} animate={animateTickets} /> 🎟
+              </span>
+            </>
+          )}
         </div>
       )}
 

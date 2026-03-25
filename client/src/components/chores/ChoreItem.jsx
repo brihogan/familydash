@@ -59,7 +59,7 @@ export default function ChoreItem({ log, onToggle, disabled }) {
   return (
     <div
       onClick={handleClick}
-      className={`flex items-center gap-3 p-3 rounded-lg border dark:border-gray-700 ${!done && !disabled && !isAnimating ? 'cursor-pointer active:bg-gray-50 dark:active:bg-gray-700/50' : ''}`}
+      className={`flex items-center gap-3 p-3 rounded-lg border bg-white dark:bg-gray-800 dark:border-gray-700 ${!done && !disabled && !isAnimating ? 'cursor-pointer active:bg-gray-50 dark:active:bg-gray-700/50' : ''}`}
       style={cardStyle}
     >
       {/* Checkbox + burst container */}

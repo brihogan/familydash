@@ -9,12 +9,12 @@ import Avatar from './Avatar.jsx';
  *
  * @param {{ kids: Array, currentId: string|number, routePrefix: string, manageRoute?: string, manageLabel?: string }} props
  */
-export default function KidProfilePicker({ kids, currentId, routePrefix, manageRoute = null, manageLabel = 'Manage' }) {
+export default function KidProfilePicker({ kids, currentId, routePrefix, manageRoute = null, manageLabel = 'Manage', className }) {
   const navigate = useNavigate();
   const isManageMode = !!manageRoute && !currentId;
 
   return (
-    <div className="flex items-center gap-2 mb-5">
+    <div className={className ?? "flex items-center gap-2 mb-5"}>
       {manageRoute && (
         <button
           onClick={() => navigate(manageRoute)}

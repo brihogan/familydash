@@ -34,7 +34,7 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: `http://localhost:${process.env.VITE_API_PORT || '3001'}`,
         changeOrigin: true,
       },
     },
