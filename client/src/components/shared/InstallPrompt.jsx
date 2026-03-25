@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
 
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent);
+const isCapacitor = () => Capacitor.isNativePlatform();
 const isInStandaloneMode = () =>
+  isCapacitor() ||
   window.matchMedia('(display-mode: standalone)').matches ||
   navigator.standalone === true;
 

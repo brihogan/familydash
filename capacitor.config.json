@@ -3,6 +3,7 @@
   "appName": "Family Dash",
   "webDir": "client/dist",
   "server": {
-    "allowNavigation": ["*"]
+    "allowNavigation": ["*"],
+    "iosScheme": "http"
   }
 }
