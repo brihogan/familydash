@@ -4,20 +4,10 @@ import { authenticate } from '../middleware/auth.js';
 import { requireOwnOrParent } from '../middleware/requireOwnOrParent.js';
 import { getOrGenerateLogs } from '../services/choreService.js';
 import { getKingOfCrowns } from '../services/streakService.js';
+import { assertSameFamily } from '../utils/assertions.js';
+import { localDateISO } from '../utils/dateHelpers.js';
 
 const router = Router();
-
-function localDateISO(d = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function assertSameFamily(targetUserId, familyId) {
-  const u = db.prepare('SELECT id, family_id FROM users WHERE id = ? AND is_active = 1').get(targetUserId);
-  if (!u || u.family_id !== familyId) {
-    const err = new Error('User not found.'); err.status = 404; throw err;
-  }
-  return u;
-}
 
 // ─── GET /api/users/:id/overview ──────────────────────────────────────────
 

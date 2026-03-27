@@ -7,21 +7,10 @@ import { requireOwnOrParent } from '../middleware/requireOwnOrParent.js';
 import { requireDateAccess } from '../middleware/requireDateAccess.js';
 import { getOrGenerateLogs } from '../services/choreService.js';
 import { insertActivity } from '../services/activityService.js';
+import { assertSameFamily } from '../utils/assertions.js';
+import { localDateISO as todayISO } from '../utils/dateHelpers.js';
 
 const router = Router();
-
-function assertSameFamily(targetUserId, familyId) {
-  const user = db.prepare('SELECT id, family_id FROM users WHERE id = ? AND is_active = 1').get(targetUserId);
-  if (!user || user.family_id !== familyId) {
-    const err = new Error('User not found.'); err.status = 404; throw err;
-  }
-  return user;
-}
-
-function todayISO() {
-  const n = new Date();
-  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
-}
 
 // ─── GET /api/users/:id/chores ─────────────────────────────────────────────
 

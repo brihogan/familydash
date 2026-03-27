@@ -5,12 +5,9 @@ import { processRecurringRules } from '../services/recurringRuleService.js';
 import { getOrGenerateLogs } from '../services/choreService.js';
 import { getKingOfCrowns } from '../services/streakService.js';
 import { pushToTrmnl } from '../services/trmnlService.js';
+import { localDateISO } from '../utils/dateHelpers.js';
 
 const router = Router();
-
-function localDateISO(d = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 router.get('/', authenticate, (req, res, next) => {
   try {

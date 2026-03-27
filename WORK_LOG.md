@@ -8,6 +8,8 @@
 - Kid-to-kid ticket transfers removed — dragging a ticket off a kid (anywhere except back on same card) decrements that kid and animates the ticket flying into the bucket (CSS keyframe animation).
 - Simplified Ticket Blast: removed drag-and-drop/bucket, now tap-only (+/- sides of card) with pop/shrink ticket animation. Fullscreen modal on mobile, phone-width on desktop.
 - Hamburger icon shows red notification dot when parent has inbox items or kid has pending deposits. Mini card mode now shows orange dot for pending deposits (matching full card mode).
+- **Server test suite**: Installed vitest + supertest; extracted Express app into `src/app.js` for testability. 34 tests across auth (register, login, logout, middleware), tickets (adjust +/-, negative balances, validation, role/family isolation), and inbox (list, count, approve with ticket awards, deny, cross-family isolation). All passing against in-memory SQLite.
+- **Refactor**: Extracted `assertSameFamily` + `assertAccountOwner` into `utils/assertions.js` (was duplicated in 6 route files). Extracted `localDateISO` into `utils/dateHelpers.js` (was duplicated in 7 files across routes + services). Extracted 37 inline migrations from `db.js` (330 lines) into `db/migrations.js`, leaving `db.js` clean (~30 lines).
 
 ---
 

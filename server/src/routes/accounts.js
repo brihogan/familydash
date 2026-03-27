@@ -6,24 +6,9 @@ import { requireRole } from '../middleware/requireRole.js';
 import { requireOwnOrParent } from '../middleware/requireOwnOrParent.js';
 import { insertActivity } from '../services/activityService.js';
 import { processRecurringRules } from '../services/recurringRuleService.js';
+import { assertSameFamily, assertAccountOwner } from '../utils/assertions.js';
 
 const router = Router();
-
-// Helper: assert target user is in same family
-function assertSameFamily(targetUserId, familyId) {
-  const user = db.prepare('SELECT id, family_id FROM users WHERE id = ? AND is_active = 1').get(targetUserId);
-  if (!user || user.family_id !== familyId) {
-    const err = new Error('User not found.'); err.status = 404; throw err;
-  }
-  return user;
-}
-
-// Helper: assert account belongs to user
-function assertAccountOwner(accountId, userId) {
-  const acc = db.prepare('SELECT * FROM accounts WHERE id = ? AND user_id = ? AND is_active = 1').get(accountId, userId);
-  if (!acc) { const err = new Error('Account not found.'); err.status = 404; throw err; }
-  return acc;
-}
 
 // ─── GET /api/users/:id/accounts ──────────────────────────────────────────
 

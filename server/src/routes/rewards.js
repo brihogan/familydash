@@ -5,16 +5,9 @@ import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { requireOwnOrParent } from '../middleware/requireOwnOrParent.js';
 import { insertActivity } from '../services/activityService.js';
+import { assertSameFamily } from '../utils/assertions.js';
 
 const router = Router();
-
-function assertSameFamily(targetUserId, familyId) {
-  const user = db.prepare('SELECT id, family_id FROM users WHERE id = ? AND is_active = 1').get(targetUserId);
-  if (!user || user.family_id !== familyId) {
-    const err = new Error('User not found.'); err.status = 404; throw err;
-  }
-  return user;
-}
 
 // ─── GET /api/family/rewards ───────────────────────────────────────────────
 // (mounted via familyRouter in index.js)

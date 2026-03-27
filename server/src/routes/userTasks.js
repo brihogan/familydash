@@ -3,20 +3,10 @@ import db from '../db/db.js';
 import { authenticate } from '../middleware/auth.js';
 import { insertActivity } from '../services/activityService.js';
 import { getKingOfCrowns } from '../services/streakService.js';
+import { assertSameFamily as assertUserInFamily } from '../utils/assertions.js';
+import { localDateISO } from '../utils/dateHelpers.js';
 
 const router = Router();
-
-function localDateISO(d = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function assertUserInFamily(userId, familyId) {
-  const u = db.prepare(
-    'SELECT id FROM users WHERE id = ? AND family_id = ? AND is_active = 1'
-  ).get(userId, familyId);
-  if (!u) { const e = new Error('User not found.'); e.status = 404; throw e; }
-  return u;
-}
 
 function parseRow(row) {
   return row;

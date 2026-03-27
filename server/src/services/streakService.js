@@ -1,8 +1,5 @@
 import db from '../db/db.js';
-
-function localDateISO(d = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+import { localDateISO } from '../utils/dateHelpers.js';
 
 /**
  * Compute the current crown streak for a single user.

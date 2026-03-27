@@ -115,7 +115,7 @@ router.post('/login', async (req, res, next) => {
       const valid = await comparePassword(body.password, user.password_hash);
       if (!valid) return res.status(401).json({ error: 'Invalid credentials.' });
     } else {
-      user = db.prepare('SELECT * FROM users WHERE username = ? AND is_active = 1').get(body.username);
+      user = db.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE AND is_active = 1').get(body.username);
       if (!user) return res.status(401).json({ error: 'Invalid credentials.' });
       if (!user.allow_login) return res.status(403).json({ error: 'Login is not enabled for this account.' });
       const valid = await comparePin(body.pin, user.pin_hash);

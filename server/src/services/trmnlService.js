@@ -1,14 +1,11 @@
 import db from '../db/db.js';
 import { getKingOfCrowns } from './streakService.js';
 import { getOrGenerateLogs } from './choreService.js';
+import { localDateISO } from '../utils/dateHelpers.js';
 
 // Throttle: push at most once every 5 minutes per family
 const lastPushByFamily = new Map();
 const THROTTLE_MS = 5 * 60 * 1000;
-
-function localDateISO(d = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 function formatCents(cents) {
   const abs = Math.abs(cents || 0);

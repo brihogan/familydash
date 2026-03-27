@@ -129,9 +129,9 @@ export default function KidChoresPage() {
         <DateNav date={date} onChange={setDate} compact />
       </div>
       {isParent && kids.length > 1 && (
-        <div className="flex items-center justify-between mb-5">
-          <KidProfilePicker kids={kids} currentId={userId} routePrefix="/chores" className="flex items-center gap-2" />
-          <span className="text-2xl font-semibold text-gray-800 dark:text-gray-200">
+        <div className="flex items-center gap-3 mb-5">
+          <KidProfilePicker kids={kids} currentId={userId} routePrefix="/chores" className="flex items-center gap-2 p-1 overflow-x-auto scrollbar-hide min-w-0 flex-1" />
+          <span className="text-2xl font-semibold text-gray-800 dark:text-gray-200 whitespace-nowrap shrink-0">
             <RollingNumber value={ticketBalance} animate={animateTickets} /> 🎟
           </span>
         </div>
