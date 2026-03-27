@@ -78,11 +78,16 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData, mini }) {
             <div className="shrink-0 flex flex-col items-end gap-0.5" onClick={(e) => e.stopPropagation()}>
               {useBanking && (
                 <div className="flex items-center gap-1">
-                  <span
-                    className={`text-sm font-mono font-semibold text-gray-700 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
-                    onClick={statsClickable ? () => navigate(`/bank/${member.id}`) : undefined}
-                  >
-                    {showBalance ? formatCents(member.mainBalanceCents) : '—'}
+                  <span className="relative">
+                    {isParent && member.pendingDepositCount > 0 && (
+                      <span className="absolute -top-1 -left-2.5 w-3 h-3 rounded-full bg-amber-400 dark:bg-amber-500 border-2 border-white dark:border-gray-800" title="Pending deposits" />
+                    )}
+                    <span
+                      className={`text-sm font-mono font-semibold text-gray-700 dark:text-gray-200 ${statsClickable ? 'cursor-pointer hover:text-brand-600' : ''}`}
+                      onClick={statsClickable ? () => navigate(`/bank/${member.id}`) : undefined}
+                    >
+                      {showBalance ? formatCents(member.mainBalanceCents) : '—'}
+                    </span>
                   </span>
                   {!readOnly && isParent && (
                     <QuickBankAdjust userId={member.id} onDone={onRefresh} requireCurrencyWork={member.requireCurrencyWork} large />

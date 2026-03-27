@@ -452,10 +452,13 @@ export default function Layout() {
         <header className="lg:hidden sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3 shadow-sm" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
           <button
             onClick={() => setBottomPanelOpen((o) => !o)}
-            className="p-1 -ml-1 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+            className="relative p-1 -ml-1 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
             aria-label="Open navigation menu"
           >
             <HamburgerIcon />
+            {((user?.role === 'parent' && inboxCount > 0) || (user?.role === 'kid' && (kidStats?.pendingDepositCount || dexiePendingDepositCount) > 0)) && (
+              <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-red-500 dark:bg-red-400 border-2 border-white dark:border-gray-800" />
+            )}
           </button>
           <Link to="/dashboard" className="font-bold text-brand-600 text-base hover:text-brand-700"><FontAwesomeIcon icon={faPeopleRoof} className="mr-2" />Family Dash</Link>
           <div className="ml-auto flex items-center gap-2">

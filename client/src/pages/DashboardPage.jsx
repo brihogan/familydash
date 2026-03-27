@@ -129,12 +129,6 @@ export default function DashboardPage() {
 
       {loading ? (
         <LoadingSkeleton rows={4} />
-      ) : blastMode ? (
-        <TicketBlast
-          members={sortedMembers}
-          onDone={() => setBlastMode(false)}
-          onRefresh={refresh}
-        />
       ) : (
         <>
           <DashboardTable
@@ -153,6 +147,14 @@ export default function DashboardPage() {
             </button>
           )}
         </>
+      )}
+
+      {blastMode && (
+        <TicketBlast
+          members={sortedMembers}
+          onDone={() => setBlastMode(false)}
+          onRefresh={refresh}
+        />
       )}
     </div>
   );

@@ -6,6 +6,8 @@
 - Added "Ticket Blast" button at bottom of dashboard (parent-only, when tickets enabled). Clicking it shows a drag-and-drop UI: kid cards with ticket counters and a ticket bucket. Drag tickets from bucket to kids to add, drag off a kid (or to bucket) to remove. Save button commits all deltas at once with optimistic Dexie updates + offline support.
 - Ticket blast kid cards now compact (2-col grid on mobile, 3-4 on wider). Each card always has a draggable token so tickets can be removed even below zero. Server ticket adjust endpoint no longer clamps to 0 — negative balances are allowed.
 - Kid-to-kid ticket transfers removed — dragging a ticket off a kid (anywhere except back on same card) decrements that kid and animates the ticket flying into the bucket (CSS keyframe animation).
+- Simplified Ticket Blast: removed drag-and-drop/bucket, now tap-only (+/- sides of card) with pop/shrink ticket animation. Fullscreen modal on mobile, phone-width on desktop.
+- Hamburger icon shows red notification dot when parent has inbox items or kid has pending deposits. Mini card mode now shows orange dot for pending deposits (matching full card mode).
 
 ---
 
