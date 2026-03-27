@@ -1,10 +1,11 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faHouse, faCompress, faExpand, faArrowDownWideShort, faCheck } from '@fortawesome/free-solid-svg-icons';
+import { faHouse, faCompress, faExpand, faArrowDownWideShort, faCheck, faTicket } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import useOfflineDashboard from '../offline/hooks/useOfflineDashboard.js';
 import DashboardTable from '../components/dashboard/DashboardTable.jsx';
+import TicketBlast from '../components/dashboard/TicketBlast.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 
 const SORT_OPTIONS = [
@@ -43,6 +44,7 @@ export default function DashboardPage() {
   const [sortKey, setSortKey] = useState('custom');
   const [miniCards, setMiniCards] = useState(() => localStorage.getItem('dash_mini') === '1');
   const [sortOpen, setSortOpen] = useState(false);
+  const [blastMode, setBlastMode] = useState(false);
   const sortRef = useRef(null);
 
   const toggleMini = () => {
@@ -127,13 +129,30 @@ export default function DashboardPage() {
 
       {loading ? (
         <LoadingSkeleton rows={4} />
-      ) : (
-        <DashboardTable
+      ) : blastMode ? (
+        <TicketBlast
           members={sortedMembers}
+          onDone={() => setBlastMode(false)}
           onRefresh={refresh}
-          maskPrivateData={!isParent}
-          miniCards={miniCards}
         />
+      ) : (
+        <>
+          <DashboardTable
+            members={sortedMembers}
+            onRefresh={refresh}
+            maskPrivateData={!isParent}
+            miniCards={miniCards}
+          />
+          {isParent && useTickets && (
+            <button
+              onClick={() => setBlastMode(true)}
+              className="mt-4 w-full py-3 rounded-xl text-sm font-semibold border-2 border-dashed border-amber-300 dark:border-amber-600 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+            >
+              <FontAwesomeIcon icon={faTicket} className="mr-2" />
+              Ticket Blast
+            </button>
+          )}
+        </>
       )}
     </div>
   );

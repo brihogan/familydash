@@ -61,13 +61,8 @@ router.post('/:id/tickets/adjust', authenticate, requireRole('parent'), (req, re
     const body = AdjustSchema.parse(req.body);
 
     const user = db.prepare('SELECT ticket_balance, family_id FROM users WHERE id = ?').get(userId);
-    const newBalance  = Math.max(0, user.ticket_balance + body.amount);
-    const actualAmount = newBalance - user.ticket_balance; // may differ from body.amount when clamped
-
-    // Nothing to do if balance is already 0 and removal requested
-    if (actualAmount === 0 && body.amount < 0) {
-      return res.json({ ticketBalance: newBalance, clamped: false });
-    }
+    const newBalance  = user.ticket_balance + body.amount;
+    const actualAmount = body.amount;
 
     const adjustTx = db.transaction(() => {
       db.prepare('UPDATE users SET ticket_balance = ? WHERE id = ?').run(newBalance, userId);

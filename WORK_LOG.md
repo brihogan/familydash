@@ -1,12 +1,29 @@
 # Work Log
 
+## Session Start: 2026-03-26 ~evening
+
+### 2026-03-26 — Ticket Blast drag-and-drop feature
+- Added "Ticket Blast" button at bottom of dashboard (parent-only, when tickets enabled). Clicking it shows a drag-and-drop UI: kid cards with ticket counters and a ticket bucket. Drag tickets from bucket to kids to add, drag off a kid (or to bucket) to remove. Save button commits all deltas at once with optimistic Dexie updates + offline support.
+- Ticket blast kid cards now compact (2-col grid on mobile, 3-4 on wider). Each card always has a draggable token so tickets can be removed even below zero. Server ticket adjust endpoint no longer clamps to 0 — negative balances are allowed.
+- Kid-to-kid ticket transfers removed — dragging a ticket off a kid (anywhere except back on same card) decrements that kid and animates the ticket flying into the bucket (CSS keyframe animation).
+
+---
+
 ## Session Start: 2026-03-25 ~8:00 PM
 
-### 2026-03-25 — Capacitor iOS setup
-- Installed Capacitor, added iOS platform. `npm run cap:build` builds + syncs, `npm run cap:open` opens Xcode.
+### 2026-03-25 — Capacitor iOS native app
+- Installed Capacitor with iOS platform. Enabled CapacitorHttp to bypass CORS for native API calls.
+- Added token-based auth for Capacitor (refresh token in request body + localStorage instead of httpOnly cookies, since CapacitorHttp has a separate cookie jar from WKWebView).
+- Safe area insets: header, nav panel, modals, and main content all respect iPhone notch/island.
+- Suppressed PWA install prompt in native app. Server returns refreshToken in response body for native clients.
+- Emojis show as `?` in simulator only — confirmed correct in DOM, likely simulator font limitation (works on real devices).
+- Apple Developer membership renewed; waiting for activation to deploy to real device.
 
-### 2026-03-25 — Ticket count on chores page
-- Added live ticket balance display to `/chores/:userId`, positioned right of the profile picker row. Updates reactively as chores are checked off via the existing optimistic Dexie cache.
+### 2026-03-25 — Chores page improvements
+- Live ticket balance with rolling slot-machine animation on chore toggle (RollingNumber component).
+- Compact DateNav: 3-letter day abbreviation, tight spacing, tap to jump to today, brand pill for current day.
+- Chore item rows get white/dark bg for contrast. Progress bar + tickets on same row for kid view.
+- Ticket animation only triggers on chore toggle, not on user switch or page load.
 
 ---
 
