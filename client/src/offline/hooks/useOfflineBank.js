@@ -31,6 +31,11 @@ export default function useOfflineBank(userId) {
     [uid],
   );
 
+  const recurringRules = useLiveQuery(
+    () => db.recurringRules.where('userId').equals(uid).toArray(),
+    [uid],
+  );
+
   // Get transactions for a specific account
   const getTransactionsForAccount = useCallback((accountId) => {
     if (!allTransactions) return [];
@@ -45,12 +50,13 @@ export default function useOfflineBank(userId) {
     if (pendingCount > 0) { setLoading(false); return; }
 
     try {
-      const [accountsData, pdData] = await Promise.all([
+      const [accountsData, pdData, rulesData] = await Promise.all([
         accountsApi.getAccounts(userId),
         accountsApi.getPendingDeposits(userId),
+        accountsApi.getRecurringRules(userId).catch(() => ({ rules: [] })),
       ]);
 
-      await db.transaction('rw', db.bankAccounts, db.pendingDeposits, db.syncMeta, async () => {
+      await db.transaction('rw', db.bankAccounts, db.pendingDeposits, db.recurringRules, db.syncMeta, async () => {
         await db.bankAccounts.where('userId').equals(uid).delete();
         if (accountsData.accounts.length > 0) {
           await db.bankAccounts.bulkPut(
@@ -62,6 +68,12 @@ export default function useOfflineBank(userId) {
         const pds = pdData.pending_deposits || [];
         if (pds.length > 0) {
           await db.pendingDeposits.bulkPut(pds.map((pd) => ({ ...pd, userId: uid })));
+        }
+
+        await db.recurringRules.where('userId').equals(uid).delete();
+        const rules = rulesData.rules || [];
+        if (rules.length > 0) {
+          await db.recurringRules.bulkPut(rules.map((r) => ({ ...r, userId: uid })));
         }
 
         await db.syncMeta.put({ key: `bank-${uid}`, lastSync: Date.now() });
@@ -267,13 +279,28 @@ export default function useOfflineBank(userId) {
     if (!navigator.onLine) showToast('Saved locally — will sync when online');
   }, [userId, uid]);
 
+  const refreshRules = useCallback(async () => {
+    try {
+      const rulesData = await accountsApi.getRecurringRules(userId);
+      await db.transaction('rw', db.recurringRules, async () => {
+        await db.recurringRules.where('userId').equals(uid).delete();
+        const rules = rulesData.rules || [];
+        if (rules.length > 0) {
+          await db.recurringRules.bulkPut(rules.map((r) => ({ ...r, userId: uid })));
+        }
+      });
+    } catch { /* offline — cached is fine */ }
+  }, [userId, uid]);
+
   return {
     accounts: accounts || [],
     getTransactionsForAccount,
     pendingDeposits: pendingDeposits || [],
+    recurringRules: recurringRules || [],
     loading: loading && accounts === undefined,
     createTransaction,
     claimPendingDeposit,
     refresh,
+    refreshRules,
   };
 }

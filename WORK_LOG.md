@@ -1,5 +1,18 @@
 # Work Log
 
+## Session Start: 2026-03-29 (session 2)
+
+### 2026-03-29 — Eager prefetch + offline trophies + recurring rules + README
+- **Eager prefetch**: New `prefetchAllData()` in syncEngine fires immediately after auth confirms (no 2s delay). Fetches in 3 priority waves: critical (dashboard/family/chores), important (bank/tickets/rewards), deferred (trophies/overview/activity/recurring/yesterday chores). Every page loads instantly from Dexie after initial load.
+- **Trophies offline**: New `trophyCache` Dexie table + `useOfflineTrophies` hook. KidTrophiesPage now uses offline hooks instead of direct API calls.
+- Added `refreshTrophies()` and `refreshRecurringRules()` to syncEngine's `pullFreshData` so periodic sync covers all data types.
+
+### 2026-03-29 — Offline recurring rules + README updates
+- Recurring rules now cached in Dexie (new `recurringRules` table, version 6). Fetched alongside accounts/pending deposits in `useOfflineBank`, so switching kids on the bank page is instant. KidBankPage no longer does its own separate fetch.
+- README updated with Offline Support section describing the Dexie-based offline-first architecture, and Dexie added to the Architecture table.
+
+---
+
 ## Session Start: 2026-03-29
 
 ### 2026-03-29 — Admin dashboard feature

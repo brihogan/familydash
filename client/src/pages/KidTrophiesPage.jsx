@@ -1,12 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import KidProfilePicker from '../components/shared/KidProfilePicker.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
-import { taskSetsApi } from '../api/taskSets.api.js';
-import { familyApi } from '../api/family.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import useOfflineTrophies from '../offline/hooks/useOfflineTrophies.js';
+import useOfflineFamily from '../offline/hooks/useOfflineFamily.js';
 import { formatDate } from '../utils/formatDate.js';
 
 const TYPE_OPTIONS = ['Project', 'Award'];
@@ -34,48 +32,9 @@ export default function KidTrophiesPage() {
   const { user }   = useAuth();
   const isParent   = user?.role === 'parent';
 
-  const [trophies,        setTrophies]        = useState([]);
-  const [streaks,         setStreaks]         = useState({ current: 0, longest: 0 });
-  const [savingsStreak,   setSavingsStreak]   = useState(null);
-  const [crownStreak,     setCrownStreak]     = useState({ current: 0, longest: 0 });
-  const [hasKingOfCrowns, setHasKingOfCrowns] = useState(false);
-  const [memberName,  setMemberName]  = useState('');
-  const [kids,        setKids]        = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [error,       setError]       = useState('');
-
-  const fetchTrophies = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [taskData, familyData] = await Promise.all([
-        taskSetsApi.getUserTaskSets(userId),
-        familyApi.getFamily(),
-      ]);
-      const completed = taskData.taskSets
-        .filter((ts) => ts.type === 'Award' && ts.step_count > 0 && ts.completed_count === ts.step_count
-          && ts.completion_status !== 'pending' && !(ts.pending_step_count > 0))
-        .sort((a, b) => {
-          if (!a.earned_at && !b.earned_at) return 0;
-          if (!a.earned_at) return 1;
-          if (!b.earned_at) return -1;
-          return b.earned_at.localeCompare(a.earned_at);
-        });
-      setTrophies(completed);
-      setStreaks(taskData.streaks ?? { current: 0, longest: 0 });
-      setSavingsStreak(taskData.savingsStreak ?? null);
-      setCrownStreak(taskData.crownStreak ?? { current: 0, longest: 0 });
-      setHasKingOfCrowns(taskData.hasKingOfCrowns ?? false);
-      const member = familyData.members.find((m) => m.id === parseInt(userId, 10));
-      if (member) setMemberName(member.name);
-      if (isParent) setKids(familyData.members.filter((m) => (m.role === 'kid' || !!m.chores_enabled) && m.is_active));
-    } catch {
-      setError('Failed to load trophies.');
-    } finally {
-      setLoading(false);
-    }
-  }, [userId, isParent]);
-
-  useEffect(() => { fetchTrophies(); }, [fetchTrophies]);
+  const { trophies, streaks, savingsStreak, crownStreak, hasKingOfCrowns, loading } = useOfflineTrophies(userId);
+  const { kids, members } = useOfflineFamily();
+  const memberName = members.find((m) => m.id === parseInt(userId, 10))?.name || '';
 
   const SPARKLE_POSITIONS = [
     { top: '6%',  left: '10%', delay: '0s',   dur: '1.4s' },
@@ -193,12 +152,6 @@ export default function KidTrophiesPage() {
       </div>
       {isParent && kids.length > 1 && (
         <KidProfilePicker kids={kids} currentId={userId} routePrefix="/trophies" />
-      )}
-
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-4 py-3 mb-4 text-sm">
-          {error}
-        </div>
       )}
 
       {loading ? (

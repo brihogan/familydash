@@ -15,7 +15,7 @@ import { familyApi } from '../../api/family.api.js';
 import { overviewApi } from '../../api/overview.api.js';
 import { taskSetsApi } from '../../api/taskSets.api.js';
 import { accountsApi } from '../../api/accounts.api.js';
-import { inboxApi } from '../../api/inbox.api.js';
+
 import { formatCents } from '../../utils/formatCents.js';
 import InstallPrompt from './InstallPrompt.jsx';
 import useScrollLock from '../../hooks/useScrollLock.js';
@@ -67,7 +67,6 @@ export default function Layout() {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [defaultMemberId, setDefaultMemberId] = useState(null);
   const [kidStats, setKidStats] = useState(null);
-  const [inboxCount, setInboxCount] = useState(0);
   const { isOnline, pendingCount } = useSyncStatus();
 
   // Reactive pending deposit count from Dexie (works offline)
@@ -108,14 +107,15 @@ export default function Layout() {
     return () => window.removeEventListener('kid-stats-updated', refreshKidStats);
   }, [refreshKidStats]);
 
-  // Fetch inbox count for parent nav badge; re-fetch whenever InboxPage signals a change
-  useEffect(() => {
-    if (user?.role !== 'parent') return;
-    const refresh = () => inboxApi.getInboxCount().then(({ count }) => setInboxCount(count)).catch(() => {});
-    refresh();
-    window.addEventListener('inbox-updated', refresh);
-    return () => window.removeEventListener('inbox-updated', refresh);
-  }, [user?.role]);
+  // Reactive inbox count from Dexie cache (works offline, updated by prefetch/sync)
+  const inboxCache = useLiveQuery(
+    () => user?.role === 'parent' && user?.familyId ? db.inboxCache.get(user.familyId) : undefined,
+    [user?.role, user?.familyId],
+  );
+  const inboxCount = (inboxCache?.kids || []).reduce(
+    (sum, k) => sum + k.chores.length + k.steps.length + (k.setCompletions || []).length,
+    0,
+  );
 
   // Fetch default member for "Individual Pages" nav links
   useEffect(() => {

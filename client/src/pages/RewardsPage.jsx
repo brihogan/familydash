@@ -176,12 +176,12 @@ function EarningReference({ kids }) {
 function ProfilePicker({ kids, selectedKidId, onSelect }) {
   const isManageMode = selectedKidId === null;
   return (
-    <div className="flex items-center gap-2 mb-5">
+    <div className="flex items-center gap-2 mb-5 p-1 overflow-x-auto scrollbar-hide">
       <button onClick={() => onSelect(null)}
-        className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all ${
+        className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors border-2 ${
           isManageMode
-            ? 'ring-2 ring-brand-500 ring-offset-2 dark:ring-offset-gray-900 bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400'
-            : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 opacity-50 hover:opacity-75'
+            ? 'border-brand-500 bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400'
+            : 'border-transparent bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 opacity-50 hover:opacity-75'
         }`} title="Manage rewards">
         <FontAwesomeIcon icon={faGear} className="text-lg" />
       </button>
@@ -189,8 +189,8 @@ function ProfilePicker({ kids, selectedKidId, onSelect }) {
         const isSelected = selectedKidId === kid.id;
         return (
           <button key={kid.id} onClick={() => onSelect(kid.id)}
-            className={`rounded-full transition-all ${
-              isSelected ? 'ring-2 ring-brand-500 ring-offset-2 dark:ring-offset-gray-900' : 'opacity-40 hover:opacity-70'
+            className={`rounded-full shrink-0 border-2 transition-colors ${
+              isSelected ? 'border-brand-500' : 'border-transparent opacity-40 hover:opacity-70'
             }`} title={kid.name}>
             <Avatar name={kid.name} color={kid.avatar_color || '#6366f1'} emoji={kid.avatar_emoji} size="md" />
           </button>

@@ -85,6 +85,61 @@ router.patch('/:id/accounts/:aid', authenticate, requireRole('parent'), (req, re
   }
 });
 
+// ─── GET /api/users/:id/accounts/:aid/balance-history ─────────────────────
+
+router.get('/:id/accounts/:aid/balance-history', authenticate, requireOwnOrParent, (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const accountId = parseInt(req.params.aid, 10);
+    assertSameFamily(userId, req.user.familyId);
+    assertAccountOwner(accountId, userId);
+
+    const numDays = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+
+    // Current balance
+    const account = db.prepare('SELECT balance_cents FROM accounts WHERE id = ?').get(accountId);
+    if (!account) return res.status(404).json({ error: 'Account not found.' });
+
+    // Net change per day for the last N days
+    const fromDate = new Date();
+    fromDate.setHours(0, 0, 0, 0);
+    fromDate.setDate(fromDate.getDate() - numDays + 1);
+    const fromISO = fromDate.toISOString().replace('T', ' ').slice(0, 19);
+
+    const dailyNets = db.prepare(`
+      SELECT date(created_at) AS day, SUM(amount_cents) AS net
+      FROM transactions
+      WHERE account_id = ? AND created_at >= ?
+      GROUP BY date(created_at)
+      ORDER BY day ASC
+    `).all(accountId, fromISO);
+
+    const netByDay = {};
+    for (const row of dailyNets) netByDay[row.day] = row.net;
+
+    // Walk backwards from current balance to compute end-of-day balances
+    const days = [];
+    let balance = account.balance_cents;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Build array from today back to fromDate, then reverse
+    for (let i = 0; i < numDays; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      days.push({ date: key, balance_cents: balance });
+      // Subtract this day's net to get the previous day's closing balance
+      if (netByDay[key]) balance -= netByDay[key];
+    }
+
+    days.reverse();
+    res.json({ days });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── GET /api/users/:id/accounts/:aid/transactions ────────────────────────
 
 router.get('/:id/accounts/:aid/transactions', authenticate, requireOwnOrParent, (req, res, next) => {

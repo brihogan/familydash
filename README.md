@@ -55,6 +55,18 @@ Self-hosted family web app for chores, bank accounts, and a ticket/rewards syste
 - Activate/deactivate users (soft delete)
 - Per-kid settings: approval requirements, currency work, withdraw/transfer permissions
 
+### Offline Support
+- Offline-first architecture using **Dexie** (IndexedDB wrapper) for local caching
+- All data cached locally: chores, bank accounts, transactions, tickets, recurring rules, rewards, trophies, inbox, family activity, and family members
+- **Wave-based prefetch** — immediately after login/auth, all data is eagerly fetched in priority waves so every page loads instantly:
+  - **Wave 1 (critical):** dashboard, family members, today's chores, inbox count
+  - **Wave 2 (important):** bank accounts, tickets, rewards
+  - **Wave 3 (deferred):** trophies, overview, activity, recurring rules, yesterday's chores
+- Optimistic UI updates — actions (completing chores, bank transactions, ticket adjustments) apply instantly to the local cache
+- Mutation queue with automatic sync — offline changes are queued and replayed when connectivity returns
+- Sync engine triggers on: coming back online, tab visibility change, and periodic 60-second intervals
+- Cached session fallback — users stay logged in even if the server is unreachable
+
 ### Other
 - Dark/light/system theme
 - Mobile-friendly with responsive layout
@@ -130,6 +142,7 @@ The user must log out and back in to pick up the new admin status.
 | Layer | Tech |
 |---|---|
 | Frontend | React 18 + Vite + Tailwind CSS |
+| Offline cache | Dexie (IndexedDB) with mutation queue + sync engine |
 | Backend | Node.js (ESM) + Express |
 | Database | SQLite (better-sqlite3) |
 | Auth | JWT access token (in memory) + refresh token (httpOnly cookie) |

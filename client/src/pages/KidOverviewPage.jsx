@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTachographDigital, faCrown, faBroom, faGear, faRightFromBracket } from '@fortawesome/free-solid-svg-icons';
@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import useOfflineOverview from '../offline/hooks/useOfflineOverview.js';
 import useOfflineFamily from '../offline/hooks/useOfflineFamily.js';
+import { accountsApi } from '../api/accounts.api.js';
 import { formatCents } from '../utils/formatCents.js';
 import useScrollLock from '../hooks/useScrollLock.js';
 import ActivityRow, { GroupedActivityList } from '../components/shared/ActivityRow.jsx';
@@ -178,6 +179,93 @@ function WeeklyChart({ data }) {
   );
 }
 
+// ─── Balance chart (30 days) ──────────────────────────────────────────────────
+
+function BalanceChart({ data }) {
+  if (!data || data.length === 0) {
+    return <p className="text-sm text-gray-400 text-center py-8">No balance data available</p>;
+  }
+
+  const balances = data.map((d) => d.balance_cents);
+  const minBal = Math.min(...balances);
+  const maxBal = Math.max(...balances);
+  const range = maxBal - minBal || 1;
+
+  const W = 400;
+  const H = 120;
+  const PAD_X = 0;
+  const PAD_TOP = 8;
+  const PAD_BOT = 4;
+  const chartH = H - PAD_TOP - PAD_BOT;
+
+  const points = data.map((d, i) => {
+    const x = PAD_X + (i / (data.length - 1)) * (W - PAD_X * 2);
+    const y = PAD_TOP + chartH - ((d.balance_cents - minBal) / range) * chartH;
+    return `${x},${y}`;
+  });
+
+  const polyline = points.join(' ');
+  const polygon = `${PAD_X},${H - PAD_BOT} ${polyline} ${W - PAD_X},${H - PAD_BOT}`;
+
+  // X-axis labels — show ~5 evenly spaced dates
+  const labelCount = Math.min(5, data.length);
+  const labels = [];
+  for (let i = 0; i < labelCount; i++) {
+    const idx = Math.round((i / (labelCount - 1)) * (data.length - 1));
+    const d = new Date(data[idx].date + 'T12:00:00');
+    labels.push({
+      x: PAD_X + (idx / (data.length - 1)) * (W - PAD_X * 2),
+      label: `${d.getMonth() + 1}/${d.getDate()}`,
+    });
+  }
+
+  const currentBal = data[data.length - 1].balance_cents;
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-2">
+        <span className="text-lg font-bold font-mono text-gray-900 dark:text-gray-100">
+          {formatCents(currentBal)}
+        </span>
+        <span className="text-xs text-gray-400 dark:text-gray-500">30-day balance</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H + 16}`} className="w-full" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="balFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgb(99,102,241)" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="rgb(99,102,241)" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {/* Grid lines */}
+        {[0, 0.5, 1].map((pct) => {
+          const y = PAD_TOP + chartH - pct * chartH;
+          return <line key={pct} x1={PAD_X} y1={y} x2={W - PAD_X} y2={y} stroke="currentColor" className="text-gray-200 dark:text-gray-700" strokeWidth="0.5" />;
+        })}
+        {/* Fill area */}
+        <polygon points={polygon} fill="url(#balFill)" />
+        {/* Line */}
+        <polyline points={polyline} fill="none" stroke="rgb(99,102,241)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        {/* End dot */}
+        {(() => {
+          const last = points[points.length - 1].split(',');
+          return <circle cx={last[0]} cy={last[1]} r="3" fill="rgb(99,102,241)" />;
+        })()}
+        {/* X labels */}
+        {labels.map((l, i) => (
+          <text key={i} x={l.x} y={H + 12} textAnchor="middle" className="fill-gray-400 dark:fill-gray-500" fontSize="10">
+            {l.label}
+          </text>
+        ))}
+      </svg>
+      {/* Y range labels */}
+      <div className="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 mt-1 px-0.5">
+        <span>Low: {formatCents(minBal)}</span>
+        <span>High: {formatCents(maxBal)}</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Stat cards ───────────────────────────────────────────────────────────────
 
 function StatCard({ onClick, children, accent = 'brand' }) {
@@ -209,6 +297,10 @@ export default function KidOverviewPage() {
     useOfflineOverview(userId);
   const { kids: allKids, members: familyMembers } = useOfflineFamily();
 
+  const [chartTab, _setChartTab] = useState(() => localStorage.getItem('overviewChartTab') || 'activity');
+  const setChartTab = useCallback((tab) => { _setChartTab(tab); localStorage.setItem('overviewChartTab', tab); }, []);
+  const [balanceHistory, setBalanceHistory] = useState(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
   const [actDateKey,  setActDateKey]  = useState('today');
   const [actTypeKey,  setActTypeKey]  = useState('all');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -253,6 +345,26 @@ export default function KidOverviewPage() {
 
   const fetchActivity = refreshActivity;
 
+  // Lazy-fetch balance history when Balance tab is selected
+  const fetchBalanceHistory = useCallback(async (accountId) => {
+    setBalanceLoading(true);
+    try {
+      const data = await accountsApi.getBalanceHistory(userId, accountId, 30);
+      setBalanceHistory(data.days);
+    } catch { /* ignore */ }
+    finally { setBalanceLoading(false); }
+  }, [userId]);
+
+  // Reset balance data when user changes
+  useEffect(() => { setBalanceHistory(null); }, [userId]);
+
+  const mainAccountId = overview?.accounts?.find((a) => a.type === 'main')?.id;
+
+  // Auto-fetch balance when Balance tab is persisted and user switches kids
+  useEffect(() => {
+    if (chartTab === 'balance' && !balanceHistory && mainAccountId) fetchBalanceHistory(mainAccountId);
+  }, [chartTab, balanceHistory, mainAccountId, fetchBalanceHistory]);
+
   if (loading && !overview) return <LoadingSkeleton rows={6} />;
   if (!overview) return null;
 
@@ -292,10 +404,46 @@ export default function KidOverviewPage() {
         <KidProfilePicker kids={kids} currentId={userId} routePrefix="/kid" />
       )}
 
-      {/* ── 7-day chart ── */}
+      {/* ── Chart card with tabs ── */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Last 7 Days</h2>
-        <WeeklyChart data={last7Days} />
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
+            <button
+              onClick={() => setChartTab('activity')}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                chartTab === 'activity'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              Activity
+            </button>
+            {showBanking && mainAccount && (
+              <button
+                onClick={() => {
+                  setChartTab('balance');
+                  if (!balanceHistory) fetchBalanceHistory(mainAccount.id);
+                }}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                  chartTab === 'balance'
+                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                Balance
+              </button>
+            )}
+          </div>
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            {chartTab === 'activity' ? 'Last 7 Days' : 'Last 30 Days'}
+          </span>
+        </div>
+        {chartTab === 'activity' && <WeeklyChart data={last7Days} />}
+        {chartTab === 'balance' && (
+          balanceLoading
+            ? <div className="flex items-center justify-center py-12 text-gray-400 text-sm">Loading...</div>
+            : <BalanceChart data={balanceHistory} />
+        )}
       </div>
 
       {/* ── Stat cards ── */}

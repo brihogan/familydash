@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect } from 'rea
 import { authApi } from '../api/auth.api.js';
 import { setTokenGetter, setRefreshHandler } from '../api/client.js';
 import { cacheSession, getCachedSession, clearDataOnLogout } from '../offline/authOffline.js';
+import { prefetchAllData } from '../offline/syncEngine.js';
 
 const AuthContext = createContext(null);
 
@@ -34,6 +35,7 @@ export function AuthProvider({ children }) {
         const u = userFromToken(data.accessToken);
         setUser(u);
         cacheSession(u);
+        prefetchAllData(u);
       })
       .catch(async () => {
         // Network error or no valid refresh token — try offline fallback
@@ -60,6 +62,7 @@ export function AuthProvider({ children }) {
     setUser(u);
     setIsOfflineSession(false);
     cacheSession(u);
+    prefetchAllData(u);
     return u;
   }, []);
 

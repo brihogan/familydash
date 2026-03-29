@@ -8,6 +8,8 @@ export const accountsApi = {
 
   getTransactions: (userId, accountId, params) =>
     client.get(`/users/${userId}/accounts/${accountId}/transactions`, { params }).then((r) => r.data),
+  getBalanceHistory: (userId, accountId, days = 30) =>
+    client.get(`/users/${userId}/accounts/${accountId}/balance-history`, { params: { days } }).then((r) => r.data),
   createTransaction: (userId, accountId, data) =>
     client.post(`/users/${userId}/accounts/${accountId}/transactions`, data).then((r) => r.data),
 

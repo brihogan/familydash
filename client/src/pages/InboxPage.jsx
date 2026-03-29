@@ -1,33 +1,18 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { inboxApi } from '../api/inbox.api.js';
+import useOfflineInbox from '../offline/hooks/useOfflineInbox.js';
 import Avatar from '../components/shared/Avatar.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import { relativeTime } from '../utils/relativeTime.js';
 
 export default function InboxPage() {
   const navigate = useNavigate();
-  const [kids, setKids] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { kids, loading, refresh: fetchInbox } = useOfflineInbox();
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState(new Set()); // "chore:id" or "step:id"
-
-  const fetchInbox = useCallback(async () => {
-    setError('');
-    try {
-      const data = await inboxApi.getInbox();
-      setKids(data.kids);
-      window.dispatchEvent(new CustomEvent('inbox-updated'));
-    } catch {
-      setError('Failed to load inbox.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchInbox(); }, [fetchInbox]);
 
   const allChoreIds = kids.flatMap((k) => k.chores.map((c) => c.id));
   const allStepIds  = kids.flatMap((k) => k.steps.map((s) => s.id));

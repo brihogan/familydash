@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft } from '@fortawesome/free-solid-svg-icons';
 import { inboxApi } from '../api/inbox.api.js';
+import useOfflineInbox from '../offline/hooks/useOfflineInbox.js';
 import Avatar from '../components/shared/Avatar.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import { relativeTime } from '../utils/relativeTime.js';
@@ -11,28 +12,12 @@ export default function InboxKidPage() {
   const { kidId } = useParams();
   const navigate  = useNavigate();
 
-  const [kid,           setKid]           = useState(null);
-  const [loading,       setLoading]       = useState(true);
+  const { kids, loading, refresh: fetchKidInbox } = useOfflineInbox();
+  const kid = kids.find((k) => String(k.id) === kidId) || null;
   const [error,         setError]         = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [selectMode,    setSelectMode]    = useState(false);
   const [selected,      setSelected]      = useState(new Set());
-
-  const fetchKidInbox = useCallback(async () => {
-    setError('');
-    try {
-      const data  = await inboxApi.getInbox();
-      const found = data.kids.find((k) => String(k.id) === kidId);
-      setKid(found || null);
-      window.dispatchEvent(new CustomEvent('inbox-updated'));
-    } catch {
-      setError('Failed to load inbox.');
-    } finally {
-      setLoading(false);
-    }
-  }, [kidId]);
-
-  useEffect(() => { fetchKidInbox(); }, [fetchKidInbox]);
 
   if (loading) return (
     <div>

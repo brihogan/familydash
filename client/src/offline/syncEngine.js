@@ -10,6 +10,8 @@ import { rewardsApi } from '../api/rewards.api.js';
 import { accountsApi } from '../api/accounts.api.js';
 import { overviewApi } from '../api/overview.api.js';
 import { activityApi } from '../api/activity.api.js';
+import { taskSetsApi } from '../api/taskSets.api.js';
+import { inboxApi } from '../api/inbox.api.js';
 import { todayISO, yesterdayISO } from '../utils/formatDate.js';
 
 let locked = false;
@@ -104,8 +106,13 @@ async function pullFreshData() {
     fetches.push(refreshBank(user.userId));
     fetches.push(refreshOverview(user.userId));
     fetches.push(refreshActivity(user.userId));
+    fetches.push(refreshTrophies(user.userId));
+    fetches.push(refreshRecurringRules(user.userId));
   } else {
-    // Parent — refresh chores + tickets + bank + overview for all kids
+    // Parent — refresh inbox + family activity + all data for all kids
+    fetches.push(refreshInbox(user.familyId));
+    fetches.push(refreshFamilyActivity(user.familyId));
+
     const kids = await db.familyMembers
       .where('role').equals('kid')
       .toArray();
@@ -117,6 +124,8 @@ async function pullFreshData() {
       fetches.push(refreshBank(kid.id));
       fetches.push(refreshOverview(kid.id));
       fetches.push(refreshActivity(kid.id));
+      fetches.push(refreshTrophies(kid.id));
+      fetches.push(refreshRecurringRules(kid.id));
     }
   }
 
@@ -264,10 +273,121 @@ async function refreshActivity(userId) {
   } catch { /* network error — skip */ }
 }
 
+async function refreshFamilyActivity(familyId) {
+  try {
+    // Cache today's activity (default view) — no filters, first page
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    const from = d.toISOString().replace('T', ' ').slice(0, 19);
+    const data = await activityApi.getFamilyActivity({ from, limit: 200 });
+    await db.familyActivityCache.put({ familyId, activity: data.activity, total: data.total, lastSync: Date.now() });
+    await db.syncMeta.put({ key: `familyActivity-${familyId}`, lastSync: Date.now() });
+  } catch { /* network error — skip */ }
+}
+
+async function refreshInbox(familyId) {
+  try {
+    const data = await inboxApi.getInbox();
+    await db.inboxCache.put({ familyId, kids: data.kids, lastSync: Date.now() });
+    await db.syncMeta.put({ key: `inbox-${familyId}`, lastSync: Date.now() });
+    window.dispatchEvent(new CustomEvent('inbox-updated'));
+  } catch { /* network error — skip */ }
+}
+
+async function refreshTrophies(userId) {
+  try {
+    const uid = Number(userId);
+    const data = await taskSetsApi.getUserTaskSets(userId);
+    await db.trophyCache.put({ userId: uid, ...data, lastSync: Date.now() });
+    await db.syncMeta.put({ key: `trophies-${uid}`, lastSync: Date.now() });
+  } catch { /* network error — skip */ }
+}
+
+async function refreshRecurringRules(userId) {
+  try {
+    const uid = Number(userId);
+    const data = await accountsApi.getRecurringRules(userId);
+    await db.transaction('rw', db.recurringRules, db.syncMeta, async () => {
+      await db.recurringRules.where('userId').equals(uid).delete();
+      const rules = data.rules || [];
+      if (rules.length > 0) {
+        await db.recurringRules.bulkPut(rules.map((r) => ({ ...r, userId: uid })));
+      }
+      await db.syncMeta.put({ key: `recurring-${uid}`, lastSync: Date.now() });
+    });
+  } catch { /* network error — skip */ }
+}
+
 /** Called by mutation hooks to flush queue immediately after an API call. */
 export function tryFlush() {
   // Small delay to let the server settle
   setTimeout(processQueue, 500);
+}
+
+/**
+ * Eagerly prefetch all offline data in priority waves.
+ * Call after auth confirms (fire-and-forget).
+ *
+ * Wave 1 (critical): dashboard + family + today's chores
+ * Wave 2 (important): bank + tickets + rewards
+ * Wave 3 (deferred): trophies + overview + activity + recurring rules + yesterday's chores
+ */
+export async function prefetchAllData(user) {
+  if (!user || locked || !navigator.onLine) return;
+  locked = true;
+
+  try {
+    // Check for pending mutations — let the queue drain first
+    const pendingCount = await db.mutationQueue
+      .where('status').anyOf('pending', 'processing').count();
+    if (pendingCount > 0) return;
+
+    const today = todayISO();
+    const yesterday = yesterdayISO();
+
+    // Resolve user IDs to prefetch for
+    let userIds;
+    if (user.role === 'kid') {
+      userIds = [user.id];
+    } else {
+      // Parent — fetch family first to discover kids
+      await refreshFamilyMembers();
+      const kids = await db.familyMembers
+        .where('role').equals('kid')
+        .toArray();
+      userIds = kids.map((k) => k.id);
+    }
+
+    // Wave 1: critical — what the user sees first
+    const wave1 = [
+      refreshDashboard(),
+      ...userIds.map((id) => refreshChores(id, today)),
+    ];
+    if (user.role === 'kid') wave1.push(refreshFamilyMembers());
+    if (user.role === 'parent') wave1.push(refreshInbox(user.familyId));
+    await Promise.allSettled(wave1);
+
+    // Wave 2: important — bank and tickets pages
+    const wave2 = [
+      refreshRewards(),
+      ...userIds.map((id) => refreshTickets(id)),
+      ...userIds.map((id) => refreshBank(id)),
+    ];
+    await Promise.allSettled(wave2);
+
+    // Wave 3: deferred — everything else
+    const wave3 = [
+      ...userIds.map((id) => refreshTrophies(id)),
+      ...userIds.map((id) => refreshOverview(id)),
+      ...userIds.map((id) => refreshActivity(id)),
+      ...userIds.map((id) => refreshRecurringRules(id)),
+      ...userIds.map((id) => refreshChores(id, yesterday)),
+    ];
+    if (user.role === 'parent') wave3.push(refreshFamilyActivity(user.familyId));
+    await Promise.allSettled(wave3);
+  } finally {
+    locked = false;
+  }
 }
 
 /** Initialize the sync engine. Call once at app startup. */

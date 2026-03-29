@@ -137,7 +137,6 @@ export default function KidBankPage() {
   const isParent = user?.role === 'parent';
 
   const [selectedAccount, setSelectedAccount] = useState(null);
-  const [rules, setRules] = useState([]);
   const [txModal, setTxModal] = useState(null);
   const [ruleModal, setRuleModal] = useState(false);
   const [addAccountModal, setAddAccountModal] = useState(false);
@@ -150,7 +149,7 @@ export default function KidBankPage() {
   const [receivePopover, setReceivePopover] = useState(null);
 
   // Offline hooks
-  const { accounts, getTransactionsForAccount, pendingDeposits, loading, claimPendingDeposit, refresh } =
+  const { accounts, getTransactionsForAccount, pendingDeposits, recurringRules: rules, loading, claimPendingDeposit, refresh, refreshRules } =
     useOfflineBank(userId);
   const { kids, members } = useOfflineFamily();
 
@@ -200,15 +199,6 @@ export default function KidBankPage() {
     return txs;
   }, [selectedAccount, getTransactionsForAccount, dateKey]);
 
-  // Fetch recurring rules (online-only feature)
-  const fetchRules = useCallback(async () => {
-    if (!isParent) return;
-    try {
-      const data = await accountsApi.getRecurringRules(userId);
-      setRules(data.rules);
-    } catch {}
-  }, [userId, isParent]);
-  useEffect(() => { fetchRules(); }, [fetchRules]);
 
   // Auto-open first pending deposit when navigated from dashboard indicator
   useEffect(() => {
@@ -233,7 +223,7 @@ export default function KidBankPage() {
 
   const handleDeleteRule = async (ruleId) => {
     await accountsApi.deleteRecurringRule(userId, ruleId);
-    fetchRules();
+    refreshRules();
   };
 
   const handleEditAccount = async ({ name, type }) => {
@@ -434,7 +424,7 @@ export default function KidBankPage() {
               onSave={async (data) => {
                 await accountsApi.createRecurringRule(userId, data);
                 setRuleModal(false);
-                fetchRules();
+                refreshRules();
               }}
             />
           </Modal>

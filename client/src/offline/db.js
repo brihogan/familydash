@@ -33,4 +33,20 @@ db.version(5).stores({
   activityCache:      'userId',
 });
 
+db.version(6).stores({
+  recurringRules:     'id, userId',
+});
+
+db.version(7).stores({
+  trophyCache:        'userId',
+});
+
+db.version(8).stores({
+  inboxCache:         'familyId',
+});
+
+db.version(9).stores({
+  familyActivityCache: 'familyId',
+});
+
 export default db;

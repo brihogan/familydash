@@ -2,9 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faScroll } from '@fortawesome/free-solid-svg-icons';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { activityApi } from '../api/activity.api.js';
-import { familyApi } from '../api/family.api.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
+import useOfflineFamily from '../offline/hooks/useOfflineFamily.js';
+import dexieDb from '../offline/db.js';
 import ActivityRow, { GroupedActivityList } from '../components/shared/ActivityRow.jsx';
 import EmptyState from '../components/shared/EmptyState.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
@@ -54,7 +57,10 @@ const PAGE_SIZE = 30;
 
 export default function FamilyActivityPage() {
   const location = useLocation();
+  const { user } = useAuth();
   const { useBanking, useSets, useTickets } = useFamilySettings();
+  const { members: allMembers } = useOfflineFamily();
+  const members = allMembers.filter(mb => mb.is_active && mb.show_on_dashboard);
 
   // filter state — pre-populate userId from ?userId= query param if present
   const [dateKey, setDateKey]   = useState('today');
@@ -65,16 +71,15 @@ export default function FamilyActivityPage() {
   const [activity,  setActivity]  = useState([]);
   const [total,     setTotal]     = useState(0);
   const [page,      setPage]      = useState(1);
-  const [members,   setMembers]   = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState('');
 
-  // Load family members once for the person filter
-  useEffect(() => {
-    familyApi.getFamily()
-      .then(({ members: m }) => setMembers(m.filter(mb => mb.is_active && mb.show_on_dashboard)))
-      .catch(() => {});
-  }, []);
+  // Use cached family activity for the default "today" view
+  const cachedActivity = useLiveQuery(
+    () => user?.familyId ? dexieDb.familyActivityCache.get(user.familyId) : undefined,
+    [user?.familyId],
+  );
+  const isDefaultView = dateKey === 'today' && typeKey === 'all' && !userId;
 
   const buildParams = useCallback((p) => {
     const params = { page: p, limit: PAGE_SIZE };
@@ -115,8 +120,15 @@ export default function FamilyActivityPage() {
     }
   }, [buildParams]);
 
-  // Re-fetch from page 1 whenever any filter changes
-  useEffect(() => { fetchActivity(1); }, [fetchActivity]);
+  // Seed from cache for default view, then refresh from API
+  useEffect(() => {
+    if (isDefaultView && cachedActivity?.activity) {
+      setActivity(cachedActivity.activity);
+      setTotal(cachedActivity.total ?? cachedActivity.activity.length);
+      setLoading(false);
+    }
+    fetchActivity(1);
+  }, [fetchActivity, isDefaultView, cachedActivity]);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
