@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBroom, faCrown } from '@fortawesome/free-solid-svg-icons';
 import { inboxApi } from '../api/inbox.api.js';
@@ -131,9 +131,9 @@ export default function KidChoresPage() {
       {isParent && kids.length > 1 && (
         <div className="flex items-center gap-3 mb-5">
           <KidProfilePicker kids={kids} currentId={userId} routePrefix="/chores" className="flex items-center gap-2 p-1 overflow-x-auto scrollbar-hide min-w-0 flex-1" />
-          <span className="text-2xl font-semibold text-gray-800 dark:text-gray-200 whitespace-nowrap shrink-0">
+          <Link to={`/tickets/${userId}`} className="text-2xl font-semibold text-gray-800 dark:text-gray-200 whitespace-nowrap shrink-0 hover:opacity-70 transition-opacity">
             <RollingNumber value={ticketBalance} animate={animateTickets} /> 🎟
-          </span>
+          </Link>
         </div>
       )}
 
@@ -143,9 +143,9 @@ export default function KidChoresPage() {
           {!isParent && (
             <>
               <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 shrink-0" />
-              <span className="text-2xl font-semibold text-gray-800 dark:text-gray-200 shrink-0 whitespace-nowrap">
+              <Link to={`/tickets/${userId}`} className="text-2xl font-semibold text-gray-800 dark:text-gray-200 shrink-0 whitespace-nowrap hover:opacity-70 transition-opacity">
                 <RollingNumber value={ticketBalance} animate={animateTickets} /> 🎟
-              </span>
+              </Link>
             </>
           )}
         </div>

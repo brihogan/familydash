@@ -10,3 +10,4 @@ client/dev-dist/
 ios/App/App/public/
 ios/App/CapApp-SPM/.build/
 TODO.md
+.server-port

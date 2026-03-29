@@ -88,7 +88,7 @@ router.post('/register', async (req, res, next) => {
     });
 
     const { familyId, userId } = registerTx();
-    const payload = { userId, familyId, role: 'parent', name: body.name, avatarColor: '#6366f1', avatarEmoji: null };
+    const payload = { userId, familyId, role: 'parent', name: body.name, avatarColor: '#6366f1', avatarEmoji: null, isAdmin: false };
     const { accessToken, refreshToken } = issueTokens(res, req, payload);
 
     res.status(201).json({ accessToken, refreshToken, user: { id: userId, name: body.name, role: 'parent', familyId } });
@@ -122,8 +122,13 @@ router.post('/login', async (req, res, next) => {
       if (!valid) return res.status(401).json({ error: 'Invalid credentials.' });
     }
 
-    const payload = { userId: user.id, familyId: user.family_id, role: user.role, name: user.name, avatarColor: user.avatar_color, avatarEmoji: user.avatar_emoji || null };
+    const payload = { userId: user.id, familyId: user.family_id, role: user.role, name: user.name, avatarColor: user.avatar_color, avatarEmoji: user.avatar_emoji || null, isAdmin: !!user.is_admin };
     const { accessToken, refreshToken } = issueTokens(res, req, payload, body.rememberMe !== false);
+
+    // Log the login event
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || null;
+    const ua = req.headers['user-agent'] || null;
+    db.prepare('INSERT INTO login_logs (user_id, family_id, ip_address, user_agent) VALUES (?, ?, ?, ?)').run(user.id, user.family_id, ip, ua);
 
     res.json({
       accessToken,
@@ -157,10 +162,10 @@ router.post('/refresh', (req, res, next) => {
     db.prepare('DELETE FROM refresh_tokens WHERE token_hash = ?').run(tokenHash);
 
     // Look up current name/color in case it changed since the token was issued
-    const userRecord = db.prepare('SELECT name, avatar_color, avatar_emoji FROM users WHERE id = ? AND is_active = 1').get(payload.userId);
+    const userRecord = db.prepare('SELECT name, avatar_color, avatar_emoji, is_admin FROM users WHERE id = ? AND is_active = 1').get(payload.userId);
     if (!userRecord) return res.status(401).json({ error: 'User not found.' });
 
-    const newPayload = { userId: payload.userId, familyId: payload.familyId, role: payload.role, name: userRecord.name, avatarColor: userRecord.avatar_color, avatarEmoji: userRecord.avatar_emoji || null };
+    const newPayload = { userId: payload.userId, familyId: payload.familyId, role: payload.role, name: userRecord.name, avatarColor: userRecord.avatar_color, avatarEmoji: userRecord.avatar_emoji || null, isAdmin: !!userRecord.is_admin };
     const { accessToken, refreshToken } = issueTokens(res, req, newPayload, !!stored.remember);
 
     res.json({ accessToken, refreshToken });

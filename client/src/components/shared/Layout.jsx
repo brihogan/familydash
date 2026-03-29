@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faHouse, faTrophy, faTachographDigital, faBroom,
   faPiggyBank, faTicket, faUsers, faScroll, faRightFromBracket,
-  faMedal, faClipboardCheck, faGear, faInbox, faMoneyBillWave, faPeopleRoof,
+  faMedal, faClipboardCheck, faGear, faInbox, faMoneyBillWave, faPeopleRoof, faShieldHalved,
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
@@ -285,6 +285,18 @@ export default function Layout() {
             <FontAwesomeIcon icon={faScroll} className="w-4 shrink-0" />
             Family Activity
           </NavLink>
+
+          {user?.isAdmin && (
+            <>
+              <div className="pt-2 pb-1 px-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                Admin
+              </div>
+              <NavLink to="/admin" className={navClass} onClick={close}>
+                <FontAwesomeIcon icon={faShieldHalved} className="w-4 shrink-0" />
+                Admin Dashboard
+              </NavLink>
+            </>
+          )}
         </>
       )}
 

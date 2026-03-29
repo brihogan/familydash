@@ -233,4 +233,21 @@ export function runMigrations(db) {
 
   // v37: trmnl_webhook_url on families
   try { db.exec(`ALTER TABLE families ADD COLUMN trmnl_webhook_url TEXT DEFAULT NULL`); } catch (_) {}
+
+  // v38: is_admin on users (site-wide admin, not family role)
+  try { db.exec(`ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
+
+  // v39: login_logs table for tracking login activity
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS login_logs (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      family_id  INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_login_logs_family ON login_logs(family_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_login_logs_created ON login_logs(created_at)`);
 }

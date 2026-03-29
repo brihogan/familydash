@@ -1,5 +1,14 @@
 # Work Log
 
+## Session Start: 2026-03-29
+
+### 2026-03-29 — Admin dashboard feature
+- Added site-wide admin system: `is_admin` flag on users, `login_logs` table tracking every login (IP, user-agent, timestamp). Admin middleware checks DB directly so revoking is instant.
+- Admin dashboard page shows: family count, active families (30d), family table with parent/kid counts, logins per 7 days (normalized per kid), last login time with color-coded activity dots. Security flags surface IPs hitting multiple families and high-frequency bots.
+- Admin nav link in sidebar (shield icon, only visible to admins). AdminRoute guard on client. Brian set as admin in local DB.
+
+---
+
 ## Session Start: 2026-03-26 ~evening
 
 ### 2026-03-26 — Ticket Blast drag-and-drop feature
@@ -10,6 +19,9 @@
 - Hamburger icon shows red notification dot when parent has inbox items or kid has pending deposits. Mini card mode now shows orange dot for pending deposits (matching full card mode).
 - **Server test suite**: Installed vitest + supertest; extracted Express app into `src/app.js` for testability. 34 tests across auth (register, login, logout, middleware), tickets (adjust +/-, negative balances, validation, role/family isolation), and inbox (list, count, approve with ticket awards, deny, cross-family isolation). All passing against in-memory SQLite.
 - **Refactor**: Extracted `assertSameFamily` + `assertAccountOwner` into `utils/assertions.js` (was duplicated in 6 route files). Extracted `localDateISO` into `utils/dateHelpers.js` (was duplicated in 7 files across routes + services). Extracted 37 inline migrations from `db.js` (330 lines) into `db/migrations.js`, leaving `db.js` clean (~30 lines).
+- Kid username login is now case-insensitive (COLLATE NOCASE) — no more iPad auto-capitalize issues.
+- Task step rows (`/tasks/:userId/:taskSetId`) now have white background in list view.
+- KidProfilePicker row scrolls horizontally with hidden scrollbar when too many kids. Chores page keeps ticket count visible (no wrap). Fixed selection ring clipping (padding + switched from box-shadow ring to border).
 
 ---
 

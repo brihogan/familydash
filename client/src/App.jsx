@@ -29,6 +29,8 @@ import DisplayPage from './pages/DisplayPage.jsx';
 import InboxPage from './pages/InboxPage.jsx';
 import InboxKidPage from './pages/InboxKidPage.jsx';
 import SettingsCommonChoresPage from './pages/SettingsCommonChoresPage.jsx';
+import AdminPage from './pages/AdminPage.jsx';
+import AdminRoute from './components/shared/AdminRoute.jsx';
 
 export default function App() {
   return (
@@ -56,6 +58,11 @@ export default function App() {
               <Route path="/task/:id" element={<TaskSetDetailPage />} />
               <Route path="/rewards" element={<RewardsPage />} />
               <Route path="/kid/:userId" element={<KidOverviewPage />} />
+
+              {/* Admin-only routes */}
+              <Route element={<AdminRoute />}>
+                <Route path="/admin" element={<AdminPage />} />
+              </Route>
 
               {/* Parent-only routes */}
               <Route element={<ParentRoute />}>

@@ -130,5 +130,6 @@ function userFromToken(token) {
     name: p.name,
     avatarColor: p.avatarColor,
     avatarEmoji: p.avatarEmoji || null,
+    isAdmin: !!p.isAdmin,
   };
 }

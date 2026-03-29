@@ -19,6 +19,7 @@ import taskSetsRouter from './routes/taskSets.js';
 import userTasksRouter from './routes/userTasks.js';
 import inboxRouter from './routes/inbox.js';
 import commonChoresRouter from './routes/commonChores.js';
+import adminRouter from './routes/admin.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -91,6 +92,7 @@ app.use('/api/users', activityRouter);
 app.use('/api/users', overviewRouter);
 app.use('/api/users', userTasksRouter);
 app.use('/api/inbox', inboxRouter);
+app.use('/api/admin', adminRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
