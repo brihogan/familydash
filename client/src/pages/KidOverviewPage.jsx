@@ -2,11 +2,13 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTachographDigital, faCrown, faBroom, faGear, faRightFromBracket } from '@fortawesome/free-solid-svg-icons';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import useOfflineOverview from '../offline/hooks/useOfflineOverview.js';
 import useOfflineFamily from '../offline/hooks/useOfflineFamily.js';
 import { accountsApi } from '../api/accounts.api.js';
+import dexieDb from '../offline/db.js';
 import { formatCents } from '../utils/formatCents.js';
 import useScrollLock from '../hooks/useScrollLock.js';
 import ActivityRow, { GroupedActivityList } from '../components/shared/ActivityRow.jsx';
@@ -221,13 +223,26 @@ function BalanceChart({ data }) {
 
   const currentBal = data[data.length - 1].balance_cents;
 
+  // Find peak balance and its date
+  let peakIdx = 0;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i].balance_cents > data[peakIdx].balance_cents) peakIdx = i;
+  }
+  const peakBal = data[peakIdx].balance_cents;
+  const peakDate = new Date(data[peakIdx].date + 'T12:00:00');
+  const peakLabel = `${peakDate.getMonth() + 1}/${peakDate.getDate()}`;
+
   return (
     <div>
-      <div className="flex items-baseline justify-between mb-2">
-        <span className="text-lg font-bold font-mono text-gray-900 dark:text-gray-100">
-          {formatCents(currentBal)}
-        </span>
-        <span className="text-xs text-gray-400 dark:text-gray-500">30-day balance</span>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <span className="text-xs text-gray-400 dark:text-gray-500">Current</span>
+          <p className="text-lg font-bold font-mono text-gray-900 dark:text-gray-100 leading-tight">{formatCents(currentBal)}</p>
+        </div>
+        <div className="text-right">
+          <span className="text-xs text-gray-400 dark:text-gray-500">Peak ({peakLabel})</span>
+          <p className={`text-lg font-bold font-mono leading-tight ${peakBal > currentBal ? 'text-amber-500' : 'text-green-600 dark:text-green-400'}`}>{formatCents(peakBal)}</p>
+        </div>
       </div>
       <svg viewBox={`0 0 ${W} ${H + 16}`} className="w-full" preserveAspectRatio="none">
         <defs>
@@ -245,7 +260,12 @@ function BalanceChart({ data }) {
         <polygon points={polygon} fill="url(#balFill)" />
         {/* Line */}
         <polyline points={polyline} fill="none" stroke="rgb(99,102,241)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        {/* End dot */}
+        {/* Peak dot */}
+        {peakBal > currentBal && (() => {
+          const [px, py] = points[peakIdx].split(',');
+          return <circle cx={px} cy={py} r="3" fill="rgb(245,158,11)" />;
+        })()}
+        {/* Current dot */}
         {(() => {
           const last = points[points.length - 1].split(',');
           return <circle cx={last[0]} cy={last[1]} r="3" fill="rgb(99,102,241)" />;
@@ -299,7 +319,6 @@ export default function KidOverviewPage() {
 
   const [chartTab, _setChartTab] = useState(() => localStorage.getItem('overviewChartTab') || 'activity');
   const setChartTab = useCallback((tab) => { _setChartTab(tab); localStorage.setItem('overviewChartTab', tab); }, []);
-  const [balanceHistory, setBalanceHistory] = useState(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [actDateKey,  setActDateKey]  = useState('today');
   const [actTypeKey,  setActTypeKey]  = useState('all');
@@ -345,25 +364,30 @@ export default function KidOverviewPage() {
 
   const fetchActivity = refreshActivity;
 
-  // Lazy-fetch balance history when Balance tab is selected
+  const uid = Number(userId);
+  const mainAccountId = overview?.accounts?.find((a) => a.type === 'main')?.id;
+
+  // Reactive balance history from Dexie
+  const cachedBalance = useLiveQuery(
+    () => mainAccountId ? dexieDb.balanceHistoryCache.get([uid, mainAccountId]) : undefined,
+    [uid, mainAccountId],
+  );
+  const balanceHistory = cachedBalance?.days || null;
+
+  // Fetch balance history and write to Dexie
   const fetchBalanceHistory = useCallback(async (accountId) => {
     setBalanceLoading(true);
     try {
       const data = await accountsApi.getBalanceHistory(userId, accountId, 30);
-      setBalanceHistory(data.days);
-    } catch { /* ignore */ }
+      await dexieDb.balanceHistoryCache.put({ userId: uid, accountId, days: data.days, lastSync: Date.now() });
+    } catch { /* offline — cached is fine */ }
     finally { setBalanceLoading(false); }
-  }, [userId]);
+  }, [userId, uid]);
 
-  // Reset balance data when user changes
-  useEffect(() => { setBalanceHistory(null); }, [userId]);
-
-  const mainAccountId = overview?.accounts?.find((a) => a.type === 'main')?.id;
-
-  // Auto-fetch balance when Balance tab is persisted and user switches kids
+  // Auto-fetch balance when Balance tab is selected (lazy on first click, re-fetch on user change)
   useEffect(() => {
-    if (chartTab === 'balance' && !balanceHistory && mainAccountId) fetchBalanceHistory(mainAccountId);
-  }, [chartTab, balanceHistory, mainAccountId, fetchBalanceHistory]);
+    if (chartTab === 'balance' && mainAccountId) fetchBalanceHistory(mainAccountId);
+  }, [chartTab, mainAccountId, fetchBalanceHistory]);
 
   if (loading && !overview) return <LoadingSkeleton rows={6} />;
   if (!overview) return null;

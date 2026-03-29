@@ -49,4 +49,8 @@ db.version(9).stores({
   familyActivityCache: 'familyId',
 });
 
+db.version(10).stores({
+  balanceHistoryCache: '[userId+accountId]',
+});
+
 export default db;
