@@ -55,6 +55,7 @@ export default function AdminPage() {
   const [familyDetail, setFamilyDetail] = useState(null);
   const [familyDetailLoading, setFamilyDetailLoading] = useState(false);
   const [showAllLogs, setShowAllLogs] = useState(false);
+  const [showSecurityFlags, setShowSecurityFlags] = useState(false);
 
   useEffect(() => {
     adminApi.getDashboard()
@@ -106,13 +107,77 @@ export default function AdminPage() {
           <div className="text-3xl font-bold text-blue-600">{activity?.totalCount ?? '—'}</div>
           <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total Logins</div>
         </div>
-        <div className={STAT_CARD}>
+        <button
+          className={`${STAT_CARD} cursor-pointer hover:ring-2 hover:ring-brand-300 dark:hover:ring-brand-600 transition-shadow`}
+          onClick={() => setShowSecurityFlags(v => !v)}
+        >
           <div className={`text-3xl font-bold ${flagCount > 0 ? 'text-amber-600' : 'text-green-600'}`}>
             {flagCount}
           </div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Security Flags</div>
-        </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center justify-center gap-1">
+            Security Flags
+            <FontAwesomeIcon icon={showSecurityFlags ? faChevronUp : faChevronDown} className="text-[9px]" />
+          </div>
+        </button>
       </div>
+
+      {/* ── Security Flags Detail (toggled from stat card) ── */}
+      {showSecurityFlags && !activityLoading && (
+        <div className={`${CARD} ${flagCount > 0 ? 'border-amber-300 dark:border-amber-600' : ''}`}>
+          <h2 className={`text-lg font-semibold mb-1 flex items-center gap-2 ${flagCount > 0 ? 'text-amber-600' : ''}`}>
+            <FontAwesomeIcon icon={faTriangleExclamation} /> Security Flags
+          </h2>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
+            Monitors for shared IPs across families (credential stuffing / account probing) and unusually high login volume (bots / brute force).
+          </p>
+
+          {/* Cross-family IPs */}
+          <div className="mb-4">
+            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
+              Cross-family IPs
+            </h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
+              Same IP logging into more than one family in the last 30 days. Could indicate shared networks (harmless) or someone probing multiple accounts.
+            </p>
+            {activity?.suspiciousIps?.length > 0 ? (
+              <div className="space-y-1">
+                {activity.suspiciousIps.map((s, i) => (
+                  <div key={i} className="flex items-center gap-3 text-sm bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+                    <span className="font-mono text-xs">{s.ip_address}</span>
+                    <span className="text-gray-500">{s.family_count} families</span>
+                    <span className="text-gray-500">{s.login_count} logins</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-green-600 dark:text-green-400">None detected</p>
+            )}
+          </div>
+
+          {/* High-frequency IPs */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
+              High-frequency IPs
+            </h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
+              IPs with 20+ logins in the last 24 hours. Could indicate bots, brute-force attempts, or automated scraping.
+            </p>
+            {activity?.highFreqIps?.length > 0 ? (
+              <div className="space-y-1">
+                {activity.highFreqIps.map((s, i) => (
+                  <div key={i} className="flex items-center gap-3 text-sm bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">
+                    <span className="font-mono text-xs">{s.ip_address}</span>
+                    <span className="text-gray-500">{s.login_count} logins</span>
+                    <span className="text-gray-500">{s.user_count} users</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-green-600 dark:text-green-400">None detected</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Families Table ── */}
       <div className={CARD}>
@@ -240,64 +305,6 @@ export default function AdminPage() {
           </table>
         </div>
       </div>
-
-      {/* ── Security Flags ── */}
-      {!activityLoading && (
-        <div className={`${CARD} ${flagCount > 0 ? 'border-amber-300 dark:border-amber-600' : ''}`}>
-          <h2 className={`text-lg font-semibold mb-1 flex items-center gap-2 ${flagCount > 0 ? 'text-amber-600' : ''}`}>
-            <FontAwesomeIcon icon={faTriangleExclamation} /> Security Flags
-          </h2>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
-            Monitors for shared IPs across families (credential stuffing / account probing) and unusually high login volume (bots / brute force).
-          </p>
-
-          {/* Cross-family IPs */}
-          <div className="mb-4">
-            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
-              Cross-family IPs
-            </h3>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
-              Same IP logging into more than one family in the last 30 days. Could indicate shared networks (harmless) or someone probing multiple accounts.
-            </p>
-            {activity?.suspiciousIps?.length > 0 ? (
-              <div className="space-y-1">
-                {activity.suspiciousIps.map((s, i) => (
-                  <div key={i} className="flex items-center gap-3 text-sm bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
-                    <span className="font-mono text-xs">{s.ip_address}</span>
-                    <span className="text-gray-500">{s.family_count} families</span>
-                    <span className="text-gray-500">{s.login_count} logins</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-green-600 dark:text-green-400">None detected</p>
-            )}
-          </div>
-
-          {/* High-frequency IPs */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
-              High-frequency IPs
-            </h3>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
-              IPs with 20+ logins in the last 24 hours. Could indicate bots, brute-force attempts, or automated scraping.
-            </p>
-            {activity?.highFreqIps?.length > 0 ? (
-              <div className="space-y-1">
-                {activity.highFreqIps.map((s, i) => (
-                  <div key={i} className="flex items-center gap-3 text-sm bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">
-                    <span className="font-mono text-xs">{s.ip_address}</span>
-                    <span className="text-gray-500">{s.login_count} logins</span>
-                    <span className="text-gray-500">{s.user_count} users</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-green-600 dark:text-green-400">None detected</p>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* ── Recent Login Activity ── */}
       <div className={CARD}>
