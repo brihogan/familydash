@@ -102,6 +102,29 @@ npm run dev                  # starts both server and client
 4. Go to **Settings → Chores** (per kid) to add chore templates
 5. Go to **Settings → Rewards** to create the rewards catalog
 
+## Admin Access
+
+To grant admin access to a parent account (required for the admin dashboard):
+
+```bash
+cd server
+node set-admin.js user@example.com
+```
+
+To revoke:
+
+```bash
+node set-admin.js user@example.com --revoke
+```
+
+If using Docker or a custom database path:
+
+```bash
+DATABASE_PATH=/path/to/family.db node set-admin.js user@example.com
+```
+
+The user must log out and back in to pick up the new admin status.
+
 ## Architecture
 
 | Layer | Tech |
