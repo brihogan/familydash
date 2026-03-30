@@ -2,10 +2,11 @@
 
 ## Session Start: 2026-03-29 (session 2)
 
-### 2026-03-29 — Eager prefetch + offline trophies + recurring rules + README
-- **Eager prefetch**: New `prefetchAllData()` in syncEngine fires immediately after auth confirms (no 2s delay). Fetches in 3 priority waves: critical (dashboard/family/chores), important (bank/tickets/rewards), deferred (trophies/overview/activity/recurring/yesterday chores). Every page loads instantly from Dexie after initial load.
-- **Trophies offline**: New `trophyCache` Dexie table + `useOfflineTrophies` hook. KidTrophiesPage now uses offline hooks instead of direct API calls.
-- Added `refreshTrophies()` and `refreshRecurringRules()` to syncEngine's `pullFreshData` so periodic sync covers all data types.
+### 2026-03-29 — Eager prefetch, offline everything, balance chart, UI polish
+- **Eager prefetch**: `prefetchAllData()` in syncEngine fires immediately after auth (no 2s delay). 3 priority waves: critical (dashboard/family/chores/inbox), important (bank/tickets/rewards), deferred (trophies/overview/activity/recurring/yesterday chores/family activity).
+- **Offline**: Trophies, recurring rules, inbox, family activity (today), and balance history all cached in Dexie. Inbox badge reads reactively from cache. InboxPage/InboxKidPage use offline hook. KidTrophiesPage, FamilyActivityPage, KidBankPage all use offline hooks now.
+- **Balance chart**: New `GET /accounts/:aid/balance-history` endpoint computes daily closing balances. SVG area chart on KidOverviewPage behind a tab bar (Activity | Balance). Shows current vs peak balance with date. Chart tab persists in localStorage. Balance data cached in Dexie.
+- **UI**: Modals centered vertically. Rewards profile picker matches KidProfilePicker scroll/border style. README updated with wave-based prefetch docs.
 
 ### 2026-03-29 — Offline recurring rules + README updates
 - Recurring rules now cached in Dexie (new `recurringRules` table, version 6). Fetched alongside accounts/pending deposits in `useOfflineBank`, so switching kids on the bank page is instant. KidBankPage no longer does its own separate fetch.
