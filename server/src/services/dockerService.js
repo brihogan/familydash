@@ -91,6 +91,40 @@ export function touchActivity(userId) {
   lastActivity.set(userId, Date.now());
 }
 
+// Read a file from a kid's workspace container
+export async function readContainerFile(userId, filePath) {
+  const container = await getOrCreateContainer(userId);
+  const exec = await container.exec({
+    Cmd: ['cat', `/home/coder/workspace/${filePath}`],
+    AttachStdout: true,
+    AttachStderr: true,
+    Tty: false,
+  });
+  const stream = await exec.start();
+
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const errChunks = [];
+
+    // Tty:false uses Docker multiplexed streams — demux them
+    container.modem.demuxStream(stream, {
+      write: (chunk) => chunks.push(chunk),
+    }, {
+      write: (chunk) => errChunks.push(chunk),
+    });
+
+    stream.on('end', async () => {
+      const info = await exec.inspect();
+      if (info.ExitCode !== 0) {
+        reject(new Error('File not found'));
+      } else {
+        resolve(Buffer.concat(chunks));
+      }
+    });
+    stream.on('error', reject);
+  });
+}
+
 // Resize a running exec's TTY
 export async function resizeExec(exec, cols, rows) {
   try {

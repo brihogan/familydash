@@ -2,7 +2,19 @@ import { Router } from 'express';
 import db from '../db/db.js';
 import crypto from 'crypto';
 import { authenticate } from '../middleware/auth.js';
-import { getOrCreateContainer, stopContainer, getContainerStatus } from '../services/dockerService.js';
+import path from 'path';
+import { getOrCreateContainer, stopContainer, getContainerStatus, readContainerFile } from '../services/dockerService.js';
+
+const MIME_TYPES = {
+  '.html': 'text/html', '.htm': 'text/html', '.css': 'text/css',
+  '.js': 'text/javascript', '.mjs': 'text/javascript',
+  '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon', '.webp': 'image/webp',
+  '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf',
+  '.txt': 'text/plain', '.xml': 'application/xml',
+  '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.mp4': 'video/mp4',
+};
 
 // One-time tickets for WebSocket auth (avoids token expiry issues)
 const wsTickets = new Map(); // ticket -> { kidId, familyId, role, userId, expiresAt }
@@ -75,6 +87,40 @@ router.post('/:userId/ws-ticket', authenticate, authorizeClaudeAccess, (req, res
     if (v.expiresAt < Date.now()) wsTickets.delete(t);
   }
   res.json({ ticket });
+});
+
+// GET /api/claude/:userId/apps/:appName/* — serve static files from kid's workspace
+router.get('/:userId/apps/:appName/*', authenticate, authorizeClaudeAccess, async (req, res) => {
+  const appName = req.params.appName;
+  const filePath = req.params[0] || 'index.html';
+
+  // Block path traversal
+  const resolved = path.normalize(path.join(appName, filePath));
+  if (resolved.startsWith('..') || path.isAbsolute(resolved)) {
+    return res.status(400).json({ error: 'Invalid path.' });
+  }
+
+  try {
+    const data = await readContainerFile(req.kidId, resolved);
+    const ext = path.extname(filePath).toLowerCase();
+    res.set('Content-Type', MIME_TYPES[ext] || 'application/octet-stream');
+    res.send(data);
+  } catch {
+    res.status(404).json({ error: 'File not found.' });
+  }
+});
+
+// Also handle the bare app URL (no trailing path) → serve index.html
+router.get('/:userId/apps/:appName', authenticate, authorizeClaudeAccess, async (req, res) => {
+  const appName = req.params.appName;
+
+  try {
+    const data = await readContainerFile(req.kidId, path.join(appName, 'index.html'));
+    res.set('Content-Type', 'text/html');
+    res.send(data);
+  } catch {
+    res.status(404).json({ error: 'No index.html found in ' + appName });
+  }
 });
 
 export { wsTickets };
