@@ -49,6 +49,10 @@ export default defineConfig({
         target: `http://localhost:${process.env.VITE_API_PORT || '3001'}`,
         changeOrigin: true,
       },
+      '/apps': {
+        target: `http://localhost:${process.env.VITE_API_PORT || '3001'}`,
+        changeOrigin: true,
+      },
       '/ws': {
         target: `http://localhost:${process.env.VITE_API_PORT || '3001'}`,
         changeOrigin: true,

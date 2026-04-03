@@ -21,7 +21,7 @@ import inboxRouter from './routes/inbox.js';
 import commonChoresRouter from './routes/commonChores.js';
 import adminRouter from './routes/admin.js';
 import turnsRouter from './routes/turns.js';
-import claudeRouter from './routes/claude.js';
+import claudeRouter, { appsRouter } from './routes/claude.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -97,6 +97,7 @@ app.use('/api/inbox', inboxRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/family', turnsRouter);
 app.use('/api/claude', claudeRouter);
+app.use('/apps', appsRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

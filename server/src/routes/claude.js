@@ -118,5 +118,43 @@ router.get('/:userId/apps/:appName', (req, res) => {
   res.redirect(req.originalUrl + '/');
 });
 
-export { wsTickets };
+// ─── Public apps router mounted at /apps ──────────────────────────────────
+// Serves kid projects at /apps/:username/:appName
+
+const appsRouter = Router();
+
+function resolveKidId(req, res, next) {
+  const user = db.prepare(
+    'SELECT id FROM users WHERE username = ? COLLATE NOCASE AND is_active = 1'
+  ).get(req.params.username);
+  if (!user) return res.status(404).send('User not found');
+  req.kidId = user.id;
+  next();
+}
+
+appsRouter.get('/:username/:appName/*', resolveKidId, async (req, res) => {
+  const appName = req.params.appName;
+  const filePath = req.params[0] || 'index.html';
+
+  const resolved = path.normalize(path.join(appName, filePath));
+  if (resolved.startsWith('..') || path.isAbsolute(resolved)) {
+    return res.status(400).send('Invalid path');
+  }
+
+  try {
+    const data = await readContainerFile(req.kidId, resolved);
+    const ext = path.extname(filePath).toLowerCase();
+    res.set('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob:;");
+    res.set('Content-Type', MIME_TYPES[ext] || 'application/octet-stream');
+    res.send(data);
+  } catch {
+    res.status(404).send('Not found');
+  }
+});
+
+appsRouter.get('/:username/:appName', (req, res) => {
+  res.redirect(req.originalUrl + '/');
+});
+
+export { wsTickets, appsRouter };
 export default router;
