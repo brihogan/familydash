@@ -286,10 +286,6 @@ export default function Layout() {
             <FontAwesomeIcon icon={faArrowsRotate} className="w-4 shrink-0" />
             Turns
           </NavLink>
-          <NavLink to="/code-apps" className={navClass} onClick={close}>
-            <FontAwesomeIcon icon={faRocket} className="w-4 shrink-0" />
-            Apps
-          </NavLink>
           <NavLink to="/family-activity" className={navClass} onClick={close}>
             <FontAwesomeIcon icon={faScroll} className="w-4 shrink-0" />
             Family Activity
@@ -308,6 +304,11 @@ export default function Layout() {
           )}
         </>
       )}
+
+      <NavLink to="/code-apps" className={navClass} onClick={close}>
+        <FontAwesomeIcon icon={faRocket} className="w-4 shrink-0" />
+        Apps
+      </NavLink>
 
       {user?.role === 'kid' && (
         <>
