@@ -39,7 +39,7 @@ router.get('/', authenticate, (req, res, next) => {
     const members = db.prepare(`
       SELECT u.id, u.name, u.username, u.email, u.role, u.avatar_color, u.avatar_emoji, u.ticket_balance,
              u.is_active, u.sort_order, u.show_on_dashboard, u.show_balance_on_dashboard, u.require_task_approval,
-             u.require_set_approval, u.allow_transfers, u.allow_withdraws, u.require_currency_work, u.chores_enabled, u.allow_login, u.created_at,
+             u.require_set_approval, u.allow_transfers, u.allow_withdraws, u.require_currency_work, u.chores_enabled, u.allow_login, u.claude_enabled, u.created_at,
              COALESCE(ct.daily_potential, 0) AS daily_ticket_potential
       FROM users u
       LEFT JOIN (
@@ -224,6 +224,7 @@ const UpdateUserSchema = z.object({
   allow_login: z.boolean().optional(),
   avatar_emoji: z.string().max(10).nullable().optional(),
   is_active: z.boolean().optional(),
+  claude_enabled: z.boolean().optional(),
 }).strict();
 
 router.put('/users/:id', authenticate, requireRole('parent'), async (req, res, next) => {
@@ -289,6 +290,9 @@ router.put('/users/:id', authenticate, requireRole('parent'), async (req, res, n
     }
     if (body.avatar_emoji !== undefined) {
       updates.push('avatar_emoji = ?'); values.push(body.avatar_emoji ?? null);
+    }
+    if (body.claude_enabled !== undefined) {
+      updates.push('claude_enabled = ?'); values.push(body.claude_enabled ? 1 : 0);
     }
 
     if (updates.length === 0) return res.status(400).json({ error: 'No valid fields to update.' });

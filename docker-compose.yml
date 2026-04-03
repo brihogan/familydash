@@ -14,8 +14,10 @@ services:
       JWT_ACCESS_EXPIRES_IN: 15m
       JWT_REFRESH_EXPIRES_IN: 30d
       PORT: 3001
+      CLAUDE_CONTAINER_IMAGE: familydash-claude-code:latest
     volumes:
       - sqlite_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
       interval: 30s

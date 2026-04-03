@@ -8,6 +8,7 @@
 - Removed filter (include all/kids/parents) — turns now always include all family members, parents exclude as needed.
 - Added visibility setting (everyone/parents only/self only) on turn detail page with segmented control. Pencil icon to edit turn name inline. Dashboard shows visible turns as pill-style cards with the turn name, current member avatar and name. `/api/family/turns/visible` endpoint filters by user role.
 - Turn logging: clicking a turn card on dashboard opens a modal showing current turn holder, a "Log Turn" button that records the turn and auto-advances to next person, and a scrollable history list (name + relative date). Turn cards show "Last turn logged: Xd ago" below. New `turn_logs` table, POST `/turns/:id/log` and GET `/turns/:id/logs` endpoints.
+- **Claude Code for kids** (feature branch `feature/claude-code`): Per-kid `claude_enabled` toggle in settings. Docker container per kid running Claude Code CLI, managed via `dockerode`. WebSocket relay (`ws`) bridges xterm.js in browser to Docker exec session. Full-screen terminal overlay on kid overview page. OAuth auth (uses parent's subscription). Containers auto-stop after 30min idle. Named volumes persist auth tokens and workspace files.
 
 ---
 

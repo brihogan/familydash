@@ -281,6 +281,9 @@ export function runMigrations(db) {
   // v43: visibility on turns — who sees it on their dashboard
   try { db.exec(`ALTER TABLE turns ADD COLUMN visibility TEXT NOT NULL DEFAULT 'everyone'`); } catch (_) {}
 
+  // v45: claude_enabled on users (off by default)
+  try { db.exec(`ALTER TABLE users ADD COLUMN claude_enabled INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
+
   // v44: turn_logs — history of completed turns
   db.exec(`
     CREATE TABLE IF NOT EXISTS turn_logs (

@@ -429,6 +429,23 @@ export default function SettingsUserDetailPage() {
         );
       })()}
 
+      {/* ── Claude Code (kids only) ── */}
+      {isKid && (
+        <div className="mb-6 space-y-3">
+          <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Claude Code</h2>
+          <div className="flex items-start justify-between gap-6 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-gray-900 dark:text-gray-100">Enable Claude Code</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                Give {member.name} access to an AI coding assistant. Runs in a sandboxed container.
+                First time requires a parent to open the terminal and run login.
+              </p>
+            </div>
+            <Toggle checked={!!member.claude_enabled} onChange={(v) => handleToggle('claude_enabled', v)} />
+          </div>
+        </div>
+      )}
+
       {/* ── Deactivate / Reactivate ── */}
       <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700 mb-6">
         <div className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">

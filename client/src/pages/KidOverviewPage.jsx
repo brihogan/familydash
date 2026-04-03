@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTachographDigital, faCrown, faBroom, faGear, faRightFromBracket } from '@fortawesome/free-solid-svg-icons';
+import { faTachographDigital, faCrown, faBroom, faGear, faRightFromBracket, faTerminal } from '@fortawesome/free-solid-svg-icons';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
@@ -17,6 +17,7 @@ import EmptyState from '../components/shared/EmptyState.jsx';
 import KidProfilePicker from '../components/shared/KidProfilePicker.jsx';
 import ProgressRing from '../components/dashboard/ProgressRing.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
+import ClaudeTerminal from '../components/claude/ClaudeTerminal.jsx';
 
 // ─── Activity filter config ───────────────────────────────────────────────────
 
@@ -323,14 +324,17 @@ export default function KidOverviewPage() {
   const [actDateKey,  setActDateKey]  = useState('today');
   const [actTypeKey,  setActTypeKey]  = useState('all');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(false);
   useScrollLock(showLogoutConfirm);
 
   // Kid list for the switcher (parent only)
   const kids = isParent ? allKids : [];
-  const memberRole = useMemo(() => {
-    const viewed = familyMembers.find((m) => m.id === parseInt(userId, 10));
-    return viewed?.role ?? null;
-  }, [familyMembers, userId]);
+  const viewedMember = useMemo(
+    () => familyMembers.find((m) => m.id === parseInt(userId, 10)),
+    [familyMembers, userId],
+  );
+  const memberRole = viewedMember?.role ?? null;
+  const claudeEnabled = !!viewedMember?.claude_enabled;
 
   // Client-side activity filtering
   const activity = useMemo(() => {
@@ -642,6 +646,33 @@ export default function KidOverviewPage() {
           )}
         </div>
       </div>
+
+      {/* Claude Code */}
+      {claudeEnabled && (
+        <div className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
+                <FontAwesomeIcon icon={faTerminal} />
+              </span>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-gray-100">Claude Code</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">AI coding assistant</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setTerminalOpen(true)}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              Open Terminal
+            </button>
+          </div>
+        </div>
+      )}
+
+      {terminalOpen && (
+        <ClaudeTerminal userId={userId} onClose={() => setTerminalOpen(false)} />
+      )}
 
       {/* Kid logout */}
       {!isParent && (

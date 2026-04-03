@@ -33,6 +33,7 @@ import AdminPage from './pages/AdminPage.jsx';
 import AdminRoute from './components/shared/AdminRoute.jsx';
 import SettingsTurnsPage from './pages/SettingsTurnsPage.jsx';
 import TurnDetailPage from './pages/TurnDetailPage.jsx';
+import ClaudeTerminalPage from './components/claude/ClaudeTerminal.jsx';
 
 export default function App() {
   return (
@@ -47,6 +48,7 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             {/* Kiosk/display view — no sidebar */}
             <Route path="/display" element={<DisplayPage />} />
+            <Route path="/terminal/:userId" element={<ClaudeTerminalPage />} />
 
             <Route element={<Layout />}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
