@@ -48,7 +48,17 @@ export async function getOrCreateContainer(userId) {
 export async function createExecSession(userId) {
   const container = await getOrCreateContainer(userId);
   const exec = await container.exec({
-    Cmd: ['claude'],
+    Cmd: [
+      'claude',
+      '--effort', 'low',
+      '--append-system-prompt',
+      'You are helping a kid learn to code. Keep projects SIMPLE and small. ' +
+      'Build things in small steps — one file at a time, under 100 lines each. ' +
+      'If asked to build something very complex (like Minecraft, a full game engine, etc.), ' +
+      'suggest a simpler version first and build incrementally. ' +
+      'Never generate more than 3 files in a single response. ' +
+      'Always use simple HTML/CSS/JS unless the kid specifically asks for something else.',
+    ],
     AttachStdin: true,
     AttachStdout: true,
     AttachStderr: true,

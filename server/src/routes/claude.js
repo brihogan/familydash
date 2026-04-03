@@ -113,19 +113,9 @@ router.get('/:userId/apps/:appName/*', async (req, res) => {
   }
 });
 
-// Also handle the bare app URL (no trailing path) → serve index.html
-router.get('/:userId/apps/:appName', async (req, res) => {
-  const kidId = parseInt(req.params.userId, 10);
-  const appName = req.params.appName;
-
-  try {
-    const data = await readContainerFile(kidId, path.join(appName, 'index.html'));
-    res.set('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob:;");
-    res.set('Content-Type', 'text/html');
-    res.send(data);
-  } catch {
-    res.status(404).send('No index.html found in ' + appName);
-  }
+// Bare app URL without trailing slash → redirect so relative paths work
+router.get('/:userId/apps/:appName', (req, res) => {
+  res.redirect(req.originalUrl + '/');
 });
 
 export { wsTickets };
