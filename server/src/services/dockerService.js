@@ -125,6 +125,37 @@ export async function readContainerFile(userId, filePath) {
   });
 }
 
+// List app directories in a kid's workspace (returns [] if container not running)
+export async function listContainerApps(userId) {
+  const name = containerName(userId);
+  try {
+    const container = docker.getContainer(name);
+    const info = await container.inspect();
+    if (!info.State.Running) return [];
+
+    const exec = await container.exec({
+      Cmd: ['ls', '-1', '/home/coder/workspace'],
+      AttachStdout: true,
+      AttachStderr: true,
+      Tty: false,
+    });
+    const stream = await exec.start();
+
+    return new Promise((resolve) => {
+      const chunks = [];
+      container.modem.demuxStream(stream, { write: (c) => chunks.push(c) }, { write: () => {} });
+      stream.on('end', () => {
+        const output = Buffer.concat(chunks).toString().trim();
+        const dirs = output.split('\n').filter((d) => d && d !== 'CLAUDE.md' && !d.startsWith('.'));
+        resolve(dirs);
+      });
+      stream.on('error', () => resolve([]));
+    });
+  } catch {
+    return [];
+  }
+}
+
 // Resize a running exec's TTY
 export async function resizeExec(exec, cols, rows) {
   try {

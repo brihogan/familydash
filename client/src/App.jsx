@@ -34,6 +34,7 @@ import AdminRoute from './components/shared/AdminRoute.jsx';
 import SettingsTurnsPage from './pages/SettingsTurnsPage.jsx';
 import TurnDetailPage from './pages/TurnDetailPage.jsx';
 import ClaudeTerminalPage from './components/claude/ClaudeTerminal.jsx';
+import AppsPage from './pages/AppsPage.jsx';
 
 export default function App() {
   return (
@@ -61,6 +62,7 @@ export default function App() {
               <Route path="/trophies/:userId" element={<KidTrophiesPage />} />
               <Route path="/task/:id" element={<TaskSetDetailPage />} />
               <Route path="/rewards" element={<RewardsPage />} />
+              <Route path="/code-apps" element={<AppsPage />} />
               <Route path="/kid/:userId" element={<KidOverviewPage />} />
 
               {/* Admin-only routes */}

@@ -3,7 +3,7 @@ import db from '../db/db.js';
 import crypto from 'crypto';
 import { authenticate } from '../middleware/auth.js';
 import path from 'path';
-import { getOrCreateContainer, stopContainer, getContainerStatus, readContainerFile } from '../services/dockerService.js';
+import { getOrCreateContainer, stopContainer, getContainerStatus, readContainerFile, listContainerApps } from '../services/dockerService.js';
 
 const MIME_TYPES = {
   '.html': 'text/html', '.htm': 'text/html', '.css': 'text/css',
@@ -41,6 +41,24 @@ function authorizeClaudeAccess(req, res, next) {
   req.kidId = kidId;
   next();
 }
+
+// GET /api/claude/apps — list all kid apps for the family
+router.get('/apps', authenticate, async (req, res, next) => {
+  try {
+    const kids = db.prepare(
+      'SELECT id, name, username, avatar_color, avatar_emoji FROM users WHERE family_id = ? AND claude_enabled = 1 AND is_active = 1 ORDER BY sort_order ASC'
+    ).all(req.user.familyId);
+
+    const result = await Promise.all(kids.map(async (kid) => ({
+      ...kid,
+      apps: await listContainerApps(kid.id),
+    })));
+
+    res.json({ kids: result });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET /api/claude/:userId/status
 router.get('/:userId/status', authenticate, authorizeClaudeAccess, async (req, res, next) => {
