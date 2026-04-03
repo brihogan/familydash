@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faGear, faUsers, faClipboardCheck, faTrophy } from '@fortawesome/free-solid-svg-icons';
+import { faGear, faUsers, faClipboardCheck, faTrophy, faArrowsRotate } from '@fortawesome/free-solid-svg-icons';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { familyApi } from '../api/family.api.js';
 
@@ -23,6 +23,12 @@ const SETTINGS_CARDS = [
     icon:        faTrophy,
     label:       'Rewards',
     description: 'Create and edit the rewards catalog.',
+  },
+  {
+    to:          '/settings/turns',
+    icon:        faArrowsRotate,
+    label:       'Turns',
+    description: 'Track whose turn it is for family activities.',
   },
 ];
 

@@ -250,4 +250,45 @@ export function runMigrations(db) {
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_login_logs_family ON login_logs(family_id)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_login_logs_created ON login_logs(created_at)`);
+
+  // v40: turns — named turn-tracking lists
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS turns (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      family_id  INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+      name       TEXT    NOT NULL,
+      filter     TEXT    NOT NULL DEFAULT 'all',
+      created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_turns_family ON turns(family_id)`);
+
+  // v41: turn_members — ordered participants in a turn
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS turn_members (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      turn_id    INTEGER NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      position   INTEGER NOT NULL DEFAULT 0,
+      is_current INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_turn_members_turn ON turn_members(turn_id)`);
+
+  // v42: excluded flag on turn_members
+  try { db.exec(`ALTER TABLE turn_members ADD COLUMN excluded INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
+
+  // v43: visibility on turns — who sees it on their dashboard
+  try { db.exec(`ALTER TABLE turns ADD COLUMN visibility TEXT NOT NULL DEFAULT 'everyone'`); } catch (_) {}
+
+  // v44: turn_logs — history of completed turns
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS turn_logs (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      turn_id    INTEGER NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_turn_logs_turn ON turn_logs(turn_id)`);
 }

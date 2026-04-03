@@ -31,6 +31,8 @@ import InboxKidPage from './pages/InboxKidPage.jsx';
 import SettingsCommonChoresPage from './pages/SettingsCommonChoresPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import AdminRoute from './components/shared/AdminRoute.jsx';
+import SettingsTurnsPage from './pages/SettingsTurnsPage.jsx';
+import TurnDetailPage from './pages/TurnDetailPage.jsx';
 
 export default function App() {
   return (
@@ -77,6 +79,8 @@ export default function App() {
                 <Route path="/settings/chores" element={<SettingsChoresPage />} />
                 <Route path="/settings/chores/:userId" element={<SettingsChoresPage />} />
                 <Route path="/settings/tasks" element={<SettingsTasksPage />} />
+                <Route path="/settings/turns" element={<SettingsTurnsPage />} />
+                <Route path="/settings/turns/:id" element={<TurnDetailPage />} />
                 <Route path="/settings/rewards" element={<Navigate to="/rewards" replace />} />
               </Route>
             </Route>

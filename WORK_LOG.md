@@ -1,5 +1,16 @@
 # Work Log
 
+## Session Start: 2026-04-03
+
+### 2026-04-03 — Turns feature (v1)
+- New "Turns" feature for tracking whose turn it is (e.g. pick the movie, choose dinner). DB tables (`turns`, `turn_members`), full CRUD API, settings list page with add modal, detail page with filter (all/kids/parents), drag-to-reorder members, and current-turn checkmark. Sidebar nav link + settings card added.
+- Fixed `is_current` rendering bug (SQLite integer `0` rendered literally by React). Added exclude/include functionality: each member has an exclude button, excluded members shown in a dimmed "Excluded" group with a + button to re-include.
+- Removed filter (include all/kids/parents) — turns now always include all family members, parents exclude as needed.
+- Added visibility setting (everyone/parents only/self only) on turn detail page with segmented control. Pencil icon to edit turn name inline. Dashboard shows visible turns as pill-style cards with the turn name, current member avatar and name. `/api/family/turns/visible` endpoint filters by user role.
+- Turn logging: clicking a turn card on dashboard opens a modal showing current turn holder, a "Log Turn" button that records the turn and auto-advances to next person, and a scrollable history list (name + relative date). Turn cards show "Last turn logged: Xd ago" below. New `turn_logs` table, POST `/turns/:id/log` and GET `/turns/:id/logs` endpoints.
+
+---
+
 ## Session Start: 2026-03-29 (session 2)
 
 ### 2026-03-29 — Eager prefetch, offline everything, balance chart, UI polish

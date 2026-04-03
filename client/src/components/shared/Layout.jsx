@@ -5,6 +5,7 @@ import {
   faHouse, faTrophy, faTachographDigital, faBroom,
   faPiggyBank, faTicket, faUsers, faScroll, faRightFromBracket,
   faMedal, faClipboardCheck, faGear, faInbox, faMoneyBillWave, faPeopleRoof, faShieldHalved,
+  faArrowsRotate,
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
@@ -281,6 +282,10 @@ export default function Layout() {
               Rewards
             </NavLink>
           )}
+          <NavLink to="/settings/turns" className={navClass} onClick={close}>
+            <FontAwesomeIcon icon={faArrowsRotate} className="w-4 shrink-0" />
+            Turns
+          </NavLink>
           <NavLink to="/family-activity" className={navClass} onClick={close}>
             <FontAwesomeIcon icon={faScroll} className="w-4 shrink-0" />
             Family Activity
