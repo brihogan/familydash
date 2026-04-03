@@ -89,8 +89,9 @@ router.post('/:userId/ws-ticket', authenticate, authorizeClaudeAccess, (req, res
   res.json({ ticket });
 });
 
-// GET /api/claude/:userId/apps/:appName/* — serve static files from kid's workspace
-router.get('/:userId/apps/:appName/*', authenticate, authorizeClaudeAccess, async (req, res) => {
+// GET /api/claude/:userId/apps/:appName/* — serve static files from kid's workspace (public)
+router.get('/:userId/apps/:appName/*', async (req, res) => {
+  const kidId = parseInt(req.params.userId, 10);
   const appName = req.params.appName;
   const filePath = req.params[0] || 'index.html';
 
@@ -101,25 +102,26 @@ router.get('/:userId/apps/:appName/*', authenticate, authorizeClaudeAccess, asyn
   }
 
   try {
-    const data = await readContainerFile(req.kidId, resolved);
+    const data = await readContainerFile(kidId, resolved);
     const ext = path.extname(filePath).toLowerCase();
     res.set('Content-Type', MIME_TYPES[ext] || 'application/octet-stream');
     res.send(data);
   } catch {
-    res.status(404).json({ error: 'File not found.' });
+    res.status(404).send('Not found');
   }
 });
 
 // Also handle the bare app URL (no trailing path) → serve index.html
-router.get('/:userId/apps/:appName', authenticate, authorizeClaudeAccess, async (req, res) => {
+router.get('/:userId/apps/:appName', async (req, res) => {
+  const kidId = parseInt(req.params.userId, 10);
   const appName = req.params.appName;
 
   try {
-    const data = await readContainerFile(req.kidId, path.join(appName, 'index.html'));
+    const data = await readContainerFile(kidId, path.join(appName, 'index.html'));
     res.set('Content-Type', 'text/html');
     res.send(data);
   } catch {
-    res.status(404).json({ error: 'No index.html found in ' + appName });
+    res.status(404).send('No index.html found in ' + appName);
   }
 });
 
