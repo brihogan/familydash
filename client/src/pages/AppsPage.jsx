@@ -33,29 +33,28 @@ export default function AppsPage() {
         </p>
       </div>
 
-      {/* Terminal buttons for kids with Claude enabled */}
-      {kids.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 mb-2">Open Terminal</h2>
-          <div className="flex flex-wrap gap-2">
-            {kids.map((kid) => {
-              // Show terminal button if current user is parent, or kid viewing their own
-              const canOpen = user?.role === 'parent' || user?.userId === kid.id;
-              if (!canOpen) return null;
-              return (
+      {/* Terminal buttons — parents see all kids, kids see only their own */}
+      {kids.length > 0 && (() => {
+        const accessible = kids.filter((k) => user?.role === 'parent' || user?.userId === k.id);
+        if (!accessible.length) return null;
+        return (
+          <div className="mb-6">
+            <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 mb-2">Open Terminal</h2>
+            <div className="flex flex-wrap gap-2">
+              {accessible.map((kid) => (
                 <button
                   key={kid.id}
                   onClick={() => setTerminalKid(kid.id)}
                   className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   <FontAwesomeIcon icon={faTerminal} className="text-xs" />
-                  {kid.name}
+                  {user?.role === 'parent' ? kid.name : 'My Terminal'}
                 </button>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {loading ? (
         <div className="space-y-4">
