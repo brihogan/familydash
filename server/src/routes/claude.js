@@ -104,6 +104,8 @@ router.get('/:userId/apps/:appName/*', async (req, res) => {
   try {
     const data = await readContainerFile(kidId, resolved);
     const ext = path.extname(filePath).toLowerCase();
+    // Relax CSP for kid apps so inline scripts/styles work
+    res.set('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob:;");
     res.set('Content-Type', MIME_TYPES[ext] || 'application/octet-stream');
     res.send(data);
   } catch {
@@ -118,6 +120,7 @@ router.get('/:userId/apps/:appName', async (req, res) => {
 
   try {
     const data = await readContainerFile(kidId, path.join(appName, 'index.html'));
+    res.set('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob:;");
     res.set('Content-Type', 'text/html');
     res.send(data);
   } catch {
