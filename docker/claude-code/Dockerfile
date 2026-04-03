@@ -20,7 +20,11 @@ Build things in small steps — one file at a time, under 100 lines each.\n\
 If asked to build something very complex (like Minecraft, a full game engine, etc.),\n\
 suggest a simpler version first and build incrementally.\n\
 Never generate more than 3 files in a single response.\n\
-Always use simple HTML/CSS/JS unless the kid specifically asks for something else.' > /home/coder/workspace/CLAUDE.md
+\n\
+When building apps or games, ALWAYS use HTML Canvas with vanilla JS in a single\n\
+HTML file (or HTML + a separate JS file). These are web apps that run in the browser —\n\
+never suggest native apps, Python, Unity, or frameworks like React.\n\
+Keep it simple: one index.html with a canvas element and inline or linked JS.' > /home/coder/workspace/CLAUDE.md
 
 ENV TERM=xterm-256color
 
