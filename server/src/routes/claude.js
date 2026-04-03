@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import db from '../db/db.js';
 import crypto from 'crypto';
 import { authenticate } from '../middleware/auth.js';
@@ -49,10 +50,24 @@ router.get('/apps', authenticate, async (req, res, next) => {
       'SELECT id, name, username, avatar_color, avatar_emoji FROM users WHERE family_id = ? AND claude_enabled = 1 AND is_active = 1 ORDER BY sort_order ASC'
     ).all(req.user.familyId);
 
-    const result = await Promise.all(kids.map(async (kid) => ({
-      ...kid,
-      apps: await listContainerApps(kid.id),
-    })));
+    const stmtMeta = db.prepare(
+      'SELECT app_name, description, icon, launches FROM app_metadata WHERE user_id = ?'
+    );
+
+    const result = await Promise.all(kids.map(async (kid) => {
+      const appNames = await listContainerApps(kid.id);
+      const metaRows = stmtMeta.all(kid.id);
+      const metaMap = Object.fromEntries(metaRows.map((m) => [m.app_name, m]));
+      return {
+        ...kid,
+        apps: appNames.map((name) => ({
+          name,
+          description: metaMap[name]?.description || '',
+          icon: metaMap[name]?.icon || null,
+          launches: metaMap[name]?.launches || 0,
+        })),
+      };
+    }));
 
     res.json({ kids: result });
   } catch (err) {
@@ -134,6 +149,62 @@ router.get('/:userId/apps/:appName/*', async (req, res) => {
 // Bare app URL without trailing slash → redirect so relative paths work
 router.get('/:userId/apps/:appName', (req, res) => {
   res.redirect(req.originalUrl + '/');
+});
+
+// PUT /api/claude/:userId/apps/:appName/meta — update app description/icon
+const AppMetaSchema = z.object({
+  description: z.string().max(500).optional(),
+  icon: z.string().max(10).nullable().optional(),
+});
+
+router.put('/:userId/apps/:appName/meta', authenticate, authorizeClaudeAccess, (req, res, next) => {
+  try {
+    // Only the kid who owns the app (or a parent) can edit
+    const body = AppMetaSchema.parse(req.body);
+    const appName = req.params.appName;
+
+    // Upsert metadata
+    db.prepare(`
+      INSERT INTO app_metadata (user_id, app_name, description, icon)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(user_id, app_name) DO UPDATE SET
+        description = COALESCE(excluded.description, description),
+        icon = COALESCE(excluded.icon, icon)
+    `).run(req.kidId, appName, body.description ?? '', body.icon ?? null);
+
+    // Update specific fields if provided
+    if (body.description !== undefined) {
+      db.prepare('UPDATE app_metadata SET description = ? WHERE user_id = ? AND app_name = ?')
+        .run(body.description, req.kidId, appName);
+    }
+    if (body.icon !== undefined) {
+      db.prepare('UPDATE app_metadata SET icon = ? WHERE user_id = ? AND app_name = ?')
+        .run(body.icon, req.kidId, appName);
+    }
+
+    const meta = db.prepare('SELECT * FROM app_metadata WHERE user_id = ? AND app_name = ?')
+      .get(req.kidId, appName);
+    res.json(meta);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/claude/apps/:username/:appName/launch — increment launch counter (public)
+router.post('/apps/:username/:appName/launch', (req, res) => {
+  const user = db.prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE AND is_active = 1')
+    .get(req.params.username);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  db.prepare(`
+    INSERT INTO app_metadata (user_id, app_name, launches)
+    VALUES (?, ?, 1)
+    ON CONFLICT(user_id, app_name) DO UPDATE SET launches = launches + 1
+  `).run(user.id, req.params.appName);
+
+  const meta = db.prepare('SELECT launches FROM app_metadata WHERE user_id = ? AND app_name = ?')
+    .get(user.id, req.params.appName);
+  res.json({ launches: meta?.launches || 1 });
 });
 
 // ─── Public apps router mounted at /apps ──────────────────────────────────

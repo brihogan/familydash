@@ -284,6 +284,21 @@ export function runMigrations(db) {
   // v45: claude_enabled on users (off by default)
   try { db.exec(`ALTER TABLE users ADD COLUMN claude_enabled INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
 
+  // v46: app_metadata for kid-built apps
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS app_metadata (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      app_name    TEXT    NOT NULL,
+      description TEXT    NOT NULL DEFAULT '',
+      icon        TEXT,
+      launches    INTEGER NOT NULL DEFAULT 0,
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(user_id, app_name)
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_app_metadata_user ON app_metadata(user_id)`);
+
   // v44: turn_logs — history of completed turns
   db.exec(`
     CREATE TABLE IF NOT EXISTS turn_logs (
