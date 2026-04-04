@@ -8,4 +8,5 @@ export const claudeApi = {
   stop: (userId) => client.post(`/claude/${userId}/stop`).then((r) => r.data),
   updateAppMeta: (userId, appName, data) => client.put(`/claude/${userId}/apps/${appName}/meta`, data).then((r) => r.data),
   launchApp: (username, appName) => client.post(`/claude/apps/${username}/${appName}/launch`).then((r) => r.data),
+  toggleStar: (appOwnerId, appName) => client.post('/claude/apps/star', { app_owner_id: appOwnerId, app_name: appName }).then((r) => r.data),
 };

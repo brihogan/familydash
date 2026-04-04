@@ -53,11 +53,23 @@ router.get('/apps', authenticate, async (req, res, next) => {
     const stmtMeta = db.prepare(
       'SELECT app_name, description, icon, launches FROM app_metadata WHERE user_id = ?'
     );
+    const stmtStarCount = db.prepare(
+      'SELECT app_name, COUNT(*) AS stars FROM app_stars WHERE app_owner_id = ? GROUP BY app_name'
+    );
+    const stmtMyStars = db.prepare(
+      'SELECT app_owner_id, app_name FROM app_stars WHERE user_id = ?'
+    );
+
+    const myStars = new Set(
+      stmtMyStars.all(req.user.userId).map((s) => `${s.app_owner_id}:${s.app_name}`)
+    );
 
     const result = await Promise.all(kids.map(async (kid) => {
       const appNames = await listContainerApps(kid.id);
       const metaRows = stmtMeta.all(kid.id);
       const metaMap = Object.fromEntries(metaRows.map((m) => [m.app_name, m]));
+      const starRows = stmtStarCount.all(kid.id);
+      const starMap = Object.fromEntries(starRows.map((s) => [s.app_name, s.stars]));
       return {
         ...kid,
         apps: appNames.map((name) => ({
@@ -65,6 +77,8 @@ router.get('/apps', authenticate, async (req, res, next) => {
           description: metaMap[name]?.description || '',
           icon: metaMap[name]?.icon || null,
           launches: metaMap[name]?.launches || 0,
+          stars: starMap[name] || 0,
+          starred: myStars.has(`${kid.id}:${name}`),
         })),
       };
     }));
@@ -185,6 +199,38 @@ router.put('/:userId/apps/:appName/meta', authenticate, authorizeClaudeAccess, (
     const meta = db.prepare('SELECT * FROM app_metadata WHERE user_id = ? AND app_name = ?')
       .get(req.kidId, appName);
     res.json(meta);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/claude/apps/star — toggle star on an app
+router.post('/apps/star', authenticate, (req, res, next) => {
+  try {
+    const { app_owner_id, app_name } = z.object({
+      app_owner_id: z.number().int(),
+      app_name: z.string().min(1),
+    }).parse(req.body);
+
+    const existing = db.prepare(
+      'SELECT id FROM app_stars WHERE user_id = ? AND app_owner_id = ? AND app_name = ?'
+    ).get(req.user.userId, app_owner_id, app_name);
+
+    if (existing) {
+      db.prepare('DELETE FROM app_stars WHERE id = ?').run(existing.id);
+      const count = db.prepare(
+        'SELECT COUNT(*) AS stars FROM app_stars WHERE app_owner_id = ? AND app_name = ?'
+      ).get(app_owner_id, app_name).stars;
+      res.json({ starred: false, stars: count });
+    } else {
+      db.prepare(
+        'INSERT INTO app_stars (user_id, app_owner_id, app_name) VALUES (?, ?, ?)'
+      ).run(req.user.userId, app_owner_id, app_name);
+      const count = db.prepare(
+        'SELECT COUNT(*) AS stars FROM app_stars WHERE app_owner_id = ? AND app_name = ?'
+      ).get(app_owner_id, app_name).stars;
+      res.json({ starred: true, stars: count });
+    }
   } catch (err) {
     next(err);
   }

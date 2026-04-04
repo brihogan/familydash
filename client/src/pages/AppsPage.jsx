@@ -1,11 +1,71 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faRocket, faTerminal, faArrowUpRightFromSquare, faPen, faPlay } from '@fortawesome/free-solid-svg-icons';
+import { faRocket, faTerminal, faArrowUpRightFromSquare, faPen, faPlay, faStar as faStarSolid } from '@fortawesome/free-solid-svg-icons';
+import { faStar as faStarOutline } from '@fortawesome/free-regular-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { claudeApi } from '../api/claude.api.js';
 import Avatar from '../components/shared/Avatar.jsx';
 import Modal from '../components/shared/Modal.jsx';
 import ClaudeTerminal from '../components/claude/ClaudeTerminal.jsx';
+
+function AppCard({ app, kid, canEdit, onLaunch, onEdit, onToggleStar }) {
+  return (
+    <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-brand-300 dark:hover:border-brand-500/50 transition-all">
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="w-9 h-9 rounded-lg bg-brand-50 dark:bg-brand-500/20 flex items-center justify-center text-lg shrink-0">
+            {app.icon || <FontAwesomeIcon icon={faRocket} className="text-brand-500 text-sm" />}
+          </span>
+          <div className="min-w-0">
+            <p className="font-semibold text-gray-900 dark:text-gray-100 truncate">{app.name.replace(/[-_]/g, ' ')}</p>
+            {app.description && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{app.description}</p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0 ml-2">
+          {canEdit && (
+            <button
+              onClick={() => onEdit({ kidId: kid.id, appName: app.name, description: app.description, icon: app.icon || '' })}
+              className="w-7 h-7 flex items-center justify-center text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400"
+            >
+              <FontAwesomeIcon icon={faPen} className="text-xs" />
+            </button>
+          )}
+          <button
+            onClick={() => onToggleStar(kid.id, app.name)}
+            className={`w-7 h-7 flex items-center justify-center transition-colors ${
+              app.starred ? 'text-amber-400' : 'text-gray-300 dark:text-gray-600 hover:text-amber-400'
+            }`}
+          >
+            <FontAwesomeIcon icon={app.starred ? faStarSolid : faStarOutline} className="text-sm" />
+          </button>
+        </div>
+      </div>
+      <div className="flex items-center justify-between mt-3">
+        <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-gray-500">
+          <span>
+            <FontAwesomeIcon icon={faPlay} className="mr-1" />
+            {app.launches}
+          </span>
+          {app.stars > 0 && (
+            <span>
+              <FontAwesomeIcon icon={faStarSolid} className="mr-1 text-amber-400" />
+              {app.stars}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => onLaunch(kid.username, app.name)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-medium transition-colors"
+        >
+          Open
+          <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="text-[10px]" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function AppsPage() {
   const { user } = useAuth();
@@ -51,6 +111,22 @@ export default function AppsPage() {
     } catch { /* ignore */ }
     setEditing(null);
   };
+
+  const handleToggleStar = async (kidId, appName) => {
+    try {
+      const { starred, stars } = await claudeApi.toggleStar(kidId, appName);
+      setKids((prev) => prev.map((k) =>
+        k.id === kidId
+          ? { ...k, apps: k.apps.map((a) => a.name === appName ? { ...a, starred, stars } : a) }
+          : k
+      ));
+    } catch { /* ignore */ }
+  };
+
+  // Collect starred apps across all kids for the favorites group
+  const favorites = kids.flatMap((kid) =>
+    kid.apps.filter((a) => a.starred).map((a) => ({ ...a, kid }))
+  );
 
   const canEdit = (kidId) => user?.role === 'parent' || user?.id === kidId;
 
@@ -103,6 +179,26 @@ export default function AppsPage() {
         </div>
       ) : (
         <div className="space-y-6">
+          {/* Favorites */}
+          {favorites.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <FontAwesomeIcon icon={faStarSolid} className="text-amber-400" />
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100">My Favorites</h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {favorites.map((fav) => (
+                  <AppCard
+                    key={`${fav.kid.id}-${fav.name}`}
+                    app={fav} kid={fav.kid}
+                    canEdit={canEdit(fav.kid.id)}
+                    onLaunch={handleLaunch} onEdit={setEditing} onToggleStar={handleToggleStar}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           {kids.filter((k) => k.apps.length > 0).map((kid) => (
             <div key={kid.id}>
               <div className="flex items-center gap-2 mb-3">
@@ -111,45 +207,12 @@ export default function AppsPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {kid.apps.map((app) => (
-                  <div
+                  <AppCard
                     key={app.name}
-                    className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-brand-300 dark:hover:border-brand-500/50 transition-all"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="w-9 h-9 rounded-lg bg-brand-50 dark:bg-brand-500/20 flex items-center justify-center text-lg shrink-0">
-                          {app.icon || <FontAwesomeIcon icon={faRocket} className="text-brand-500 text-sm" />}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-gray-900 dark:text-gray-100 truncate">{app.name.replace(/[-_]/g, ' ')}</p>
-                          {app.description && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{app.description}</p>
-                          )}
-                        </div>
-                      </div>
-                      {canEdit(kid.id) && (
-                        <button
-                          onClick={() => setEditing({ kidId: kid.id, appName: app.name, description: app.description, icon: app.icon || '' })}
-                          className="text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 shrink-0 ml-2"
-                        >
-                          <FontAwesomeIcon icon={faPen} className="text-xs" />
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between mt-3">
-                      <span className="text-xs text-gray-400 dark:text-gray-500">
-                        <FontAwesomeIcon icon={faPlay} className="mr-1" />
-                        {app.launches} {app.launches === 1 ? 'launch' : 'launches'}
-                      </span>
-                      <button
-                        onClick={() => handleLaunch(kid.username, app.name)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-medium transition-colors"
-                      >
-                        Open
-                        <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="text-[10px]" />
-                      </button>
-                    </div>
-                  </div>
+                    app={app} kid={kid}
+                    canEdit={canEdit(kid.id)}
+                    onLaunch={handleLaunch} onEdit={setEditing} onToggleStar={handleToggleStar}
+                  />
                 ))}
               </div>
             </div>

@@ -299,6 +299,19 @@ export function runMigrations(db) {
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_app_metadata_user ON app_metadata(user_id)`);
 
+  // v47: app_stars — users can star/favorite apps
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS app_stars (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      app_owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      app_name    TEXT    NOT NULL,
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(user_id, app_owner_id, app_name)
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_app_stars_user ON app_stars(user_id)`);
+
   // v44: turn_logs — history of completed turns
   db.exec(`
     CREATE TABLE IF NOT EXISTS turn_logs (
