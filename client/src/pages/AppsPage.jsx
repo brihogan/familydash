@@ -52,7 +52,7 @@ export default function AppsPage() {
     setEditing(null);
   };
 
-  const canEdit = (kidId) => user?.role === 'parent' || user?.userId === kidId;
+  const canEdit = (kidId) => user?.role === 'parent' || user?.id === kidId;
 
   return (
     <div>
@@ -68,7 +68,7 @@ export default function AppsPage() {
 
       {/* Terminal buttons */}
       {kids.length > 0 && (() => {
-        const accessible = kids.filter((k) => user?.role === 'parent' || user?.userId === k.id);
+        const accessible = kids.filter((k) => user?.role === 'parent' || user?.id === k.id);
         if (!accessible.length) return null;
         return (
           <div className="mb-6">
