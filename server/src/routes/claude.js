@@ -64,9 +64,32 @@ router.get('/apps', authenticate, async (req, res, next) => {
       stmtMyStars.all(req.user.userId).map((s) => `${s.app_owner_id}:${s.app_name}`)
     );
 
+    const stmtRenameMeta = db.prepare(
+      'UPDATE app_metadata SET app_name = ? WHERE user_id = ? AND app_name = ?'
+    );
+    const stmtRenameStars = db.prepare(
+      'UPDATE app_stars SET app_name = ? WHERE app_owner_id = ? AND app_name = ?'
+    );
+
     const result = await Promise.all(kids.map(async (kid) => {
       const appNames = await listContainerApps(kid.id);
-      const metaRows = stmtMeta.all(kid.id);
+      let metaRows = stmtMeta.all(kid.id);
+
+      // Detect renames: orphaned metadata + new folder with no metadata
+      const folderSet = new Set(appNames);
+      const metaSet = new Set(metaRows.map((m) => m.app_name));
+      const orphaned = metaRows.filter((m) => !folderSet.has(m.app_name));
+      const unmatched = appNames.filter((n) => !metaSet.has(n));
+
+      if (orphaned.length === 1 && unmatched.length === 1) {
+        const oldName = orphaned[0].app_name;
+        const newName = unmatched[0];
+        stmtRenameMeta.run(newName, kid.id, oldName);
+        stmtRenameStars.run(newName, kid.id, oldName);
+        // Refresh metadata after rename
+        metaRows = stmtMeta.all(kid.id);
+      }
+
       const metaMap = Object.fromEntries(metaRows.map((m) => [m.app_name, m]));
       const starRows = stmtStarCount.all(kid.id);
       const starMap = Object.fromEntries(starRows.map((s) => [s.app_name, s.stars]));
