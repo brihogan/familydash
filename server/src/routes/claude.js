@@ -534,8 +534,7 @@ appsRouter.get('/:username/:appName', (req, res) => {
 });
 
 // ─── Standalone apps sub-app (for subdomain isolation) ────────────────────
-// Serves the same routes as appsRouter but also includes storage + launch
-// endpoints, all at /:username/:appName/ (no /apps prefix)
+// Serves at /apps/:username/:appName/ — same URL structure as main domain
 
 import express from 'express';
 const appsSubdomainApp = express();
@@ -553,8 +552,10 @@ if (APPS_CORS_ORIGIN) {
   });
 }
 
-// Storage API on subdomain: /:username/:appName/data[/:key]
-appsSubdomainApp.get('/:username/:appName/data', requireSameOrigin, (req, res) => {
+const subdomainRouter = Router();
+
+// Storage API: /apps/:username/:appName/data[/:key]
+subdomainRouter.get('/:username/:appName/data', requireSameOrigin, (req, res) => {
   const user = resolveUser(req.params.username);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const rows = db.prepare('SELECT key, value FROM app_storage WHERE owner_id = ? AND app_name = ?').all(user.id, req.params.appName);
@@ -562,14 +563,14 @@ appsSubdomainApp.get('/:username/:appName/data', requireSameOrigin, (req, res) =
   for (const row of rows) { try { data[row.key] = JSON.parse(row.value); } catch { data[row.key] = row.value; } }
   res.json(data);
 });
-appsSubdomainApp.get('/:username/:appName/data/:key', requireSameOrigin, (req, res) => {
+subdomainRouter.get('/:username/:appName/data/:key', requireSameOrigin, (req, res) => {
   const user = resolveUser(req.params.username);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const row = db.prepare('SELECT value FROM app_storage WHERE owner_id = ? AND app_name = ? AND key = ?').get(user.id, req.params.appName, req.params.key);
   if (!row) return res.status(404).json({ error: 'Key not found' });
   try { res.json(JSON.parse(row.value)); } catch { res.json(row.value); }
 });
-appsSubdomainApp.put('/:username/:appName/data/:key', requireSameOrigin, (req, res) => {
+subdomainRouter.put('/:username/:appName/data/:key', requireSameOrigin, (req, res) => {
   const user = resolveUser(req.params.username);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const value = JSON.stringify(req.body);
@@ -582,7 +583,7 @@ appsSubdomainApp.put('/:username/:appName/data/:key', requireSameOrigin, (req, r
   db.prepare('INSERT INTO app_storage (owner_id, app_name, key, value, updated_at) VALUES (?, ?, ?, ?, datetime(\'now\')) ON CONFLICT(owner_id, app_name, key) DO UPDATE SET value = ?, updated_at = datetime(\'now\')').run(user.id, req.params.appName, req.params.key, value, value);
   res.json({ ok: true });
 });
-appsSubdomainApp.delete('/:username/:appName/data/:key', requireSameOrigin, (req, res) => {
+subdomainRouter.delete('/:username/:appName/data/:key', requireSameOrigin, (req, res) => {
   const user = resolveUser(req.params.username);
   if (!user) return res.status(404).json({ error: 'User not found' });
   db.prepare('DELETE FROM app_storage WHERE owner_id = ? AND app_name = ? AND key = ?').run(user.id, req.params.appName, req.params.key);
@@ -590,7 +591,7 @@ appsSubdomainApp.delete('/:username/:appName/data/:key', requireSameOrigin, (req
 });
 
 // Launch counter on subdomain
-appsSubdomainApp.post('/:username/:appName/launch', (req, res) => {
+subdomainRouter.post('/:username/:appName/launch', (req, res) => {
   const user = resolveUser(req.params.username);
   if (!user) return res.status(404).json({ error: 'User not found' });
   db.prepare('INSERT INTO app_metadata (user_id, app_name, launches) VALUES (?, ?, 1) ON CONFLICT(user_id, app_name) DO UPDATE SET launches = launches + 1').run(user.id, req.params.appName);
@@ -599,7 +600,7 @@ appsSubdomainApp.post('/:username/:appName/launch', (req, res) => {
 });
 
 // Static file serving on subdomain
-appsSubdomainApp.get('/:username/:appName', (req, res) => { res.redirect(req.originalUrl + '/'); });
+subdomainRouter.get('/:username/:appName', (req, res) => { res.redirect(req.originalUrl + '/'); });
 appsSubdomainApp.get('/:username/:appName/*', resolveKidId, async (req, res) => {
   const appName = req.params.appName;
   const filePath = req.params[0] || 'index.html';
@@ -613,6 +614,9 @@ appsSubdomainApp.get('/:username/:appName/*', resolveKidId, async (req, res) => 
     res.send(data);
   } catch { res.status(404).send('Not found'); }
 });
+
+// Mount subdomain routes at /apps so URLs are consistent: /apps/:user/:app/
+appsSubdomainApp.use('/apps', subdomainRouter);
 
 export { wsTickets, appsRouter, appsSubdomainApp, getDailyRemainingSeconds };
 export default router;
