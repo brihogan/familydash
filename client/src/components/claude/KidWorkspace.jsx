@@ -320,11 +320,12 @@ function FloatingTerminal({ terminalRef, onSetMode }) {
 }
 
 // ─── Main workspace ────────────────────────────────────────────────────────
-export default function KidWorkspace({ userId, timeLimit, allApps, initialView, onClose }) {
+export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, initialView, onClose }) {
   const [activeTab, setActiveTab] = useState(initialView === 'terminal' ? 'terminal' : null);
   const [runningApps, setRunningApps] = useState([]);
   const [showAppList, setShowAppList] = useState(false);
   const [appSearch, setAppSearch] = useState('');
+  const [allApps, setAllApps] = useState(initialApps);
   const [expandedOwners, setExpandedOwners] = useState(new Set());
   const [remainingSec, setRemainingSec] = useState(timeLimit * 60); // seconds
   const [unlimited, setUnlimited] = useState(false);
@@ -556,7 +557,24 @@ export default function KidWorkspace({ userId, timeLimit, allApps, initialView, 
         {/* Apps dropdown */}
         <div ref={appListRef} style={{ position: 'relative', zIndex: 10, marginBottom: 8 }}>
           <button
-            onClick={() => setShowAppList((v) => !v)}
+            onClick={() => {
+              setShowAppList((v) => {
+                if (!v) {
+                  // Refresh apps list when opening the dropdown
+                  claudeApi.listApps().then((data) => {
+                    const fresh = (data.kids || []).flatMap((k) =>
+                      k.apps.map((a) => ({
+                        appName: a.name, username: k.username, ownerName: k.name,
+                        ownerId: k.id, icon: a.icon, starred: a.starred,
+                        url: `${import.meta.env.VITE_APPS_ORIGIN || ''}/apps/${k.username}/${a.name}/`,
+                      }))
+                    );
+                    setAllApps(fresh);
+                  }).catch(() => {});
+                }
+                return !v;
+              });
+            }}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '6px 12px', fontSize: 13, fontFamily: 'sans-serif',
