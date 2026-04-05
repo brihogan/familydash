@@ -506,7 +506,7 @@ function resolveKidId(req, res, next) {
   next();
 }
 
-appsRouter.get('/:username/:appName/*', resolveKidId, async (req, res) => {
+async function serveAppFile(req, res) {
   const appName = req.params.appName;
   const filePath = req.params[0] || 'index.html';
 
@@ -524,8 +524,13 @@ appsRouter.get('/:username/:appName/*', resolveKidId, async (req, res) => {
   } catch {
     res.status(404).send('Not found');
   }
-});
+}
 
+// Match /fox/radar-rat-race/ (trailing slash, serve index.html)
+appsRouter.get('/:username/:appName/', resolveKidId, serveAppFile);
+// Match /fox/radar-rat-race/style.css (sub-resources)
+appsRouter.get('/:username/:appName/*', resolveKidId, serveAppFile);
+// Match /fox/radar-rat-race (no trailing slash, redirect)
 appsRouter.get('/:username/:appName', (req, res) => {
   res.redirect(req.originalUrl + '/');
 });
@@ -597,20 +602,9 @@ subdomainRouter.post('/:username/:appName/launch', (req, res) => {
 });
 
 // Static file serving on subdomain
+subdomainRouter.get('/:username/:appName/', resolveKidId, serveAppFile);
+subdomainRouter.get('/:username/:appName/*', resolveKidId, serveAppFile);
 subdomainRouter.get('/:username/:appName', (req, res) => { res.redirect(req.originalUrl + '/'); });
-appsSubdomainApp.get('/:username/:appName/*', resolveKidId, async (req, res) => {
-  const appName = req.params.appName;
-  const filePath = req.params[0] || 'index.html';
-  const resolved = path.normalize(path.join(appName, filePath));
-  if (resolved.startsWith('..') || path.isAbsolute(resolved)) return res.status(400).send('Invalid path');
-  try {
-    const data = await readContainerFile(req.kidId, resolved);
-    const ext = path.extname(filePath).toLowerCase();
-    res.set('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; img-src 'self' data: blob: https:; connect-src 'self'; frame-src 'none'; object-src 'none';");
-    res.set('Content-Type', MIME_TYPES[ext] || 'application/octet-stream');
-    res.send(data);
-  } catch { res.status(404).send('Not found'); }
-});
 
 // Mount at root — subdomain URLs are apps.straychips.com/:user/:app/
 appsSubdomainApp.use('/', subdomainRouter);
