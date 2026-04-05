@@ -134,7 +134,9 @@ app.use('/api/uploads/steps', express.static(stepsUploadsDir));
 const publicDir = join(__dirname, '..', 'public');
 if (existsSync(publicDir)) {
   app.use(express.static(publicDir));
-  app.get('*', (_req, res) => {
+  app.get('*', (req, res) => {
+    // Don't serve the SPA for /apps routes — those are handled by the apps router
+    if (req.path.startsWith('/apps/')) return res.status(404).send('Not found');
     res.sendFile(join(publicDir, 'index.html'));
   });
 }
