@@ -61,8 +61,7 @@ export async function createExecSession(userId, opts = {}) {
   const modelId = modelMap[opts.model] || modelMap.sonnet;
 
   const exec = await container.exec({
-    Cmd: ['bash'],
-    Env: [`CLAUDE_MODEL=${modelId}`],
+    Cmd: ['bash', '-c', `export CLAUDE_MODEL=${modelId} && exec bash`],
     AttachStdin: true,
     AttachStdout: true,
     AttachStderr: true,
