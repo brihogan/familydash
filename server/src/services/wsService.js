@@ -9,6 +9,7 @@ export function setupWebSocket(server) {
 
   wss.on('connection', async (ws, req) => {
     console.log('[ws] New connection attempt');
+    let kidId = null;
     try {
       // 1. Parse ticket from query params
       const url = new URL(req.url, `http://${req.headers.host}`);
@@ -30,7 +31,7 @@ export function setupWebSocket(server) {
       }
       wsTickets.delete(ticket); // One-time use
 
-      const kidId = entry.kidId;
+      kidId = entry.kidId;
       const isParent = entry.role === 'parent';
       console.log('[ws] Authenticated via ticket, kidId:', kidId, 'role:', entry.role);
 
@@ -140,7 +141,9 @@ export function setupWebSocket(server) {
         stream.end();
       });
     } catch (err) {
-      console.error('[ws] WebSocket terminal error:', err.message, err.stack);
+      console.error('[ws] WebSocket terminal error:', err.message);
+      // Decrement connection counter on failure
+      if (kidId) activeConnections.set(kidId, Math.max(0, (activeConnections.get(kidId) || 1) - 1));
       if (ws.readyState === ws.OPEN) {
         ws.close(4500, 'Container error');
       }
