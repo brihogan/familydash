@@ -615,7 +615,9 @@ appsSubdomainApp.get('/:username/:appName/*', resolveKidId, async (req, res) => 
   } catch { res.status(404).send('Not found'); }
 });
 
-// Mount subdomain routes at /apps so URLs are consistent: /apps/:user/:app/
+// Mount at root — subdomain URLs are apps.straychips.com/:user/:app/
+appsSubdomainApp.use('/', subdomainRouter);
+// Also support /apps/ prefix for backward compat
 appsSubdomainApp.use('/apps', subdomainRouter);
 
 export { wsTickets, appsRouter, appsSubdomainApp, getDailyRemainingSeconds };

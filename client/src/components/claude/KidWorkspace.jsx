@@ -566,7 +566,9 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
                       k.apps.map((a) => ({
                         appName: a.name, username: k.username, ownerName: k.name,
                         ownerId: k.id, icon: a.icon, starred: a.starred,
-                        url: `${import.meta.env.VITE_APPS_ORIGIN || ''}/apps/${k.username}/${a.name}/`,
+                        url: APPS_ORIGIN
+                          ? `${APPS_ORIGIN}/${k.username}/${a.name}/`
+                          : `/apps/${k.username}/${a.name}/`,
                       }))
                     );
                     setAllApps(fresh);

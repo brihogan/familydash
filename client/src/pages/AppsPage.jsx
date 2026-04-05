@@ -100,7 +100,9 @@ export default function AppsPage() {
       ownerId: kid.id,
       icon: app.icon,
       starred: app.starred,
-      url: `${import.meta.env.VITE_APPS_ORIGIN || ''}/apps/${kid.username}/${app.name}/`,
+      url: import.meta.env.VITE_APPS_ORIGIN
+        ? `${import.meta.env.VITE_APPS_ORIGIN}/${kid.username}/${app.name}/`
+        : `/apps/${kid.username}/${app.name}/`,
     }))
   );
 
