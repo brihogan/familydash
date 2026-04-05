@@ -504,7 +504,7 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
   ) : null;
 
   return createPortal(
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', flexDirection: 'column', background: '#1a1b26' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100dvh', zIndex: 99999, display: 'flex', flexDirection: 'column', background: '#1a1b26', overflow: 'hidden', touchAction: 'manipulation' }}>
       {/* ─── Taskbar ─── */}
       <div style={{ display: 'flex', alignItems: 'end', padding: '0 10px', height: BAR_H, background: '#16161e', borderBottom: '1px solid rgba(255,255,255,0.1)', flexShrink: 0, gap: 3, position: 'relative', zIndex: 10 }}>
         {/* Terminal tab */}
