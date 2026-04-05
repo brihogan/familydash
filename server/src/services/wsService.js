@@ -54,8 +54,11 @@ export function setupWebSocket(server) {
       }
 
       // 4. Create Docker exec session
-      console.log('[ws] Creating Docker exec session for kid', kidId);
-      const { exec, stream } = await createExecSession(kidId);
+      // Look up model preference (dynamic import to avoid circular dep)
+      const db = (await import('../db/db.js')).default;
+      const userRow = db.prepare('SELECT claude_model FROM users WHERE id = ?').get(kidId);
+      console.log('[ws] Creating Docker exec session for kid', kidId, 'model:', userRow?.claude_model || 'sonnet');
+      const { exec, stream } = await createExecSession(kidId, { model: userRow?.claude_model });
       console.log('[ws] Docker exec session created successfully');
 
       // 5. Time limit timers (kids only)

@@ -53,10 +53,16 @@ export async function getOrCreateContainer(userId) {
   }
 }
 
-export async function createExecSession(userId) {
+export async function createExecSession(userId, opts = {}) {
   const container = await getOrCreateContainer(userId);
+
+  // Map model setting to Claude model ID
+  const modelMap = { opus: 'claude-opus-4-6', sonnet: 'claude-sonnet-4-6' };
+  const modelId = modelMap[opts.model] || modelMap.sonnet;
+
   const exec = await container.exec({
     Cmd: ['bash'],
+    Env: [`CLAUDE_MODEL=${modelId}`],
     AttachStdin: true,
     AttachStdout: true,
     AttachStderr: true,

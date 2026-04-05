@@ -297,6 +297,9 @@ export function runMigrations(db) {
     )
   `);
 
+  // v52: claude_model per user (sonnet or opus)
+  try { db.exec(`ALTER TABLE users ADD COLUMN claude_model TEXT NOT NULL DEFAULT 'sonnet'`); } catch (_) {}
+
   // v51: family-level Claude Code access gate
   try { db.exec(`ALTER TABLE families ADD COLUMN claude_access INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
 
