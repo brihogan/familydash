@@ -747,7 +747,16 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
               {/* ── Sub-bar: app browser controls ── */}
               {runningApps.map((app) => activeTab === app.key ? (
                 <div key={`bar-${app.key}`} style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px 8px', background: '#16161e', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
-                  <SubBtn icon={faChevronLeft} title="Back" onClick={() => { try { iframeRefs.current[app.key]?.contentWindow?.history.back(); } catch {} }} />
+                  <SubBtn icon={faChevronLeft} title="Back" onClick={() => {
+                    try {
+                      const iframe = iframeRefs.current[app.key];
+                      if (!iframe) return;
+                      // Only go back if the iframe navigated away from its original URL
+                      const currentPath = iframe.contentWindow?.location?.pathname;
+                      const originalPath = new URL(app.url, window.location.origin).pathname;
+                      if (currentPath && currentPath !== originalPath) iframe.contentWindow.history.back();
+                    } catch { /* cross-origin or no navigation */ }
+                  }} />
                   <SubBtn icon={faChevronRight} title="Forward" onClick={() => { try { iframeRefs.current[app.key]?.contentWindow?.history.forward(); } catch {} }} />
                   <SubBtn icon={faRotateRight} title="Reload" onClick={() => setAppReloadKeys((prev) => ({ ...prev, [app.key]: (prev[app.key] || 0) + 1 }))} />
                   <span style={{ marginLeft: 8, fontSize: 11, fontFamily: 'monospace', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{app.url}</span>
