@@ -114,7 +114,7 @@ router.get('/daily-remaining', authenticate, requireClaudeFamily, (req, res) => 
 router.get('/apps', authenticate, requireClaudeFamily, async (req, res, next) => {
   try {
     const kids = db.prepare(
-      'SELECT id, name, COALESCE(username, CAST(id AS TEXT)) AS username, avatar_color, avatar_emoji FROM users WHERE family_id = ? AND claude_enabled = 1 AND is_active = 1 ORDER BY sort_order ASC'
+      'SELECT id, name, COALESCE(public_slug, username, CAST(id AS TEXT)) AS username, avatar_color, avatar_emoji FROM users WHERE family_id = ? AND claude_enabled = 1 AND is_active = 1 ORDER BY sort_order ASC'
     ).all(req.user.familyId);
 
     const stmtMeta = db.prepare(
@@ -346,10 +346,10 @@ router.post('/apps/star', authenticate, requireClaudeFamily, (req, res, next) =>
 
 // ─── Helper: resolve username or numeric ID to user ───────────────────────
 function resolveUser(identifier) {
-  let user = db.prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE AND is_active = 1').get(identifier);
-  if (!user && /^\d+$/.test(identifier)) {
-    user = db.prepare('SELECT id FROM users WHERE id = ? AND is_active = 1').get(parseInt(identifier, 10));
-  }
+  // Try public_slug first, then username, then numeric ID
+  let user = db.prepare('SELECT id FROM users WHERE public_slug = ? AND is_active = 1').get(identifier);
+  if (!user) user = db.prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE AND is_active = 1').get(identifier);
+  if (!user && /^\d+$/.test(identifier)) user = db.prepare('SELECT id FROM users WHERE id = ? AND is_active = 1').get(parseInt(identifier, 10));
   return user;
 }
 
@@ -497,13 +497,10 @@ const appsRouter = Router();
 
 function resolveKidId(req, res, next) {
   const identifier = req.params.username;
-  // Try username first, then fall back to user ID (for parents without usernames)
-  let user = db.prepare(
-    'SELECT id FROM users WHERE username = ? COLLATE NOCASE AND is_active = 1'
-  ).get(identifier);
-  if (!user && /^\d+$/.test(identifier)) {
-    user = db.prepare('SELECT id FROM users WHERE id = ? AND is_active = 1').get(parseInt(identifier, 10));
-  }
+  // Try public_slug, then username, then numeric ID
+  let user = db.prepare('SELECT id FROM users WHERE public_slug = ? AND is_active = 1').get(identifier);
+  if (!user) user = db.prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE AND is_active = 1').get(identifier);
+  if (!user && /^\d+$/.test(identifier)) user = db.prepare('SELECT id FROM users WHERE id = ? AND is_active = 1').get(parseInt(identifier, 10));
   if (!user) return res.status(404).send('User not found');
   req.kidId = user.id;
   next();

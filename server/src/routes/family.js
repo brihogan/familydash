@@ -39,7 +39,7 @@ router.get('/', authenticate, (req, res, next) => {
     const members = db.prepare(`
       SELECT u.id, u.name, u.username, u.email, u.role, u.avatar_color, u.avatar_emoji, u.ticket_balance,
              u.is_active, u.sort_order, u.show_on_dashboard, u.show_balance_on_dashboard, u.require_task_approval,
-             u.require_set_approval, u.allow_transfers, u.allow_withdraws, u.require_currency_work, u.chores_enabled, u.allow_login, u.claude_enabled, u.claude_time_limit, u.claude_model, u.created_at,
+             u.require_set_approval, u.allow_transfers, u.allow_withdraws, u.require_currency_work, u.chores_enabled, u.allow_login, u.claude_enabled, u.claude_time_limit, u.claude_model, u.public_slug, u.created_at,
              COALESCE(ct.daily_potential, 0) AS daily_ticket_potential
       FROM users u
       LEFT JOIN (
@@ -295,6 +295,17 @@ router.put('/users/:id', authenticate, requireRole('parent'), async (req, res, n
     }
     if (body.claude_enabled !== undefined) {
       updates.push('claude_enabled = ?'); values.push(body.claude_enabled ? 1 : 0);
+      // Auto-assign a public slug when enabling Claude Code
+      if (body.claude_enabled && !target.public_slug) {
+        const slugWords = ['fox','owl','elk','jay','ace','arc','bay','cub','dew','elm','fin','gem','haze','ice','jet','koi','lark','mist','neon','opal','pine','reef','star','tide','wolf','yak','zap','bolt','cove','dart','echo','fern','glow','hawk','iris','jade','kelp','lynx','moth','nova','onyx','puma','sage','tusk','vale','wren','zinc'];
+        const taken = new Set(db.prepare('SELECT public_slug FROM users WHERE public_slug IS NOT NULL').all().map((r) => r.public_slug));
+        let slug;
+        for (const w of slugWords.sort(() => Math.random() - 0.5)) {
+          if (!taken.has(w)) { slug = w; break; }
+        }
+        if (!slug) { for (let i = 1; !slug; i++) { const c = slugWords[Math.floor(Math.random() * slugWords.length)] + i; if (!taken.has(c)) slug = c; } }
+        updates.push('public_slug = ?'); values.push(slug);
+      }
     }
     if (body.claude_time_limit !== undefined) {
       updates.push('claude_time_limit = ?'); values.push(body.claude_time_limit);

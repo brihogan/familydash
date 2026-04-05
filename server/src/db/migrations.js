@@ -300,6 +300,38 @@ export function runMigrations(db) {
   // v52: claude_model per user (sonnet or opus)
   try { db.exec(`ALTER TABLE users ADD COLUMN claude_model TEXT NOT NULL DEFAULT 'sonnet'`); } catch (_) {}
 
+  // v53: public_slug for app URLs (short random word per user)
+  try { db.exec(`ALTER TABLE users ADD COLUMN public_slug TEXT`); } catch (_) {}
+  try { db.exec(`CREATE UNIQUE INDEX idx_users_public_slug ON users(public_slug) WHERE public_slug IS NOT NULL`); } catch (_) {}
+
+  // Backfill slugs for existing users who have claude_enabled
+  {
+    const words = [
+      'fox','owl','elk','jay','ace','arc','bay','cub','dew','elm',
+      'fin','gem','haze','ice','jet','koi','lark','mist','neon','opal',
+      'pine','quill','reef','star','tide','vex','wolf','yak','zap','bolt',
+      'cove','dart','echo','fern','glow','hawk','iris','jade','kelp','lynx',
+      'moth','nova','onyx','puma','rift','sage','tusk','vale','wren','zinc',
+    ];
+    const needSlug = db.prepare('SELECT id FROM users WHERE public_slug IS NULL AND claude_enabled = 1').all();
+    const existing = new Set(db.prepare('SELECT public_slug FROM users WHERE public_slug IS NOT NULL').all().map((r) => r.public_slug));
+    for (const user of needSlug) {
+      let slug;
+      // Try a single word first, then word + number
+      for (const w of words) {
+        if (!existing.has(w)) { slug = w; break; }
+      }
+      if (!slug) {
+        for (let i = 1; !slug; i++) {
+          const candidate = words[Math.floor(Math.random() * words.length)] + i;
+          if (!existing.has(candidate)) slug = candidate;
+        }
+      }
+      existing.add(slug);
+      db.prepare('UPDATE users SET public_slug = ? WHERE id = ?').run(slug, user.id);
+    }
+  }
+
   // v51: family-level Claude Code access gate
   try { db.exec(`ALTER TABLE families ADD COLUMN claude_access INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
 
