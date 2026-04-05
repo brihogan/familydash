@@ -54,9 +54,12 @@ export default function SettingsUserDetailPage() {
   const [credError,       setCredError]       = useState('');
   const nameInputRef = useRef(null);
 
+  const [claudeAccess, setClaudeAccess] = useState(false);
+
   useEffect(() => {
     familyApi.getFamily()
-      .then(({ members }) => {
+      .then(({ family, members }) => {
+        if (family?.claude_access) setClaudeAccess(true);
         const found = members.find((m) => String(m.id) === String(userId));
         if (found) setMember(found);
         else setError('Member not found.');
@@ -430,8 +433,8 @@ export default function SettingsUserDetailPage() {
         );
       })()}
 
-      {/* ── Claude Code ── */}
-      <div className="mb-6 space-y-3">
+      {/* ── Claude Code (only shown if family has access) ── */}
+      {claudeAccess && <div className="mb-6 space-y-3">
         <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Claude Code</h2>
         <div className="flex items-start justify-between gap-6 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
           <div className="flex-1 min-w-0">
@@ -475,7 +478,7 @@ export default function SettingsUserDetailPage() {
             </div>
           </div>
           )}
-      </div>
+      </div>}
 
       {/* ── Deactivate / Reactivate ── */}
       <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700 mb-6">

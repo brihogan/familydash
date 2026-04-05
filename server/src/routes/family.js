@@ -35,7 +35,7 @@ router.get('/accounts', authenticate, (req, res, next) => {
 
 router.get('/', authenticate, (req, res, next) => {
   try {
-    const family = db.prepare('SELECT id, name, created_at FROM families WHERE id = ?').get(req.user.familyId);
+    const family = db.prepare('SELECT id, name, claude_access, created_at FROM families WHERE id = ?').get(req.user.familyId);
     const members = db.prepare(`
       SELECT u.id, u.name, u.username, u.email, u.role, u.avatar_color, u.avatar_emoji, u.ticket_balance,
              u.is_active, u.sort_order, u.show_on_dashboard, u.show_balance_on_dashboard, u.require_task_approval,

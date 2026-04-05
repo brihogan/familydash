@@ -1,11 +1,6 @@
 import Docker from 'dockerode';
 
-// In production, DOCKER_HOST points to the socket proxy (tcp://docker-proxy:2375)
-// In dev, falls back to the local Docker socket
-const dockerOpts = process.env.DOCKER_HOST
-  ? (() => { const u = new URL(process.env.DOCKER_HOST); return { host: u.hostname, port: parseInt(u.port, 10) }; })()
-  : { socketPath: '/var/run/docker.sock' };
-const docker = new Docker(dockerOpts);
+const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 const CONTAINER_IMAGE = process.env.CLAUDE_CONTAINER_IMAGE || 'familydash-claude-code:latest';
 const CLAUDE_NETWORK = process.env.CLAUDE_NETWORK || null;
 

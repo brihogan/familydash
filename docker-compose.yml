@@ -15,39 +15,19 @@ services:
       JWT_REFRESH_EXPIRES_IN: 30d
       PORT: 3001
       CLAUDE_CONTAINER_IMAGE: familydash-claude-code:latest
-      DOCKER_HOST: tcp://docker-proxy:2375
       CLAUDE_NETWORK: familydash_kid-sandbox
       APPS_HOST: apps.straychips.com
       MAIN_ORIGIN: https://dash.straychips.com
     volumes:
       - sqlite_data:/data
-    networks:
-      - internal
-    depends_on:
-      - docker-proxy
+      - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  docker-proxy:
-    image: tecnativa/docker-socket-proxy
-    restart: unless-stopped
-    environment:
-      CONTAINERS: 1
-      EXEC: 1
-      IMAGES: 1
-      POST: 1
-      NETWORKS: 1
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - internal
-
 networks:
-  internal:
-    driver: bridge
   kid-sandbox:
     driver: bridge
     internal: true

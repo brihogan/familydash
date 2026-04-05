@@ -67,6 +67,7 @@ export default function Layout() {
   useScrollLock(bottomPanelOpen);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [defaultMemberId, setDefaultMemberId] = useState(null);
+  const [claudeAccess, setClaudeAccess] = useState(false);
   const [kidStats, setKidStats] = useState(null);
   const { isOnline, pendingCount } = useSyncStatus();
 
@@ -118,10 +119,19 @@ export default function Layout() {
     0,
   );
 
+  // Check claude_access for kids (parents get it in the fetch below)
+  useEffect(() => {
+    if (user?.role !== 'kid') return;
+    familyApi.getFamily().then((data) => {
+      if (data.family?.claude_access) setClaudeAccess(true);
+    }).catch(() => {});
+  }, [user?.role, user?.familyId]);
+
   // Fetch default member for "Individual Pages" nav links
   useEffect(() => {
     if (user?.role !== 'parent') return;
     familyApi.getFamily().then((data) => {
+      if (data.family?.claude_access) setClaudeAccess(true);
       const members = data.members || [];
       // If logged-in parent has chores_enabled, default to their own ID
       const self = members.find((m) => m.id === user.id);
@@ -220,10 +230,12 @@ export default function Layout() {
               </span>
             )}
           </NavLink>
-          <NavLink to="/code-apps" className={navClass} onClick={close}>
-            <FontAwesomeIcon icon={faRocket} className="w-4 shrink-0" />
-            Apps
-          </NavLink>
+          {claudeAccess && (
+            <NavLink to="/code-apps" className={navClass} onClick={close}>
+              <FontAwesomeIcon icon={faRocket} className="w-4 shrink-0" />
+              Apps
+            </NavLink>
+          )}
 
           {defaultMemberId && (
             <>
@@ -311,10 +323,12 @@ export default function Layout() {
 
       {user?.role === 'kid' && (
         <>
-          <NavLink to="/code-apps" className={navClass} onClick={close}>
-            <FontAwesomeIcon icon={faRocket} className="w-4 shrink-0" />
-            Apps
-          </NavLink>
+          {claudeAccess && (
+            <NavLink to="/code-apps" className={navClass} onClick={close}>
+              <FontAwesomeIcon icon={faRocket} className="w-4 shrink-0" />
+              Apps
+            </NavLink>
+          )}
           <NavLink to={`/kid/${user.id}`} className={navClass} onClick={close}>
             <FontAwesomeIcon icon={faTachographDigital} className="w-4 shrink-0" />
             My Overview

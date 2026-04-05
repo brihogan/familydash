@@ -163,6 +163,8 @@ docker build -t familydash-claude-code:latest docker/claude-code/
 
 ### 2. Grant Claude Code access to your family
 
+**Local development:**
+
 ```bash
 cd server
 node claude-access.js grant user@example.com    # enable for a family
@@ -170,11 +172,18 @@ node claude-access.js revoke user@example.com   # disable for a family
 node claude-access.js list                       # show all families
 ```
 
-This gates the entire feature at the family level. Without a grant, all Claude Code endpoints return 403.
+**Production (Docker):**
+
+```bash
+docker exec -it family-dashboard node server/claude-access.js grant user@example.com
+docker exec -it family-dashboard node server/claude-access.js list
+```
+
+This gates the entire feature at the family level. Without a grant, the Claude Code settings toggle, the Apps nav link, and all Claude Code endpoints are hidden/blocked.
 
 ### 3. Enable per-user in settings
 
-Go to **Settings → [User]** and toggle **Enable Claude Code** for each family member who should have access. For kids, you can also set a **Daily Time Limit** (default 60 minutes).
+After granting family access, go to **Settings → [User]** and toggle **Enable Claude Code** for each family member who should have access. The toggle only appears once the family has been granted access. For kids, you can also set a **Daily Time Limit** (default 60 minutes).
 
 ### 4. First-time login
 
@@ -207,7 +216,6 @@ If you skip subdomain isolation, apps will still work from the main domain at `/
 
 **Security features enabled in production:**
 
-- Docker socket proxy (limits Docker API surface if the Node.js app is compromised)
 - Isolated container network (no internet, no cross-container communication)
 - All Linux capabilities dropped + no-new-privileges
 - Tightened CSP on served apps (`connect-src 'self'` blocks external data exfiltration)
