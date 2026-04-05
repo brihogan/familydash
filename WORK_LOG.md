@@ -1,5 +1,37 @@
 # Work Log
 
+## Session Start: 2026-04-04 (~9:00 AM, ~1 hour)
+
+### 2026-04-04 — KidWorkspace, daily time limits, Docker improvements
+- Moved Apps nav link to below Inbox (parent view) and top of kid nav section.
+- Added per-kid Claude Code daily time limit setting (default 60 min, configurable 5–480 min in kid settings).
+- **KidWorkspace**: Unified fullscreen environment for kids replacing separate ClaudeTerminal/AppViewer. Taskbar (52px) with Terminal tab, up to 3 running app tabs, Apps dropdown, shared daily timer, Exit. Terminal has 4 layout modes: docked tab, floating (draggable+resizable), right panel, bottom panel — toggled via title bar buttons. App tabs have browser-style sub-bar (back/forward/reload/URL). Terminal tab has reload button for crash recovery.
+- **Daily time limits**: `claude_daily_usage` table tracks cumulative seconds per kid per day. Workspace heartbeats every 30s to server; WebSocket uses daily remaining for cutoff. Resets each new day.
+- **Docker**: Claude Code installed under coder user's npm prefix for auto-update support. Entrypoint script auto-restores `.claude.json` from backup on container creation.
+
+### 2026-04-05 — Parent Claude Code, app data storage, workspace improvements
+- Parents can now enable Claude Code for themselves (setting toggle, no time limit, full workspace).
+- App URLs use user ID fallback for users without usernames (parents).
+- **App storage API**: `app_storage` table for per-app key-value data (high scores, counters, etc). Public GET/PUT/DELETE endpoints. Full documentation in kid's CLAUDE.md template with examples.
+- **Apps dropdown**: Search field, favorites section at top, apps grouped by owner with expandable sections, running app indicator dots.
+- Auto-reconnect on terminal WebSocket drop, narrower `--watch-path` for dev server.
+- App list now DB-driven (always visible even when container is stopped).
+- **Security hardening for production:**
+  - Family-level `claude_access` gate: CLI tool (`node server/claude-access.js grant/revoke/list`) controls which families can use Claude Code
+  - JWT secrets: removed hardcoded fallbacks, production crashes if unset, dev uses random per-run
+  - Container network isolation: `kid-sandbox` network (internal, no ICC) in docker-compose
+  - Docker socket proxy: `tecnativa/docker-socket-proxy` limits API surface if Node.js compromised
+  - Container hardening: `CapDrop ALL` + `no-new-privileges`
+  - Subdomain isolation: apps served from `apps.straychips.com` (different origin), virtual host routing in Express, CORS for storage API
+  - CSP tightened: `connect-src 'self'`, `frame-src 'none'`, `object-src 'none'` on all served apps
+  - Storage scoping: Referer path check prevents cross-app data reads
+  - CLAUDE.md watchdog: restored every 60s in entrypoint
+  - Rate limiting on container start, WS tickets, storage writes, launch counter
+  - WebSocket connection limit: max 3 per kid
+  - Removed `allow-popups` from iframe sandbox
+
+---
+
 ## Session Start: 2026-04-03
 
 ### 2026-04-03 — Turns feature (v1)

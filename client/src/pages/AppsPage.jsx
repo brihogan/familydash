@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { claudeApi } from '../api/claude.api.js';
 import Avatar from '../components/shared/Avatar.jsx';
 import Modal from '../components/shared/Modal.jsx';
-import ClaudeTerminal from '../components/claude/ClaudeTerminal.jsx';
+import KidWorkspace from '../components/claude/KidWorkspace.jsx';
 
 function AppCard({ app, kid, canEdit, onLaunch, onEdit, onToggleStar }) {
   return (
@@ -71,12 +71,18 @@ export default function AppsPage() {
   const { user } = useAuth();
   const [kids, setKids] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [terminalKid, setTerminalKid] = useState(null);
-  const [editing, setEditing] = useState(null); // { kidId, appName, description, icon }
+  const [editing, setEditing] = useState(null);
+  const [myTimeLimit, setMyTimeLimit] = useState(60);
+
+  // Unified workspace
+  const [workspace, setWorkspace] = useState(null); // { userId, initialView: 'terminal' | { url, appName } }
 
   const load = () => {
     claudeApi.listApps()
-      .then((data) => setKids(data.kids))
+      .then((data) => {
+        setKids(data.kids);
+        if (data.myTimeLimit != null) setMyTimeLimit(data.myTimeLimit);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   };
@@ -85,15 +91,33 @@ export default function AppsPage() {
 
   const hasApps = kids.some((k) => k.apps.length > 0);
 
+  // Build flat app list for the workspace dropdown (includes owner + starred info)
+  const allAppsFlat = kids.flatMap((kid) =>
+    kid.apps.map((app) => ({
+      appName: app.name,
+      username: kid.username,
+      ownerName: kid.name,
+      ownerId: kid.id,
+      icon: app.icon,
+      starred: app.starred,
+      url: `${import.meta.env.VITE_APPS_ORIGIN || ''}/apps/${kid.username}/${app.name}/`,
+    }))
+  );
+
   const handleLaunch = async (username, appName) => {
     claudeApi.launchApp(username, appName).catch(() => {});
-    window.open(`/apps/${username}/${appName}/`, '_blank');
-    // Optimistically bump the counter in the UI
+    const url = `/apps/${username}/${appName}/`;
+    setWorkspace({ userId: user?.id, initialView: { url, appName } });
+
     setKids((prev) => prev.map((k) =>
       k.username === username
         ? { ...k, apps: k.apps.map((a) => a.name === appName ? { ...a, launches: a.launches + 1 } : a) }
         : k
     ));
+  };
+
+  const handleOpenTerminal = (kidId) => {
+    setWorkspace({ userId: kidId, initialView: 'terminal' });
   };
 
   const handleEditSave = async () => {
@@ -123,7 +147,6 @@ export default function AppsPage() {
     } catch { /* ignore */ }
   };
 
-  // Collect starred apps across all kids for the favorites group
   const favorites = kids.flatMap((kid) =>
     kid.apps.filter((a) => a.starred).map((a) => ({ ...a, kid }))
   );
@@ -153,11 +176,11 @@ export default function AppsPage() {
               {accessible.map((kid) => (
                 <button
                   key={kid.id}
-                  onClick={() => setTerminalKid(kid.id)}
+                  onClick={() => handleOpenTerminal(kid.id)}
                   className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   <FontAwesomeIcon icon={faTerminal} className="text-xs" />
-                  {user?.role === 'parent' ? kid.name : 'My Terminal'}
+                  {kid.id === user?.id ? 'My Terminal' : kid.name}
                 </button>
               ))}
             </div>
@@ -179,7 +202,6 @@ export default function AppsPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Favorites */}
           {favorites.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-3">
@@ -264,8 +286,15 @@ export default function AppsPage() {
         )}
       </Modal>
 
-      {terminalKid && (
-        <ClaudeTerminal userId={terminalKid} onClose={() => setTerminalKid(null)} />
+      {/* Unified workspace (kids and parents) */}
+      {workspace && (
+        <KidWorkspace
+          userId={workspace.userId}
+          timeLimit={myTimeLimit}
+          allApps={allAppsFlat}
+          initialView={workspace.initialView}
+          onClose={() => { setWorkspace(null); load(); }}
+        />
       )}
     </div>
   );

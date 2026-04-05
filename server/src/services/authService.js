@@ -2,8 +2,19 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
 
-const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'dev_access_secret_change_me';
-const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'dev_refresh_secret_change_me';
+function requireSecret(name) {
+  const val = process.env[name];
+  if (val) return val;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(`FATAL: ${name} must be set in production`);
+  }
+  const random = randomBytes(32).toString('hex');
+  console.warn(`WARNING: ${name} not set, using random secret (sessions won't survive restart)`);
+  return random;
+}
+
+const ACCESS_SECRET = requireSecret('JWT_ACCESS_SECRET');
+const REFRESH_SECRET = requireSecret('JWT_REFRESH_SECRET');
 const ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
 const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
 

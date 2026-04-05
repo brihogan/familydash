@@ -334,7 +334,7 @@ export default function KidOverviewPage() {
     [familyMembers, userId],
   );
   const memberRole = viewedMember?.role ?? null;
-  const claudeEnabled = !!viewedMember?.claude_enabled;
+
 
   // Client-side activity filtering
   const activity = useMemo(() => {
@@ -646,29 +646,6 @@ export default function KidOverviewPage() {
           )}
         </div>
       </div>
-
-      {/* Claude Code */}
-      {claudeEnabled && (
-        <div className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
-                <FontAwesomeIcon icon={faTerminal} />
-              </span>
-              <div>
-                <h3 className="font-semibold text-gray-900 dark:text-gray-100">Claude Code</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">AI coding assistant</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setTerminalOpen(true)}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              Open Terminal
-            </button>
-          </div>
-        </div>
-      )}
 
       {terminalOpen && (
         <ClaudeTerminal userId={userId} onClose={() => setTerminalOpen(false)} />

@@ -20,7 +20,7 @@ if [ -n "$EXISTING_PID" ]; then
   if [ -n "$EXISTING_PORT" ]; then
     echo "$EXISTING_PORT" > "$(dirname "$0")/../.server-port"
     cd "$PROJECT_DIR"
-    exec env PORT="$EXISTING_PORT" node --watch index.js --env-file=../.env
+    exec env PORT="$EXISTING_PORT" node --watch --env-file=../.env index.js
   fi
 fi
 
@@ -45,4 +45,4 @@ echo "Starting FamilyDash server on port $PORT"
 echo "$PORT" > "$(dirname "$0")/../.server-port"
 
 cd "$PROJECT_DIR"
-exec env PORT="$PORT" node --watch index.js --env-file=../.env
+exec env PORT="$PORT" node --watch --env-file=../.env index.js

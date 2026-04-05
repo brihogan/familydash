@@ -1,7 +1,13 @@
 import Docker from 'dockerode';
 
-const docker = new Docker({ socketPath: '/var/run/docker.sock' });
+// In production, DOCKER_HOST points to the socket proxy (tcp://docker-proxy:2375)
+// In dev, falls back to the local Docker socket
+const dockerOpts = process.env.DOCKER_HOST
+  ? (() => { const u = new URL(process.env.DOCKER_HOST); return { host: u.hostname, port: parseInt(u.port, 10) }; })()
+  : { socketPath: '/var/run/docker.sock' };
+const docker = new Docker(dockerOpts);
 const CONTAINER_IMAGE = process.env.CLAUDE_CONTAINER_IMAGE || 'familydash-claude-code:latest';
+const CLAUDE_NETWORK = process.env.CLAUDE_NETWORK || null;
 
 // Track last activity per kid for idle cleanup
 const lastActivity = new Map();
@@ -27,16 +33,23 @@ export async function getOrCreateContainer(userId) {
     const container = await docker.createContainer({
       Image: CONTAINER_IMAGE,
       name,
-      Env: ['TERM=xterm-256color'],
+      Env: [
+        'TERM=xterm-256color',
+        'PATH=/home/coder/.claude/bin:/home/coder/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+      ],
       Tty: true,
       OpenStdin: true,
       HostConfig: {
         Memory: 512 * 1024 * 1024,       // 512 MB
         NanoCpus: 1_000_000_000,          // 1 CPU core
         PidsLimit: 100,
+        CapDrop: ['ALL'],                 // Drop all Linux capabilities
+        SecurityOpt: ['no-new-privileges'], // Prevent privilege escalation
+        ...(CLAUDE_NETWORK ? { NetworkMode: CLAUDE_NETWORK } : {}),
         Binds: [
           `claude-auth-${userId}:/home/coder/.claude`,
           `claude-workspace-${userId}:/home/coder/workspace`,
+          `claude-npm-${userId}:/home/coder/.npm-global`,
         ],
       },
     });
@@ -48,7 +61,7 @@ export async function getOrCreateContainer(userId) {
 export async function createExecSession(userId) {
   const container = await getOrCreateContainer(userId);
   const exec = await container.exec({
-    Cmd: ['claude'],
+    Cmd: ['bash'],
     AttachStdin: true,
     AttachStdout: true,
     AttachStderr: true,
@@ -125,7 +138,7 @@ export async function readContainerFile(userId, filePath) {
   });
 }
 
-// List app directories in a kid's workspace (returns [] if container not running)
+// List app directories in a kid's workspace (only if container is running)
 export async function listContainerApps(userId) {
   const name = containerName(userId);
   try {

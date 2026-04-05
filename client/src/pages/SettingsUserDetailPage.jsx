@@ -71,9 +71,10 @@ export default function SettingsUserDetailPage() {
   }, [editingName]);
 
   const handleToggle = async (field, value) => {
+    const isNumber = typeof value === 'number';
     const isString = typeof value === 'string';
-    const optimistic = isString ? value : (value ? 1 : 0);
-    const rollback   = isString ? member[field] : (value ? 0 : 1);
+    const optimistic = isNumber ? value : isString ? value : (value ? 1 : 0);
+    const rollback   = member[field] ?? (isNumber ? 0 : isString ? '' : 0);
     setMember((prev) => ({ ...prev, [field]: optimistic }));
     try {
       await familyApi.updateUser(Number(userId), { [field]: value });
@@ -429,22 +430,52 @@ export default function SettingsUserDetailPage() {
         );
       })()}
 
-      {/* ── Claude Code (kids only) ── */}
-      {isKid && (
-        <div className="mb-6 space-y-3">
-          <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Claude Code</h2>
-          <div className="flex items-start justify-between gap-6 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-gray-900 dark:text-gray-100">Enable Claude Code</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                Give {member.name} access to an AI coding assistant. Runs in a sandboxed container.
-                First time requires a parent to open the terminal and run login.
-              </p>
-            </div>
-            <Toggle checked={!!member.claude_enabled} onChange={(v) => handleToggle('claude_enabled', v)} />
+      {/* ── Claude Code ── */}
+      <div className="mb-6 space-y-3">
+        <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Claude Code</h2>
+        <div className="flex items-start justify-between gap-6 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-gray-900 dark:text-gray-100">Enable Claude Code</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+              {isKid
+                ? `Give ${member.name} access to an AI coding assistant. Runs in a sandboxed container. First time requires a parent to open the terminal and run login.`
+                : `Enable a sandboxed Claude Code terminal for ${member.name}.`}
+            </p>
           </div>
+          <Toggle checked={!!member.claude_enabled} onChange={(v) => handleToggle('claude_enabled', v)} />
         </div>
-      )}
+        {!!member.claude_enabled && isKid && (
+          <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-gray-900 dark:text-gray-100">Daily Time Limit</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                  How long {member.name} can use Claude Code per day before being cut off.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <input
+                  type="number"
+                  min={5}
+                  max={480}
+                  step={5}
+                  value={member.claude_time_limit ?? 60}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (!isNaN(v)) setMember((prev) => ({ ...prev, claude_time_limit: v }));
+                  }}
+                  onBlur={(e) => {
+                    const v = Math.max(5, Math.min(480, parseInt(e.target.value, 10) || 60));
+                    handleToggle('claude_time_limit', v);
+                  }}
+                  className="w-20 px-2 py-1.5 text-sm text-center rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                />
+                <span className="text-sm text-gray-500 dark:text-gray-400">min</span>
+              </div>
+            </div>
+          </div>
+          )}
+      </div>
 
       {/* ── Deactivate / Reactivate ── */}
       <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700 mb-6">

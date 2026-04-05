@@ -220,6 +220,10 @@ export default function Layout() {
               </span>
             )}
           </NavLink>
+          <NavLink to="/code-apps" className={navClass} onClick={close}>
+            <FontAwesomeIcon icon={faRocket} className="w-4 shrink-0" />
+            Apps
+          </NavLink>
 
           {defaultMemberId && (
             <>
@@ -305,13 +309,12 @@ export default function Layout() {
         </>
       )}
 
-      <NavLink to="/code-apps" className={navClass} onClick={close}>
-        <FontAwesomeIcon icon={faRocket} className="w-4 shrink-0" />
-        Apps
-      </NavLink>
-
       {user?.role === 'kid' && (
         <>
+          <NavLink to="/code-apps" className={navClass} onClick={close}>
+            <FontAwesomeIcon icon={faRocket} className="w-4 shrink-0" />
+            Apps
+          </NavLink>
           <NavLink to={`/kid/${user.id}`} className={navClass} onClick={close}>
             <FontAwesomeIcon icon={faTachographDigital} className="w-4 shrink-0" />
             My Overview

@@ -284,6 +284,35 @@ export function runMigrations(db) {
   // v45: claude_enabled on users (off by default)
   try { db.exec(`ALTER TABLE users ADD COLUMN claude_enabled INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
 
+  // v48: claude_time_limit in minutes (default 60)
+  try { db.exec(`ALTER TABLE users ADD COLUMN claude_time_limit INTEGER NOT NULL DEFAULT 60`); } catch (_) {}
+
+  // v49: daily usage tracking for Claude Code time limits
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS claude_daily_usage (
+      user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      date      TEXT    NOT NULL,
+      seconds_used INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id, date)
+    )
+  `);
+
+  // v51: family-level Claude Code access gate
+  try { db.exec(`ALTER TABLE families ADD COLUMN claude_access INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
+
+  // v50: key-value storage for kid apps
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS app_storage (
+      owner_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      app_name  TEXT    NOT NULL,
+      key       TEXT    NOT NULL,
+      value     TEXT    NOT NULL DEFAULT '{}',
+      updated_at TEXT   NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (owner_id, app_name, key)
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_app_storage_app ON app_storage(owner_id, app_name)`);
+
   // v46: app_metadata for kid-built apps
   db.exec(`
     CREATE TABLE IF NOT EXISTS app_metadata (

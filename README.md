@@ -67,6 +67,18 @@ Self-hosted family web app for chores, bank accounts, and a ticket/rewards syste
 - Sync engine triggers on: coming back online, tab visibility change, and periodic 60-second intervals
 - Cached session fallback — users stay logged in even if the server is unreachable
 
+### Claude Code (Optional)
+- Give kids (and parents) their own sandboxed Claude Code terminal in the browser
+- Each user gets an isolated Docker container with resource limits (512MB RAM, 1 CPU, 100 PIDs)
+- Kids build HTML/Canvas web apps that are served and playable by the whole family
+- **KidWorkspace** — unified fullscreen environment with tabbed terminal + up to 3 running apps, an apps dropdown with search and favorites, and a floating/dockable terminal panel
+- Per-app key-value storage API for persistent data (high scores, counters, etc.)
+- Daily time limits for kids (configurable per-kid, enforced server-side)
+- Parents have unlimited access with no time limits
+- App starring/favorites system with launch counters
+- Auto-reconnecting terminal sessions
+- **Completely optional** — the dashboard works fully without Docker or Claude Code. The feature is gated behind a family-level access flag and per-user toggles.
+
 ### Other
 - Dark/light/system theme
 - Mobile-friendly with responsive layout
@@ -99,12 +111,14 @@ docker compose up --build
 ### Local Development
 
 ```bash
-cp .env.example .env         # fill in secrets (see above)
+cp .env.example .env         # optional in dev — random secrets are generated if missing
 npm install                  # installs concurrently
 npm run install:all          # installs server + client deps
 npm run dev                  # starts both server and client
-# Open http://localhost:5173  (proxies /api → :3001)
+# Open http://localhost:5174  (proxies /api → :3001)
 ```
+
+In dev mode, JWT secrets are auto-generated per run if not set (with a console warning). Sessions won't survive a server restart, but that's fine for development.
 
 ## First Run
 
@@ -137,6 +151,73 @@ DATABASE_PATH=/path/to/family.db node set-admin.js user@example.com
 
 The user must log out and back in to pick up the new admin status.
 
+## Claude Code Setup (Optional)
+
+Claude Code is entirely optional. The dashboard works fully without it. If you want to enable it:
+
+### 1. Build the Claude Code container image
+
+```bash
+docker build -t familydash-claude-code:latest docker/claude-code/
+```
+
+### 2. Grant Claude Code access to your family
+
+```bash
+cd server
+node claude-access.js grant user@example.com    # enable for a family
+node claude-access.js revoke user@example.com   # disable for a family
+node claude-access.js list                       # show all families
+```
+
+This gates the entire feature at the family level. Without a grant, all Claude Code endpoints return 403.
+
+### 3. Enable per-user in settings
+
+Go to **Settings → [User]** and toggle **Enable Claude Code** for each family member who should have access. For kids, you can also set a **Daily Time Limit** (default 60 minutes).
+
+### 4. First-time login
+
+Open a terminal for the user (from the Apps page or Kid Overview) and run `claude` to start the OAuth login flow. A parent needs to do this the first time to authenticate.
+
+### Development testing
+
+No extra setup needed in dev — the server uses the local Docker socket directly, and containers run on the default network. Just build the image (step 1) and grant access (step 2).
+
+### Production deploy
+
+For production behind a reverse proxy (e.g., Cloudflare):
+
+**Environment variables** (add to `.env` or `docker-compose.yml`):
+
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `CLAUDE_CONTAINER_IMAGE` | Docker image for kid containers | `familydash-claude-code:latest` |
+| `APPS_HOST` | Hostname for the apps subdomain | `apps.yourdomain.com` |
+| `MAIN_ORIGIN` | Dashboard origin (for CORS) | `https://dash.yourdomain.com` |
+| `VITE_APPS_ORIGIN` | Client-side apps origin (build-time) | `https://apps.yourdomain.com` |
+
+**Subdomain isolation** — Kid-built apps are served from a separate subdomain for browser-level cookie/API isolation. This prevents a malicious app from accessing dashboard data.
+
+1. In your DNS provider, add a CNAME for `apps.yourdomain.com` pointing to the same server as your dashboard
+2. Set `APPS_HOST=apps.yourdomain.com` in your server environment
+3. Build the client with `VITE_APPS_ORIGIN=https://apps.yourdomain.com`
+
+If you skip subdomain isolation, apps will still work from the main domain at `/apps/` — but they'll share cookies with the dashboard, which is a security risk in production.
+
+**Security features enabled in production:**
+
+- Docker socket proxy (limits Docker API surface if the Node.js app is compromised)
+- Isolated container network (no internet, no cross-container communication)
+- All Linux capabilities dropped + no-new-privileges
+- Tightened CSP on served apps (`connect-src 'self'` blocks external data exfiltration)
+- Referer-based storage scoping (prevents cross-app data reads)
+- Rate limiting on container operations, storage writes, and WebSocket tickets
+- Max 3 WebSocket connections per user
+- CLAUDE.md guardrails restored every 60 seconds
+
+See `docker-compose.yml` for the full production configuration including the socket proxy and network setup.
+
 ## Architecture
 
 | Layer | Tech |
@@ -146,6 +227,7 @@ The user must log out and back in to pick up the new admin status.
 | Backend | Node.js (ESM) + Express |
 | Database | SQLite (better-sqlite3) |
 | Auth | JWT access token (in memory) + refresh token (httpOnly cookie) |
+| Claude Code (optional) | Docker containers + WebSocket terminals + xterm.js |
 
 ## Roles
 

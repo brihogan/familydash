@@ -21,13 +21,25 @@ import inboxRouter from './routes/inbox.js';
 import commonChoresRouter from './routes/commonChores.js';
 import adminRouter from './routes/admin.js';
 import turnsRouter from './routes/turns.js';
-import claudeRouter, { appsRouter } from './routes/claude.js';
+import claudeRouter, { appsRouter, appsSubdomainApp } from './routes/claude.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 app.set('trust proxy', 1);
+
+// ─── Apps subdomain virtual host ──────────────────────────────────────────
+// If APPS_HOST is set (e.g., apps.straychips.com or apps.localhost), requests
+// to that host are routed to the isolated apps sub-app (no dashboard APIs).
+const APPS_HOST = process.env.APPS_HOST || null;
+if (APPS_HOST) {
+  app.use((req, res, next) => {
+    const host = (req.hostname || req.get('host') || '').split(':')[0];
+    if (host === APPS_HOST) return appsSubdomainApp(req, res, next);
+    next();
+  });
+}
 
 // CORS for Capacitor native app
 const CAPACITOR_ORIGINS = ['capacitor://localhost', 'ionic://localhost', 'http://localhost'];
@@ -77,6 +89,16 @@ const authLimiter = rateLimit({
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 app.use('/api/auth', authRouter);
+
+// Claude Code rate limiters
+const claudeStartLimiter = rateLimit({ windowMs: 60_000, max: 5, message: { error: 'Too many requests.' } });
+const claudeTicketLimiter = rateLimit({ windowMs: 60_000, max: 10, message: { error: 'Too many requests.' } });
+const storageLimiter = rateLimit({ windowMs: 60_000, max: 60, message: { error: 'Too many storage requests.' } });
+const launchLimiter = rateLimit({ windowMs: 60_000, max: 30, message: { error: 'Too many requests.' } });
+app.use('/api/claude/:userId/start', claudeStartLimiter);
+app.use('/api/claude/:userId/ws-ticket', claudeTicketLimiter);
+app.use('/api/claude/apps/:username/:appName/data', storageLimiter);
+app.use('/api/claude/apps/:username/:appName/launch', launchLimiter);
 
 app.use('/api/family', familyRouter);
 app.use('/api/family', rewardsRouter);
