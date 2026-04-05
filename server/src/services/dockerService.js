@@ -60,8 +60,11 @@ export async function createExecSession(userId, opts = {}) {
   const modelMap = { opus: 'claude-opus-4-6', sonnet: 'claude-sonnet-4-6' };
   const modelId = modelMap[opts.model] || modelMap.sonnet;
 
+  // Create a wrapper that forces the parent-selected model, then start bash
   const exec = await container.exec({
-    Cmd: ['bash', '-c', `export CLAUDE_MODEL=${modelId} && exec bash`],
+    Cmd: ['bash', '-c',
+      `printf '#!/bin/bash\\nexec /home/coder/.npm-global/bin/claude --model ${modelId} "$@"\\n' > /tmp/claude && chmod +x /tmp/claude && export PATH=/tmp:$PATH && exec bash`
+    ],
     AttachStdin: true,
     AttachStdout: true,
     AttachStderr: true,
