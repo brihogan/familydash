@@ -30,7 +30,6 @@ services:
 networks:
   kid-sandbox:
     driver: bridge
-    internal: true
 
 volumes:
   sqlite_data:
