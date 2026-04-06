@@ -36,8 +36,6 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/apps\//],
-        // Exclude /apps/ from ALL service worker handling (not just navigation)
-        denylist: [/^\/apps\//],
         // Force new service workers to activate immediately
         skipWaiting: true,
         clientsClaim: true,
