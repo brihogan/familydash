@@ -159,8 +159,9 @@ export default function KidBankPage() {
   );
   const memberName = member?.name || '';
   const memberRole = member?.role || null;
-  const allowTransfers = member?.allow_transfers ?? true;
-  const allowWithdraws = member?.allow_withdraws ?? true;
+  // Parents can always transfer/withdraw; kids respect their per-user setting
+  const allowTransfers = isParent || (member?.allow_transfers ?? true);
+  const allowWithdraws = isParent || (member?.allow_withdraws ?? true);
   const requireCurrencyWork = !!member?.require_currency_work;
 
   // Keep selected account in sync with accounts list
