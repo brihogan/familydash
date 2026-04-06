@@ -223,12 +223,22 @@ export default function AppsPage() {
             </div>
           )}
 
-          {kids.filter((k) => k.apps.length > 0).map((kid) => (
+          {kids.filter((k) => k.apps.length > 0).map((kid) => {
+            const landingUrl = import.meta.env.VITE_APPS_ORIGIN
+              ? `${import.meta.env.VITE_APPS_ORIGIN}/${kid.username}/`
+              : `/apps/${kid.username}/`;
+            return (
             <div key={kid.id}>
-              <div className="flex items-center gap-2 mb-3">
+              <a
+                href={landingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 mb-3 group"
+                title={`Open ${kid.name}'s landing page`}
+              >
                 <Avatar name={kid.name} color={kid.avatar_color} emoji={kid.avatar_emoji} size="sm" />
-                <h2 className="font-semibold text-gray-900 dark:text-gray-100">{kid.name}</h2>
-              </div>
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{kid.name}</h2>
+              </a>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {kid.apps.map((app) => (
                   <AppCard
@@ -240,7 +250,8 @@ export default function AppsPage() {
                 ))}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
