@@ -35,9 +35,9 @@ export async function getOrCreateContainer(userId) {
       Tty: true,
       OpenStdin: true,
       HostConfig: {
-        Memory: 512 * 1024 * 1024,       // 512 MB
+        Memory: 1024 * 1024 * 1024,      // 1 GB
         NanoCpus: 1_000_000_000,          // 1 CPU core
-        PidsLimit: 100,
+        PidsLimit: 500,
         CapDrop: ['ALL'],                 // Drop all Linux capabilities
         SecurityOpt: ['no-new-privileges'], // Prevent privilege escalation
         ...(CLAUDE_NETWORK ? { NetworkMode: CLAUDE_NETWORK } : {}),
