@@ -531,6 +531,99 @@ function resolveKidId(req, res, next) {
   next();
 }
 
+// Render a simple HTML landing page listing all of a user's apps
+function renderUserLanding(req, res) {
+  const user = db.prepare(`
+    SELECT u.id, u.name, u.public_slug, u.username, u.avatar_emoji
+    FROM users u WHERE u.id = ? AND u.is_active = 1
+  `).get(req.kidId);
+  if (!user) return res.status(404).send('User not found');
+
+  const apps = db.prepare(`
+    SELECT app_name, description, icon, launches
+    FROM app_metadata WHERE user_id = ? ORDER BY launches DESC, app_name ASC
+  `).all(req.kidId);
+
+  const slug = user.public_slug || user.username || String(user.id);
+  const escapeHtml = (s) => String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  const appCards = apps.length === 0
+    ? `<p class="empty">No apps yet!</p>`
+    : apps.map((app) => {
+        const title = app.app_name.replace(/[-_]/g, ' ');
+        const icon = app.icon || '🚀';
+        const desc = app.description || '';
+        return `
+          <a class="card" href="/${slug}/${encodeURIComponent(app.app_name)}/">
+            <div class="icon">${escapeHtml(icon)}</div>
+            <div class="info">
+              <div class="title">${escapeHtml(title)}</div>
+              ${desc ? `<div class="desc">${escapeHtml(desc)}</div>` : ''}
+            </div>
+          </a>`;
+      }).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escapeHtml(user.name)}'s Apps</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1rem; min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+    color: #e5e7eb;
+  }
+  .container { max-width: 720px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 2rem; }
+  .avatar { font-size: 3rem; margin-bottom: 0.5rem; }
+  h1 { margin: 0; font-size: 1.75rem; font-weight: 700; color: #fff; }
+  .subtitle { margin-top: 0.25rem; color: #9ca3af; font-size: 0.9rem; }
+  .grid { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
+  @media (min-width: 600px) { .grid { grid-template-columns: 1fr 1fr; } }
+  .card {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 1rem; border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    text-decoration: none; color: inherit;
+    transition: transform 0.15s, background 0.15s;
+  }
+  .card:hover { background: rgba(255, 255, 255, 0.1); transform: translateY(-2px); }
+  .icon {
+    width: 3rem; height: 3rem; border-radius: 0.625rem;
+    background: rgba(139, 92, 246, 0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem; flex-shrink: 0;
+  }
+  .info { min-width: 0; flex: 1; }
+  .title { font-weight: 600; color: #fff; text-transform: capitalize; }
+  .desc { font-size: 0.85rem; color: #9ca3af; margin-top: 0.125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .empty { text-align: center; color: #6b7280; padding: 2rem; }
+  footer { text-align: center; margin-top: 2rem; color: #4b5563; font-size: 0.75rem; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="avatar">${escapeHtml(user.avatar_emoji || '👤')}</div>
+      <h1>${escapeHtml(user.name)}'s Apps</h1>
+      <div class="subtitle">${apps.length} ${apps.length === 1 ? 'app' : 'apps'}</div>
+    </header>
+    <div class="grid">${appCards}</div>
+    <footer>Built with Claude Code</footer>
+  </div>
+</body>
+</html>`;
+
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.set('Cache-Control', 'no-store');
+  res.send(html);
+}
+
 async function serveAppFile(req, res) {
   const appName = req.params.appName;
   const filePath = req.params[0] || 'index.html';
@@ -561,6 +654,11 @@ appsRouter.get('/:username/:appName/', resolveKidId, serveAppFile);
 appsRouter.get('/:username/:appName/*', resolveKidId, serveAppFile);
 // Match /fox/radar-rat-race (no trailing slash, redirect)
 appsRouter.get('/:username/:appName', (req, res) => {
+  res.redirect(req.originalUrl + '/');
+});
+// Match /fox/ or /fox — user landing page listing all their apps
+appsRouter.get('/:username/', resolveKidId, renderUserLanding);
+appsRouter.get('/:username', (req, res) => {
   res.redirect(req.originalUrl + '/');
 });
 
@@ -634,6 +732,8 @@ subdomainRouter.post('/:username/:appName/launch', (req, res) => {
 subdomainRouter.get('/:username/:appName/', resolveKidId, serveAppFile);
 subdomainRouter.get('/:username/:appName/*', resolveKidId, serveAppFile);
 subdomainRouter.get('/:username/:appName', (req, res) => { res.redirect(req.originalUrl + '/'); });
+subdomainRouter.get('/:username/', resolveKidId, renderUserLanding);
+subdomainRouter.get('/:username', (req, res) => { res.redirect(req.originalUrl + '/'); });
 
 // Mount at root — subdomain URLs are apps.straychips.com/:user/:app/
 appsSubdomainApp.use('/', subdomainRouter);
