@@ -15,7 +15,11 @@ const nameCache = new Map();
 // Docker requires: [a-zA-Z0-9][a-zA-Z0-9_.-]*
 function sanitizeNamePart(str) {
   if (!str) return '';
-  return str.toLowerCase()
+  let s = str.toLowerCase();
+  // Strip common "The ___s" pattern: "The Hogans" → "hogan"
+  const theMatch = s.match(/^the\s+(.+?)s?$/);
+  if (theMatch) s = theMatch[1];
+  return s
     .replace(/[^a-z0-9_.-]+/g, '')
     .replace(/^[^a-z0-9]+/, '')
     .slice(0, 40);

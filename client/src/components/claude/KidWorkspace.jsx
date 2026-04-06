@@ -761,7 +761,17 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
                   }} />
                   <SubBtn icon={faChevronRight} title="Forward" onClick={() => { try { iframeRefs.current[app.key]?.contentWindow?.history.forward(); } catch {} }} />
                   <SubBtn icon={faRotateRight} title="Reload" onClick={() => setAppReloadKeys((prev) => ({ ...prev, [app.key]: (prev[app.key] || 0) + 1 }))} />
-                  <span style={{ marginLeft: 8, fontSize: 11, fontFamily: 'monospace', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{app.url}</span>
+                  <span style={{ marginLeft: 8, fontSize: 11, fontFamily: 'monospace', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {(() => {
+                      try {
+                        // Build full display URL from the app url (which may be relative or absolute)
+                        const u = new URL(app.url, window.location.origin);
+                        return `${u.host}${u.pathname.replace(/\/$/, '')}`;
+                      } catch {
+                        return app.url;
+                      }
+                    })()}
+                  </span>
                 </div>
               ) : null)}
 
