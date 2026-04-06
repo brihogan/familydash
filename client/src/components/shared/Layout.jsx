@@ -19,6 +19,7 @@ import { accountsApi } from '../../api/accounts.api.js';
 
 import { formatCents } from '../../utils/formatCents.js';
 import InstallPrompt from './InstallPrompt.jsx';
+import QuickActionsFab from './QuickActionsFab.jsx';
 import useScrollLock from '../../hooks/useScrollLock.js';
 import useSyncStatus from '../../offline/hooks/useSyncStatus.js';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -538,6 +539,7 @@ export default function Layout() {
         </main>
 
         <InstallPrompt />
+        <QuickActionsFab />
 
         {/* ── Slide-in side panel (mobile only) ── */}
         <div

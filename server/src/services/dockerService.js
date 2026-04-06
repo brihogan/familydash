@@ -1,4 +1,5 @@
 import Docker from 'dockerode';
+import db from '../db/db.js';
 
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 const CONTAINER_IMAGE = process.env.CLAUDE_CONTAINER_IMAGE || 'familydash-claude-code:latest';
@@ -7,8 +8,44 @@ const CLAUDE_NETWORK = process.env.CLAUDE_NETWORK || null;
 // Track last activity per kid for idle cleanup
 const lastActivity = new Map();
 
+// Cache container names per user ID to avoid DB hits on every call
+const nameCache = new Map();
+
+// Sanitize a string for use in a Docker container name
+// Docker requires: [a-zA-Z0-9][a-zA-Z0-9_.-]*
+function sanitizeNamePart(str) {
+  if (!str) return '';
+  return str.toLowerCase()
+    .replace(/[^a-z0-9_.-]+/g, '')
+    .replace(/^[^a-z0-9]+/, '')
+    .slice(0, 40);
+}
+
 function containerName(userId) {
-  return `claude-kid-${userId}`;
+  if (nameCache.has(userId)) return nameCache.get(userId);
+
+  // Look up family name + user identifier
+  const row = db.prepare(`
+    SELECT u.username, u.public_slug, u.name AS user_name, f.name AS family_name
+    FROM users u LEFT JOIN families f ON f.id = u.family_id
+    WHERE u.id = ?
+  `).get(userId);
+
+  let name = `dash-user-${userId}`;
+  if (row) {
+    const family = sanitizeNamePart(row.family_name);
+    const user = sanitizeNamePart(row.username || row.public_slug || row.user_name);
+    if (family && user) {
+      name = `dash-${family}-${user}`;
+    } else if (user) {
+      name = `dash-${user}`;
+    }
+  }
+
+  // Docker container name limit is ~253 chars but keep it short
+  name = name.slice(0, 63);
+  nameCache.set(userId, name);
+  return name;
 }
 
 export async function getOrCreateContainer(userId) {
@@ -23,6 +60,14 @@ export async function getOrCreateContainer(userId) {
     return container;
   } catch (err) {
     if (err.statusCode !== 404) throw err;
+
+    // Migration: remove legacy container if it exists (old naming: claude-kid-{userId})
+    // Volumes are keyed per-user so data persists
+    try {
+      const legacy = docker.getContainer(`claude-kid-${userId}`);
+      await legacy.remove({ force: true });
+      console.log(`[docker] Removed legacy container claude-kid-${userId}`);
+    } catch { /* no legacy container, proceed */ }
 
     // Create new container
     const container = await docker.createContainer({
