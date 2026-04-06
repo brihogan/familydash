@@ -1,5 +1,23 @@
 # Work Log
 
+## Session Start: 2026-04-06
+
+### 2026-04-06 — Production fixes, FAB quick actions, model selection, landing pages
+- **Production deploy fixes**: Removed Docker socket proxy (incompatible with exec hijack); restored direct socket mount with `chmod 666` in entrypoint via `su-exec`; allowed internet on `kid-sandbox` network (Claude Code needs api.anthropic.com); raised container limits (1GB RAM, 500 PIDs) for Claude Code v2.x.
+- **Service worker fix**: Added `/apps/` to `navigateFallbackDenylist` and `skipWaiting`/`clientsClaim` so app URLs reach the server instead of being intercepted by the PWA cache.
+- **App routing**: Trailing-slash handling for `/:user/:app/`, cache-busting headers on served apps, reload button bumps query param.
+- **Public slugs**: Random short word per Claude-enabled user (`fox`, `owl`, `elk`...) for shareable app URLs that don't leak usernames.
+- **Container rename**: Containers now named `dash-{family}-{user}` (e.g. `dash-hogan-dhogan`); sanitizer strips "The ___s" pattern; auto-removes legacy `claude-kid-*` containers, volumes persist.
+- **Model selection**: Per-user dropdown for Haiku/Sonnet/Opus; passed via `CLAUDE_MODEL` env var with `/tmp/claude` wrapper to override saved preferences.
+- **Quick Actions FAB**: Global parent-only floating button (mounted in Layout) → pick a kid → Money / Tickets / App Time. Money opens UnifiedBankDialog, Tickets opens controlled QuickTicketAdjust, App Time grants +15/30/45/60 minutes via new `POST /api/claude/grant-time` endpoint.
+- **Refactor**: Extracted FAB into `QuickActionsFab.jsx`; added `controlledOpen`/`onControlledClose` props to `QuickTicketAdjust` removing the off-screen `querySelector('button').click()` hack.
+- **User landing pages**: `/{slug}/` route renders a dark-themed HTML page listing all the user's apps with icons, descriptions, and launch counts. Clickable username headers on parent's Apps page open the landing page in a new tab.
+- Parents always see Transfer/Withdraw buttons on bank pages regardless of viewed user's settings.
+- Hide Claude Code settings toggle and Apps nav link unless family has `claude_access` granted.
+- Cleared `--watch-path` to plain `--watch` (Synology Drive metadata was triggering restart loops); fixed `--env-file=../.env` ordering so JWT secrets load and survive restarts.
+
+---
+
 ## Session Start: 2026-04-04 (~9:00 AM, ~1 hour)
 
 ### 2026-04-04 — KidWorkspace, daily time limits, Docker improvements
