@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faHouse, faCompress, faExpand, faArrowDownWideShort, faCheck, faTicket, faArrowsRotate, faClock, faDollarSign, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { faHouse, faCompress, faExpand, faArrowDownWideShort, faCheck, faTicket, faArrowsRotate, faClock, faDollarSign, faChevronRight, faPlus } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import useOfflineDashboard from '../offline/hooks/useOfflineDashboard.js';
@@ -377,11 +377,11 @@ export default function DashboardPage() {
       {isParent && allKids.length > 0 && (
         <button
           onClick={() => { setFabOpen(true); setFabKid(null); setFabView('menu'); }}
-          className="fixed bottom-6 right-6 w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-700 text-white shadow-lg flex items-center justify-center z-40 transition-transform hover:scale-105"
+          className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-brand-600 hover:bg-brand-700 text-white shadow-lg flex items-center justify-center z-40 transition-transform hover:scale-105"
           title="Quick actions"
           style={{ bottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
         >
-          <FontAwesomeIcon icon={faClock} />
+          <FontAwesomeIcon icon={faPlus} className="text-xl" />
         </button>
       )}
 
