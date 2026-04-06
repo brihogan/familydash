@@ -106,7 +106,11 @@ export async function createExecSession(userId, opts = {}) {
   const container = await getOrCreateContainer(userId);
 
   // Map model setting to Claude model ID
-  const modelMap = { opus: 'claude-opus-4-6', sonnet: 'claude-sonnet-4-6' };
+  const modelMap = {
+    opus: 'claude-opus-4-6',
+    sonnet: 'claude-sonnet-4-6',
+    haiku: 'claude-haiku-4-5-20251001',
+  };
   const modelId = modelMap[opts.model] || modelMap.sonnet;
 
   // Create a wrapper that forces the parent-selected model, then start bash

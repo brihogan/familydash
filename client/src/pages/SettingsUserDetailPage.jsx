@@ -453,7 +453,7 @@ export default function SettingsUserDetailPage() {
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-900 dark:text-gray-100">Model</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                  Sonnet is fast and great for simple apps. Opus is more capable for complex projects.
+                  Haiku is fastest and cheapest. Sonnet is balanced. Opus is most capable for complex projects.
                 </p>
               </div>
               <select
@@ -461,7 +461,8 @@ export default function SettingsUserDetailPage() {
                 onChange={(e) => handleToggle('claude_model', e.target.value)}
                 className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
               >
-                <option value="sonnet">Sonnet (fast)</option>
+                <option value="haiku">Haiku (fastest)</option>
+                <option value="sonnet">Sonnet (balanced)</option>
                 <option value="opus">Opus (powerful)</option>
               </select>
             </div>

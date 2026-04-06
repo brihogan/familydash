@@ -226,7 +226,7 @@ const UpdateUserSchema = z.object({
   is_active: z.boolean().optional(),
   claude_enabled: z.boolean().optional(),
   claude_time_limit: z.number().int().min(5).max(480).optional(),
-  claude_model: z.enum(['sonnet', 'opus']).optional(),
+  claude_model: z.enum(['sonnet', 'opus', 'haiku']).optional(),
 }).strict();
 
 router.put('/users/:id', authenticate, requireRole('parent'), async (req, res, next) => {
