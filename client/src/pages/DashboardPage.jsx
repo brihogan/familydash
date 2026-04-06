@@ -138,8 +138,8 @@ export default function DashboardPage() {
   const [allKids, setAllKids] = useState([]);
   const [bankOpen, setBankOpen] = useState(false);
   const [bankUserId, setBankUserId] = useState(null);
-  const [ticketKid, setTicketKid] = useState(null); // kid whose ticket modal should be opened
-  const ticketTriggerRef = useRef(null);
+  const [ticketKid, setTicketKid] = useState(null);
+  const [ticketOpen, setTicketOpen] = useState(false);
 
   // Fetch family data once for the FAB menu
   useEffect(() => {
@@ -179,21 +179,9 @@ export default function DashboardPage() {
 
   const handlePickTickets = () => {
     setTicketKid(fabKid);
+    setTicketOpen(true);
     closeFab();
   };
-
-  // When ticketKid is set, render QuickTicketAdjust and auto-click its button
-  useEffect(() => {
-    if (!ticketKid) return;
-    // Use a timer to let the component mount, then click its trigger button
-    const t = setTimeout(() => {
-      if (ticketTriggerRef.current) {
-        const btn = ticketTriggerRef.current.querySelector('button');
-        if (btn) btn.click();
-      }
-    }, 50);
-    return () => clearTimeout(t);
-  }, [ticketKid]);
 
   const loadVisibleTurns = () => {
     turnsApi.getVisibleTurns()
@@ -488,16 +476,17 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* Hidden ticket adjust trigger — auto-clicked when ticketKid is set */}
+      {/* Controlled ticket adjust dialog — opened from the FAB */}
       {ticketKid && (
-        <div ref={ticketTriggerRef} style={{ position: 'absolute', left: -9999, top: -9999 }} aria-hidden="true">
-          <QuickTicketAdjust
-            key={`tkt-${ticketKid.id}-${Date.now()}`}
-            userId={ticketKid.id}
-            ticketBalance={ticketKid.ticket_balance || 0}
-            onDone={() => { setTicketKid(null); refresh(); }}
-          />
-        </div>
+        <QuickTicketAdjust
+          key={`tkt-${ticketKid.id}`}
+          variant="none"
+          userId={ticketKid.id}
+          ticketBalance={ticketKid.ticket_balance || 0}
+          controlledOpen={ticketOpen}
+          onControlledClose={() => { setTicketOpen(false); setTicketKid(null); }}
+          onDone={() => { setTicketOpen(false); setTicketKid(null); refresh(); }}
+        />
       )}
     </div>
   );

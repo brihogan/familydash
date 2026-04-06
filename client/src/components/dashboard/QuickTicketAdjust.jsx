@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlusMinus, faPlus, faMinus } from '@fortawesome/free-solid-svg-icons';
 import Modal from '../shared/Modal.jsx';
@@ -28,10 +28,19 @@ function saveRecent({ mode, amount, description }) {
  * Ticket adjustment button + modal (parent only).
  * variant='icon'   — small outlined ± button (dashboard inline use)
  * variant='button' — labeled green/red button (tickets page)
+ * variant='none'   — no visible trigger button (externally controlled via controlledOpen)
  * initialMode      — open the dialog pre-set to 'add' or 'remove' (default: 'add')
+ * controlledOpen   — if set, dialog open state is controlled by parent (overrides internal state)
+ * onControlledClose — called when the parent should close the dialog
  */
-export default function QuickTicketAdjust({ userId, ticketBalance = 0, onDone, initialMode = 'add', variant = 'icon', large = false }) {
-  const [open,          setOpen]          = useState(false);
+export default function QuickTicketAdjust({
+  userId, ticketBalance = 0, onDone,
+  initialMode = 'add', variant = 'icon', large = false,
+  controlledOpen, onControlledClose,
+}) {
+  const isControlled = controlledOpen !== undefined;
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = isControlled ? controlledOpen : internalOpen;
   const [mode,          setMode]          = useState(initialMode);
   const [amount,        setAmount]        = useState(1);
   const [description,   setDescription]   = useState('');
@@ -39,17 +48,27 @@ export default function QuickTicketAdjust({ userId, ticketBalance = 0, onDone, i
   const [error,         setError]         = useState('');
   const [recent,        setRecent]        = useState([]);
 
+  // Reset form state whenever the dialog opens (works for both internal and controlled)
+  useEffect(() => {
+    if (open) {
+      setMode(initialMode);
+      setAmount(1);
+      setDescription('');
+      setError('');
+      setRecent(loadRecent());
+    }
+  }, [open, initialMode]);
+
   const handleOpen = (e) => {
     e.stopPropagation();
-    setMode(initialMode);
-    setAmount(1);
-    setDescription('');
-    setError('');
-    setRecent(loadRecent());
-    setOpen(true);
+    setInternalOpen(true);
   };
 
-  const handleClose = () => { if (!loading) setOpen(false); };
+  const handleClose = () => {
+    if (loading) return;
+    if (isControlled) onControlledClose?.();
+    else setInternalOpen(false);
+  };
 
   const applyRecent = (r) => {
     setMode(r.mode);
@@ -113,7 +132,7 @@ export default function QuickTicketAdjust({ userId, ticketBalance = 0, onDone, i
 
   return (
     <>
-      {variant === 'button' ? (
+      {variant === 'none' ? null : variant === 'button' ? (
         <button
           type="button"
           onClick={handleOpen}
