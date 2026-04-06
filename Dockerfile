@@ -3,7 +3,14 @@ WORKDIR /build/client
 COPY client/package*.json ./
 RUN npm ci
 COPY client/ .
-RUN npm run build
+# Apps subdomain origin baked into the client bundle so the KidWorkspace iframe
+# loads kid apps from the isolated apps subdomain instead of the main domain.
+# The ARG is referenced *inside* the RUN command so Docker invalidates this
+# layer's cache when the value changes (otherwise Docker can't tell the build
+# output depends on it and silently reuses the stale layer).
+ARG VITE_APPS_ORIGIN
+ENV VITE_APPS_ORIGIN=${VITE_APPS_ORIGIN}
+RUN echo "Building client with VITE_APPS_ORIGIN=$VITE_APPS_ORIGIN" && npm run build
 
 FROM node:22-alpine AS production
 RUN apk add --no-cache python3 make g++ tzdata su-exec

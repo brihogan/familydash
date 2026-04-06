@@ -1,5 +1,13 @@
 # Work Log
 
+## Session Start: 2026-04-06 (evening)
+
+### 2026-04-06 — App storage works on both origins
+- Diagnosed kid app storage 404s: subdomain mounted storage at `/`, but main-domain `appsRouter` only had legacy `/api/claude/apps/...` routes, so no single relative URL worked in both contexts.
+- Added `GET/PUT/DELETE /:user/:app/data[/:key]` to `appsRouter` (registered before file-serving wildcard) and added matching `storageLimiter` mount in `app.js`.
+- Rewrote CLAUDE.md.template storage section to recommend `./data` relative URLs and removed the brittle pathname-parsing snippet. Note: template change requires `kid-claude` image rebuild + container recreate to land in running kids' workspaces.
+- **Subdomain isolation regression fix**: `VITE_APPS_ORIGIN` was never set during the client build, so KidWorkspace iframes were loading kid apps from the main domain (`/apps/...`) instead of `apps.straychips.com`, defeating the subdomain-isolation security work and causing storage divergence between direct browser tabs and the iframe. Added `VITE_APPS_ORIGIN` build ARG to Dockerfile and set it to `https://apps.straychips.com` in docker-compose. Requires `docker compose build && docker compose up -d` to take effect.
+
 ## Session Start: 2026-04-06
 
 ### 2026-04-06 — Production fixes, FAB quick actions, model selection, landing pages

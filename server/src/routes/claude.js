@@ -382,6 +382,15 @@ function resolveUser(identifier) {
 const MAX_STORAGE_VALUE_BYTES = 64 * 1024; // 64 KB per key
 const MAX_KEYS_PER_APP = 50;
 
+// Prevent Cloudflare/browser from caching storage responses (esp. 404s for
+// keys that haven't been written yet — a cached 404 would mask later writes).
+function noStoreStorage(req, res, next) {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  next();
+}
+
 // Verify the requesting app matches the storage endpoint's app
 function requireSameOrigin(req, res, next) {
   const origin = req.get('origin') || '';
@@ -429,7 +438,7 @@ function requireSameOrigin(req, res, next) {
 }
 
 // GET /api/claude/apps/:username/:appName/data — list all keys
-router.get('/apps/:username/:appName/data', requireSameOrigin, (req, res) => {
+router.get('/apps/:username/:appName/data', noStoreStorage, requireSameOrigin, (req, res) => {
   const user = resolveUser(req.params.username);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -445,7 +454,7 @@ router.get('/apps/:username/:appName/data', requireSameOrigin, (req, res) => {
 });
 
 // GET /api/claude/apps/:username/:appName/data/:key — read a value
-router.get('/apps/:username/:appName/data/:key', requireSameOrigin, (req, res) => {
+router.get('/apps/:username/:appName/data/:key', noStoreStorage, requireSameOrigin, (req, res) => {
   const user = resolveUser(req.params.username);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -458,7 +467,7 @@ router.get('/apps/:username/:appName/data/:key', requireSameOrigin, (req, res) =
 });
 
 // PUT /api/claude/apps/:username/:appName/data/:key — write a value
-router.put('/apps/:username/:appName/data/:key', requireSameOrigin, (req, res) => {
+router.put('/apps/:username/:appName/data/:key', noStoreStorage, requireSameOrigin, (req, res) => {
   const user = resolveUser(req.params.username);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -490,7 +499,7 @@ router.put('/apps/:username/:appName/data/:key', requireSameOrigin, (req, res) =
 });
 
 // DELETE /api/claude/apps/:username/:appName/data/:key — delete a key
-router.delete('/apps/:username/:appName/data/:key', requireSameOrigin, (req, res) => {
+router.delete('/apps/:username/:appName/data/:key', noStoreStorage, requireSameOrigin, (req, res) => {
   const user = resolveUser(req.params.username);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -648,6 +657,48 @@ async function serveAppFile(req, res) {
   }
 }
 
+// Storage API mirrors the subdomain router so apps can use the same relative
+// URL (`./data` or `./data/:key`) regardless of which origin they're served from.
+// MUST be registered before the `/:username/:appName/*` wildcard below.
+appsRouter.get('/:username/:appName/data', noStoreStorage, requireSameOrigin, (req, res) => {
+  const user = resolveUser(req.params.username);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const rows = db.prepare('SELECT key, value FROM app_storage WHERE owner_id = ? AND app_name = ?').all(user.id, req.params.appName);
+  const data = {};
+  for (const row of rows) { try { data[row.key] = JSON.parse(row.value); } catch { data[row.key] = row.value; } }
+  res.json(data);
+});
+appsRouter.get('/:username/:appName/data/:key', noStoreStorage, requireSameOrigin, (req, res) => {
+  const user = resolveUser(req.params.username);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const row = db.prepare('SELECT value FROM app_storage WHERE owner_id = ? AND app_name = ? AND key = ?').get(user.id, req.params.appName, req.params.key);
+  if (!row) return res.status(404).json({ error: 'Key not found' });
+  try { res.json(JSON.parse(row.value)); } catch { res.json(row.value); }
+});
+appsRouter.put('/:username/:appName/data/:key', noStoreStorage, requireSameOrigin, (req, res) => {
+  const user = resolveUser(req.params.username);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const value = JSON.stringify(req.body);
+  if (Buffer.byteLength(value) > MAX_STORAGE_VALUE_BYTES) return res.status(413).json({ error: `Value too large (max ${MAX_STORAGE_VALUE_BYTES / 1024}KB)` });
+  const existing = db.prepare('SELECT key FROM app_storage WHERE owner_id = ? AND app_name = ? AND key = ?').get(user.id, req.params.appName, req.params.key);
+  if (!existing) {
+    const count = db.prepare('SELECT COUNT(*) AS c FROM app_storage WHERE owner_id = ? AND app_name = ?').get(user.id, req.params.appName);
+    if (count.c >= MAX_KEYS_PER_APP) return res.status(429).json({ error: `Too many keys (max ${MAX_KEYS_PER_APP} per app)` });
+  }
+  db.prepare(`
+    INSERT INTO app_storage (owner_id, app_name, key, value, updated_at)
+    VALUES (?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(owner_id, app_name, key) DO UPDATE SET value = ?, updated_at = datetime('now')
+  `).run(user.id, req.params.appName, req.params.key, value, value);
+  res.json({ ok: true });
+});
+appsRouter.delete('/:username/:appName/data/:key', noStoreStorage, requireSameOrigin, (req, res) => {
+  const user = resolveUser(req.params.username);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  db.prepare('DELETE FROM app_storage WHERE owner_id = ? AND app_name = ? AND key = ?').run(user.id, req.params.appName, req.params.key);
+  res.json({ ok: true });
+});
+
 // Match /fox/radar-rat-race/ (trailing slash, serve index.html)
 appsRouter.get('/:username/:appName/', resolveKidId, serveAppFile);
 // Match /fox/radar-rat-race/style.css (sub-resources)
@@ -684,7 +735,7 @@ if (APPS_CORS_ORIGIN) {
 const subdomainRouter = Router();
 
 // Storage API: /apps/:username/:appName/data[/:key]
-subdomainRouter.get('/:username/:appName/data', requireSameOrigin, (req, res) => {
+subdomainRouter.get('/:username/:appName/data', noStoreStorage, requireSameOrigin, (req, res) => {
   const user = resolveUser(req.params.username);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const rows = db.prepare('SELECT key, value FROM app_storage WHERE owner_id = ? AND app_name = ?').all(user.id, req.params.appName);
@@ -692,14 +743,14 @@ subdomainRouter.get('/:username/:appName/data', requireSameOrigin, (req, res) =>
   for (const row of rows) { try { data[row.key] = JSON.parse(row.value); } catch { data[row.key] = row.value; } }
   res.json(data);
 });
-subdomainRouter.get('/:username/:appName/data/:key', requireSameOrigin, (req, res) => {
+subdomainRouter.get('/:username/:appName/data/:key', noStoreStorage, requireSameOrigin, (req, res) => {
   const user = resolveUser(req.params.username);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const row = db.prepare('SELECT value FROM app_storage WHERE owner_id = ? AND app_name = ? AND key = ?').get(user.id, req.params.appName, req.params.key);
   if (!row) return res.status(404).json({ error: 'Key not found' });
   try { res.json(JSON.parse(row.value)); } catch { res.json(row.value); }
 });
-subdomainRouter.put('/:username/:appName/data/:key', requireSameOrigin, (req, res) => {
+subdomainRouter.put('/:username/:appName/data/:key', noStoreStorage, requireSameOrigin, (req, res) => {
   const user = resolveUser(req.params.username);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const value = JSON.stringify(req.body);
@@ -712,7 +763,7 @@ subdomainRouter.put('/:username/:appName/data/:key', requireSameOrigin, (req, re
   db.prepare('INSERT INTO app_storage (owner_id, app_name, key, value, updated_at) VALUES (?, ?, ?, ?, datetime(\'now\')) ON CONFLICT(owner_id, app_name, key) DO UPDATE SET value = ?, updated_at = datetime(\'now\')').run(user.id, req.params.appName, req.params.key, value, value);
   res.json({ ok: true });
 });
-subdomainRouter.delete('/:username/:appName/data/:key', requireSameOrigin, (req, res) => {
+subdomainRouter.delete('/:username/:appName/data/:key', noStoreStorage, requireSameOrigin, (req, res) => {
   const user = resolveUser(req.params.username);
   if (!user) return res.status(404).json({ error: 'User not found' });
   db.prepare('DELETE FROM app_storage WHERE owner_id = ? AND app_name = ? AND key = ?').run(user.id, req.params.appName, req.params.key);

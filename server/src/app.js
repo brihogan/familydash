@@ -98,6 +98,7 @@ const launchLimiter = rateLimit({ windowMs: 60_000, max: 30, message: { error: '
 app.use('/api/claude/:userId/start', claudeStartLimiter);
 app.use('/api/claude/:userId/ws-ticket', claudeTicketLimiter);
 app.use('/api/claude/apps/:username/:appName/data', storageLimiter);
+app.use('/apps/:username/:appName/data', storageLimiter);
 app.use('/api/claude/apps/:username/:appName/launch', launchLimiter);
 
 app.use('/api/family', familyRouter);

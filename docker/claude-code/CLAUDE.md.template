@@ -26,68 +26,33 @@ Apps have access to a simple key-value storage API for saving persistent data
 like high scores, player stats, visit counters, etc. Data is stored per-app on the server
 and is available to anyone who opens the app.
 
-The API base URL is relative to the app's origin (same server). The `USERNAME` and
-`APP_NAME` in the URL must match the app's own path (e.g., if the app is served at
-`/apps/tommy/dungeon-game/`, use `tommy` and `dungeon-game`).
+**Always use the relative URL `./data` from inside your app's folder.** Don't
+hardcode `/username/app/data` or `/api/claude/apps/...` — the relative path
+resolves correctly whether the app is served from the apps subdomain
+(`apps.straychips.com/:user/:app/`) or the main domain (`/apps/:user/:app/`).
 
-**Tip:** You can auto-detect the username and app name from the page URL:
+### Endpoints (relative to your app's index.html)
 
-```js
-// Works both on apps subdomain (/:user/:app/) and main domain (/apps/:user/:app/)
-const parts = window.location.pathname.split('/').filter(Boolean);
-const username = parts[0] === 'apps' ? parts[1] : parts[0];
-const appName = parts[0] === 'apps' ? parts[2] : parts[1];
-// Use relative path for storage — works on both setups
-const DATA_URL = `/${username}/${appName}/data`;
-```
+**Read all keys:** `GET ./data` → `{ "highscores": [...], "visits": 42 }`
 
-Note: If the app is served from the apps subdomain, the storage API is at
-`/:username/:appName/data/:key` (relative). If served from the main domain,
-it's at `/api/claude/apps/:username/:appName/data/:key`. The auto-detect
-code above handles both cases.
+**Read one key:** `GET ./data/:key` → the stored JSON value
 
-### Endpoints
+**Write a key:** `PUT ./data/:key` with `Content-Type: application/json` and a JSON body → `{ "ok": true }`
 
-**Read all data:**
-```
-GET /api/claude/apps/:username/:appName/data
-→ { "highscores": [...], "visits": 42 }
-```
-
-**Read one key:**
-```
-GET /api/claude/apps/:username/:appName/data/:key
-→ [{"name": "Tommy", "score": 150}]
-```
-
-**Write a key (creates or updates):**
-```
-PUT /api/claude/apps/:username/:appName/data/:key
-Content-Type: application/json
-Body: any JSON value (object, array, number, string)
-→ { "ok": true }
-```
-
-**Delete a key:**
-```
-DELETE /api/claude/apps/:username/:appName/data/:key
-→ { "ok": true }
-```
+**Delete a key:** `DELETE ./data/:key` → `{ "ok": true }`
 
 ### Example: High score board
 
 ```js
-const [, , username, appName] = window.location.pathname.split('/');
-const DATA_URL = `/api/claude/apps/${username}/${appName}/data`;
+// './data' resolves relative to index.html — works on every origin
+const DATA_URL = './data';
 
-// Load high scores
 async function loadScores() {
   const res = await fetch(`${DATA_URL}/highscores`);
   if (!res.ok) return [];
   return await res.json();
 }
 
-// Save a new score
 async function saveScore(name, score) {
   const scores = await loadScores();
   scores.push({ name, score });
