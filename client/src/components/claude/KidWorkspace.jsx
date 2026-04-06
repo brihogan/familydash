@@ -790,19 +790,24 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
 
                 <TerminalPane userId={userId} visible={termDockedVisible || isDetached} onTimeUpdate={handleTimeUpdate} containerRef={terminalContainerRef} reloadKey={terminalReloadKey} />
 
-                {runningApps.map((app) => (
-                  <iframe
-                    key={`${app.key}-${appReloadKeys[app.key] || 0}`}
-                    ref={(el) => { if (el) iframeRefs.current[app.key] = el; }}
-                    src={app.url}
-                    title={app.appName}
-                    sandbox="allow-scripts allow-same-origin allow-forms"
-                    style={{
-                      position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none',
-                      display: activeTab === app.key ? 'block' : 'none',
-                    }}
-                  />
-                ))}
+                {runningApps.map((app) => {
+                  const reloadKey = appReloadKeys[app.key] || 0;
+                  // Cache-bust on reload so kids see their latest changes
+                  const src = reloadKey > 0 ? `${app.url}?_r=${reloadKey}` : app.url;
+                  return (
+                    <iframe
+                      key={`${app.key}-${reloadKey}`}
+                      ref={(el) => { if (el) iframeRefs.current[app.key] = el; }}
+                      src={src}
+                      title={app.appName}
+                      sandbox="allow-scripts allow-same-origin allow-forms"
+                      style={{
+                        position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none',
+                        display: activeTab === app.key ? 'block' : 'none',
+                      }}
+                    />
+                  );
+                })}
               </div>
             </div>
 

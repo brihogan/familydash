@@ -520,6 +520,10 @@ async function serveAppFile(req, res) {
     const ext = path.extname(filePath).toLowerCase();
     res.set('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; img-src 'self' data: blob: https:; connect-src 'self'; frame-src 'none'; object-src 'none';");
     res.set('Content-Type', MIME_TYPES[ext] || 'application/octet-stream');
+    // Never cache kid apps — they change while kids are developing them
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     res.send(data);
   } catch {
     res.status(404).send('Not found');
