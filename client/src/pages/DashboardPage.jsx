@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faHouse, faCompress, faExpand, faArrowDownWideShort, faCheck, faTicket, faArrowsRotate } from '@fortawesome/free-solid-svg-icons';
+import { faHouse, faCompress, faExpand, faArrowDownWideShort, faCheck, faTicket, faArrowsRotate, faClock } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import useOfflineDashboard from '../offline/hooks/useOfflineDashboard.js';
@@ -8,6 +8,8 @@ import DashboardTable from '../components/dashboard/DashboardTable.jsx';
 import TicketBlast from '../components/dashboard/TicketBlast.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import { turnsApi } from '../api/turns.api.js';
+import { claudeApi } from '../api/claude.api.js';
+import { familyApi } from '../api/family.api.js';
 import Avatar from '../components/shared/Avatar.jsx';
 import Modal from '../components/shared/Modal.jsx';
 
@@ -125,6 +127,36 @@ export default function DashboardPage() {
   const [activeTurn, setActiveTurn] = useState(null);
   const [turnLogs, setTurnLogs] = useState([]);
   const [loggingTurn, setLoggingTurn] = useState(false);
+  const [timeGrantOpen, setTimeGrantOpen] = useState(false);
+  const [timeGrantKid, setTimeGrantKid] = useState(null);
+  const [grantFeedback, setGrantFeedback] = useState('');
+  const [claudeAccess, setClaudeAccess] = useState(false);
+  const [claudeKids, setClaudeKids] = useState([]);
+
+  // Fetch family data once for the time grant feature
+  useEffect(() => {
+    if (!isParent) return;
+    familyApi.getFamily().then((data) => {
+      if (data.family?.claude_access) setClaudeAccess(true);
+      setClaudeKids((data.members || []).filter((m) => m.claude_enabled && m.role === 'kid' && m.is_active));
+    }).catch(() => {});
+  }, [isParent]);
+
+  const handleGrantTime = async (minutes) => {
+    if (!timeGrantKid) return;
+    try {
+      await claudeApi.grantTime(timeGrantKid.id, minutes);
+      setGrantFeedback(`Gave ${timeGrantKid.name} +${minutes} minutes!`);
+      setTimeout(() => {
+        setTimeGrantOpen(false);
+        setTimeGrantKid(null);
+        setGrantFeedback('');
+      }, 1500);
+    } catch {
+      setGrantFeedback('Failed to grant time');
+      setTimeout(() => setGrantFeedback(''), 2000);
+    }
+  };
 
   const loadVisibleTurns = () => {
     turnsApi.getVisibleTurns()
@@ -303,6 +335,62 @@ export default function DashboardPage() {
         onLog={handleLogTurn}
         onClose={() => setActiveTurn(null)}
       />}
+
+      {/* Claude Code time grant FAB (parents only, when family has access) */}
+      {isParent && claudeAccess && claudeKids.length > 0 && (
+        <button
+          onClick={() => { setTimeGrantOpen(true); setTimeGrantKid(null); }}
+          className="fixed bottom-6 right-6 w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-700 text-white shadow-lg flex items-center justify-center z-40 transition-transform hover:scale-105"
+          title="Grant Claude Code time"
+          style={{ bottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
+        >
+          <FontAwesomeIcon icon={faClock} />
+        </button>
+      )}
+
+      {/* Time grant modal */}
+      <Modal open={timeGrantOpen} onClose={() => { setTimeGrantOpen(false); setTimeGrantKid(null); setGrantFeedback(''); }} title="Grant Claude Code Time">
+        {grantFeedback ? (
+          <div className="py-6 text-center text-gray-700 dark:text-gray-300">{grantFeedback}</div>
+        ) : !timeGrantKid ? (
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Pick a kid:</p>
+            {claudeKids.map((kid) => (
+              <button
+                key={kid.id}
+                onClick={() => setTimeGrantKid(kid)}
+                className="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
+              >
+                <Avatar name={kid.name} color={kid.avatar_color} emoji={kid.avatar_emoji} size="sm" />
+                <span className="font-medium text-gray-900 dark:text-gray-100">{kid.name}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Grant bonus time to <span className="font-semibold text-gray-900 dark:text-gray-100">{timeGrantKid.name}</span>:
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {[15, 30, 45, 60].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => handleGrantTime(m)}
+                  className="p-4 rounded-lg bg-purple-50 dark:bg-purple-500/20 hover:bg-purple-100 dark:hover:bg-purple-500/30 text-purple-700 dark:text-purple-300 font-semibold transition-colors"
+                >
+                  +{m} min
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setTimeGrantKid(null)}
+              className="w-full mt-2 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            >
+              ← Back to kid list
+            </button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

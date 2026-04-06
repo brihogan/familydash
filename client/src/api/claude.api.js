@@ -11,4 +11,5 @@ export const claudeApi = {
   toggleStar: (appOwnerId, appName) => client.post('/claude/apps/star', { app_owner_id: appOwnerId, app_name: appName }).then((r) => r.data),
   heartbeat: () => client.post('/claude/heartbeat').then((r) => r.data),
   getDailyRemaining: () => client.get('/claude/daily-remaining').then((r) => r.data),
+  grantTime: (userId, minutes) => client.post('/claude/grant-time', { userId, minutes }).then((r) => r.data),
 };

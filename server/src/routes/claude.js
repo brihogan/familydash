@@ -3,6 +3,7 @@ import { z } from 'zod';
 import db from '../db/db.js';
 import crypto from 'crypto';
 import { authenticate } from '../middleware/auth.js';
+import { requireRole } from '../middleware/requireRole.js';
 import path from 'path';
 import { getOrCreateContainer, stopContainer, getContainerStatus, readContainerFile, listContainerApps } from '../services/dockerService.js';
 
@@ -108,6 +109,30 @@ router.get('/daily-remaining', authenticate, requireClaudeFamily, (req, res) => 
   const limitSec = (user.claude_time_limit || 60) * 60;
   const usedSec = getDailyUsedSeconds(userId);
   res.json({ remainingSeconds: Math.max(0, limitSec - usedSec), usedSeconds: usedSec, limitSeconds: limitSec });
+});
+
+// POST /api/claude/grant-time — parent grants bonus time to a kid
+router.post('/grant-time', authenticate, requireRole('parent'), requireClaudeFamily, (req, res) => {
+  const schema = z.object({ userId: z.number().int(), minutes: z.number().int().min(1).max(240) });
+  const parse = schema.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: 'Invalid input' });
+  const { userId, minutes } = parse.data;
+
+  // Verify target kid is in the same family
+  const target = db.prepare('SELECT id, name, claude_enabled FROM users WHERE id = ? AND family_id = ? AND is_active = 1').get(userId, req.user.familyId);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  if (!target.claude_enabled) return res.status(400).json({ error: 'Claude not enabled for this user' });
+
+  // Subtract minutes from today's used time (floor at 0)
+  const date = todayDate();
+  const used = getDailyUsedSeconds(userId);
+  const newUsed = Math.max(0, used - minutes * 60);
+  db.prepare(`
+    INSERT INTO claude_daily_usage (user_id, date, seconds_used) VALUES (?, ?, ?)
+    ON CONFLICT(user_id, date) DO UPDATE SET seconds_used = ?
+  `).run(userId, date, newUsed, newUsed);
+
+  res.json({ ok: true, name: target.name, minutesGranted: minutes });
 });
 
 // GET /api/claude/apps — list all kid apps for the family
