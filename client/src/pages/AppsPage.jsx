@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faRocket, faTerminal, faArrowUpRightFromSquare, faPen, faPlay, faStar as faStarSolid } from '@fortawesome/free-solid-svg-icons';
+import { faRocket, faTerminal, faPlay, faStar as faStarSolid, faChevronDown, faChevronUp } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarOutline } from '@fortawesome/free-regular-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { claudeApi } from '../api/claude.api.js';
@@ -9,13 +9,33 @@ import Modal from '../components/shared/Modal.jsx';
 import KidWorkspace from '../components/claude/KidWorkspace.jsx';
 
 function AppCard({ app, kid, canEdit, onLaunch, onEdit, onToggleStar }) {
+  const handleCardClick = () => onLaunch(kid.username, app.name);
+  const handleIconClick = (e) => {
+    if (!canEdit) return;
+    e.stopPropagation();
+    onEdit({ kidId: kid.id, appName: app.name, description: app.description, icon: app.icon || '' });
+  };
+  const handleStarClick = (e) => {
+    e.stopPropagation();
+    onToggleStar(kid.id, app.name);
+  };
+
   return (
-    <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-brand-300 dark:hover:border-brand-500/50 transition-all">
+    <div
+      onClick={handleCardClick}
+      className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-brand-300 dark:hover:border-brand-500/50 transition-all cursor-pointer"
+    >
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="w-9 h-9 rounded-lg bg-brand-50 dark:bg-brand-500/20 flex items-center justify-center text-lg shrink-0">
+          <button
+            type="button"
+            onClick={handleIconClick}
+            disabled={!canEdit}
+            title={canEdit ? 'Edit app' : undefined}
+            className={`w-9 h-9 rounded-lg bg-brand-50 dark:bg-brand-500/20 flex items-center justify-center text-lg shrink-0 ${canEdit ? 'hover:ring-2 hover:ring-brand-300 dark:hover:ring-brand-500/50' : ''}`}
+          >
             {app.icon || <FontAwesomeIcon icon={faRocket} className="text-brand-500 text-sm" />}
-          </span>
+          </button>
           <div className="min-w-0">
             <p className="font-semibold text-gray-900 dark:text-gray-100 truncate">{app.name.replace(/[-_]/g, ' ')}</p>
             {app.description && (
@@ -23,44 +43,22 @@ function AppCard({ app, kid, canEdit, onLaunch, onEdit, onToggleStar }) {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1 shrink-0 ml-2">
-          {canEdit && (
-            <button
-              onClick={() => onEdit({ kidId: kid.id, appName: app.name, description: app.description, icon: app.icon || '' })}
-              className="w-7 h-7 flex items-center justify-center text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400"
-            >
-              <FontAwesomeIcon icon={faPen} className="text-xs" />
-            </button>
-          )}
-          <button
-            onClick={() => onToggleStar(kid.id, app.name)}
-            className={`w-7 h-7 flex items-center justify-center transition-colors ${
-              app.starred ? 'text-amber-400' : 'text-gray-300 dark:text-gray-600 hover:text-amber-400'
-            }`}
-          >
-            <FontAwesomeIcon icon={app.starred ? faStarSolid : faStarOutline} className="text-sm" />
-          </button>
-        </div>
       </div>
-      <div className="flex items-center justify-between mt-3">
-        <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-gray-500">
-          <span>
-            <FontAwesomeIcon icon={faPlay} className="mr-1" />
-            {app.launches}
-          </span>
-          {app.stars > 0 && (
-            <span>
-              <FontAwesomeIcon icon={faStarSolid} className="mr-1 text-amber-400" />
-              {app.stars}
-            </span>
-          )}
-        </div>
+      <div className="flex items-center gap-3 mt-3 text-xs text-gray-400 dark:text-gray-500">
+        <span>
+          <FontAwesomeIcon icon={faPlay} className="mr-1" />
+          {app.launches}
+        </span>
         <button
-          onClick={() => onLaunch(kid.username, app.name)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-medium transition-colors"
+          type="button"
+          onClick={handleStarClick}
+          title={app.starred ? 'Unstar' : 'Star'}
+          className={`flex items-center gap-1 transition-colors ${
+            app.starred ? 'text-amber-400' : 'hover:text-amber-400'
+          }`}
         >
-          Open
-          <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="text-[10px]" />
+          <FontAwesomeIcon icon={app.starred ? faStarSolid : faStarOutline} />
+          <span>{app.stars || 0}</span>
         </button>
       </div>
     </div>
@@ -73,6 +71,7 @@ export default function AppsPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [myTimeLimit, setMyTimeLimit] = useState(60);
+  const [expandedKids, setExpandedKids] = useState({}); // { [kidId]: true }
 
   // Unified workspace
   const [workspace, setWorkspace] = useState(null); // { userId, initialView: 'terminal' | { url, appName } }
@@ -227,6 +226,10 @@ export default function AppsPage() {
             const landingUrl = import.meta.env.VITE_APPS_ORIGIN
               ? `${import.meta.env.VITE_APPS_ORIGIN}/${kid.username}/`
               : `/apps/${kid.username}/`;
+            const sortedApps = [...kid.apps].sort((a, b) => (b.launches || 0) - (a.launches || 0));
+            const expanded = !!expandedKids[kid.id];
+            const visibleApps = expanded ? sortedApps : sortedApps.slice(0, 3);
+            const hiddenCount = sortedApps.length - 3;
             return (
             <div key={kid.id}>
               <a
@@ -240,7 +243,7 @@ export default function AppsPage() {
                 <h2 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{kid.name}</h2>
               </a>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {kid.apps.map((app) => (
+                {visibleApps.map((app) => (
                   <AppCard
                     key={app.name}
                     app={app} kid={kid}
@@ -249,6 +252,15 @@ export default function AppsPage() {
                   />
                 ))}
               </div>
+              {hiddenCount > 0 && (
+                <button
+                  onClick={() => setExpandedKids((prev) => ({ ...prev, [kid.id]: !expanded }))}
+                  className="mt-3 flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                >
+                  <FontAwesomeIcon icon={expanded ? faChevronUp : faChevronDown} />
+                  {expanded ? 'Show less' : `Show ${hiddenCount} more`}
+                </button>
+              )}
             </div>
             );
           })}

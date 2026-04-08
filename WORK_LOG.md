@@ -10,6 +10,13 @@
 - Cloudflare auto-injects `static.cloudflareinsights.com/beacon.min.js` into HTML responses, which was being blocked on every kid-app page because the CSP set by `serveAppFile` only declared `default-src 'self'` with no explicit `script-src` (landing pages had no CSP at all, which is why they looked fine).
 - Extracted the CSP into a `KID_APP_CSP` constant in `server/src/routes/claude.js` and added `script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://static.cloudflareinsights.com` plus `connect-src 'self' https://cloudflareinsights.com` so the beacon can load and report.
 
+### 2026-04-08 — AppsPage card redesign
+- Per-kid sections now sort apps by launch count desc and show only the top 3, with a "Show N more" / "Show less" chevron toggle (state tracked in `expandedKids`).
+- Dropped the explicit Open button — the whole card is clickable and launches the app.
+- Dropped the separate edit pen button — clicking the app icon (when the user has edit rights) opens the edit modal instead.
+- Merged the top-right star button into the bottom star counter: the counter is now the toggle for the logged-in user (always rendered, shows count, click stars/unstars).
+- `stopPropagation` on the icon and star buttons so they don't also trigger the card-level launch handler.
+
 ### 2026-04-08 — Strict routing fix for bare app URLs
 - Typing `apps.straychips.com/fox/probe` (no trailing slash) served the app's HTML directly instead of redirecting to `/fox/probe/`, so the browser resolved relative script tags (`state.js`, `game.js`, etc.) against `/fox/` instead of `/fox/probe/` and every file 404'd. Clicking from the landing page or the dashboard worked because those links already include the trailing slash.
 - Root cause: `appsRouter` and `subdomainRouter` were created with default `Router()`, which has `strict: false` — so `/:username/:appName/` matched both `/fox/probe/` and `/fox/probe`, and the redirect route never fired.
