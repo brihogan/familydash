@@ -25,7 +25,7 @@ export default function useOfflineInbox() {
 
   const kids = cached?.kids || [];
   const count = kids.reduce(
-    (sum, k) => sum + k.chores.length + k.steps.length + (k.setCompletions || []).length,
+    (sum, k) => sum + k.chores.length + k.steps.length + (k.setCompletions || []).length + (k.notifications || []).length,
     0,
   );
 

@@ -389,4 +389,32 @@ export function runMigrations(db) {
 
   // v48: chores_label — per-family display label for "Chores" (e.g. "Habits", "Tasks")
   try { db.exec(`ALTER TABLE families ADD COLUMN chores_label TEXT NOT NULL DEFAULT 'Chores'`); } catch (_) {}
+
+  // v49: notify_mode on task_sets — parent inbox notification preference
+  //   'off'           → no notifications (default, existing behavior)
+  //   'each_step'     → inbox notification on every step completion
+  //   'on_completion' → inbox notification when the final step closes the set
+  try { db.exec(`ALTER TABLE task_sets ADD COLUMN notify_mode TEXT NOT NULL DEFAULT 'off'`); } catch (_) {}
+
+  // v50: inbox_notifications — read/dismiss-style notifications surfaced in
+  // the parent inbox alongside pending approvals. Distinct from activity_feed
+  // (audit log, not dismissible) and from pending-approval items (those are
+  // a live query of *_status='pending'). A notification has a subject kid,
+  // a title/body, and a dismissed_at timestamp that hides it from the inbox.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS inbox_notifications (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      family_id       INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+      subject_user_id INTEGER NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+      kind            TEXT    NOT NULL,
+      title           TEXT    NOT NULL,
+      body            TEXT    NOT NULL DEFAULT '',
+      reference_type  TEXT,
+      reference_id    INTEGER,
+      dismissed_at    TEXT,
+      created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_inbox_notif_family_active ON inbox_notifications(family_id, dismissed_at)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_inbox_notif_subject ON inbox_notifications(subject_user_id)`);
 }

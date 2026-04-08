@@ -10,6 +10,18 @@
 - Cloudflare auto-injects `static.cloudflareinsights.com/beacon.min.js` into HTML responses, which was being blocked on every kid-app page because the CSP set by `serveAppFile` only declared `default-src 'self'` with no explicit `script-src` (landing pages had no CSP at all, which is why they looked fine).
 - Extracted the CSP into a `KID_APP_CSP` constant in `server/src/routes/claude.js` and added `script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://static.cloudflareinsights.com` plus `connect-src 'self' https://cloudflareinsights.com` so the beacon can load and report.
 
+### 2026-04-08 — Task-set parent notifications (opt-in per set)
+- New per-task-set dropdown "Parent Notifications" in the Edit Set modal (`SettingsTasksPage.jsx`), below Display Mode and above Save. Options: Off (default), On each step completion, On set (final step) completion.
+- Migration v49 adds `task_sets.notify_mode` (`off` | `each_step` | `on_completion`, default `off`). Task Set zod schema + POST/PUT endpoints thread it through.
+- Migration v50 creates a new `inbox_notifications` table — distinct from the live pending-approval query and from the audit-only activity feed. Rows have a `dismissed_at` timestamp that hides them from the inbox.
+- New `server/src/services/notificationService.js` with a small `insertNotification()` helper. `userTasks.js` calls it from the step-completion path:
+  - On each auto-approved step completion, if `notify_mode === 'each_step'` and the set didn't just finish, emit a step notification with `remaining` steps left.
+  - When the final step closes the set (auto-awarded, not pending parent approval), if `notify_mode` is `each_step` or `on_completion`, emit a set-completion notification with the ticket reward.
+  - Approval-required paths are intentionally skipped — the pending-approval item already serves as the notification.
+- `GET /api/inbox` and `/api/inbox/count` now include active notifications; new `POST /api/inbox/notifications/dismiss` marks them dismissed. `inbox.api.js` gains `dismissNotifications()`.
+- `InboxPage.jsx` + `InboxKidPage.jsx` render a "Notifications" section per kid with dismissible blue rows; `useOfflineInbox` counts them toward the nav badge.
+- Client build verified with `vite build`; no errors.
+
 ### 2026-04-08 — Customizable "Chores" label
 - Added a per-family `chores_label` column (migration v48) and surfaced it through GET/PATCH `/api/family/settings`; defaults to `'Chores'` with a 40-char cap.
 - Extended `FamilySettingsContext` to expose `choresLabel` / `choreLabel` (singular derived by stripping trailing 's') plus lowercase variants, and an `updateChoresLabel` setter with optimistic state.

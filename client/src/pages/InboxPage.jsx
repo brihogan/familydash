@@ -97,6 +97,14 @@ export default function InboxPage() {
     } catch { setError('Failed to undo.'); } finally { setActionLoading(false); }
   };
 
+  const handleDismissNotification = async (id) => {
+    setActionLoading(true);
+    try {
+      await inboxApi.dismissNotifications([id]);
+      await fetchInbox();
+    } catch { setError('Failed to dismiss.'); } finally { setActionLoading(false); }
+  };
+
   const toggleSelect = (key) =>
     setSelected((prev) => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
 
@@ -165,7 +173,9 @@ export default function InboxPage() {
       ) : (
         <div className="space-y-4">
           {kids.map((kid) => {
-            const itemCount  = kid.chores.length + kid.steps.length + (kid.setCompletions || []).length;
+            const notifications = kid.notifications || [];
+            const pendingCount  = kid.chores.length + kid.steps.length + (kid.setCompletions || []).length;
+            const itemCount     = pendingCount + notifications.length;
             const showInline = kids.length <= 1 || itemCount <= 5;
 
             return (
@@ -175,7 +185,7 @@ export default function InboxPage() {
                   <Avatar name={kid.name} color={kid.avatar_color} emoji={kid.avatar_emoji} size="sm" />
                   <span className="font-semibold text-gray-900 dark:text-gray-100">{kid.name}</span>
                   <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">
-                    {itemCount} item{itemCount !== 1 ? 's' : ''} pending
+                    {itemCount} item{itemCount !== 1 ? 's' : ''}
                   </span>
                 </div>
 
@@ -278,6 +288,31 @@ export default function InboxPage() {
                           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Completed Sets</p>
                           <div className="space-y-2">
                             {kid.setCompletions.map((sc) => renderItem('set', sc.id, `${sc.task_set_emoji || '📋'} ${sc.task_set_name}`, `All steps completed — awaiting approval${sc.ticket_reward > 0 ? ` (+${sc.ticket_reward} 🎟)` : ''}`, `set:${sc.id}`))}
+                          </div>
+                        </div>
+                      )}
+                      {notifications.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Notifications</p>
+                          <div className="space-y-2">
+                            {notifications.map((n) => (
+                              <div
+                                key={`notif-${n.id}`}
+                                className="flex items-center gap-3 p-2.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{n.title}</p>
+                                  {n.body && <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{n.body}</p>}
+                                </div>
+                                <button
+                                  onClick={() => handleDismissNotification(n.id)}
+                                  disabled={actionLoading}
+                                  className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 border border-gray-200 dark:border-gray-600 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors shrink-0"
+                                >
+                                  Dismiss
+                                </button>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       )}

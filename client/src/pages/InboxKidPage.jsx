@@ -41,7 +41,8 @@ export default function InboxKidPage() {
 
   const allChoreIds = kid.chores.map((c) => c.id);
   const allStepIds  = kid.steps.map((s) => s.id);
-  const totalCount  = allChoreIds.length + allStepIds.length;
+  const notifications = kid.notifications || [];
+  const totalCount  = allChoreIds.length + allStepIds.length + notifications.length;
 
   // Group steps by task_set_id
   const stepsByTaskSet = kid.steps.reduce((acc, step) => {
@@ -103,6 +104,14 @@ export default function InboxKidPage() {
       await inboxApi.approve(body);
       await fetchKidInbox();
     } catch { setError('Failed to approve.'); } finally { setActionLoading(false); }
+  };
+
+  const handleDismissNotification = async (id) => {
+    setActionLoading(true);
+    try {
+      await inboxApi.dismissNotifications([id]);
+      await fetchKidInbox();
+    } catch { setError('Failed to dismiss.'); } finally { setActionLoading(false); }
   };
 
   const handleUndoItem = async (type, id) => {
@@ -261,6 +270,32 @@ export default function InboxKidPage() {
             </div>
           </div>
         ))}
+
+        {notifications.length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Notifications</h3>
+            <div className="space-y-2">
+              {notifications.map((n) => (
+                <div
+                  key={`notif-${n.id}`}
+                  className="flex items-center gap-3 p-2.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{n.title}</p>
+                    {n.body && <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{n.body}</p>}
+                  </div>
+                  <button
+                    onClick={() => handleDismissNotification(n.id)}
+                    disabled={actionLoading}
+                    className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 border border-gray-200 dark:border-gray-600 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors shrink-0"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

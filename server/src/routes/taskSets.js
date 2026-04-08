@@ -36,6 +36,7 @@ const TaskSetSchema = z.object({
   category:      z.string().max(100).default('').transform((s) => s.trim()),
   ticket_reward: z.number().int().min(0).default(0),
   display_mode:  z.enum(['list', 'card']).default('list'),
+  notify_mode:   z.enum(['off', 'each_step', 'on_completion']).default('off'),
 });
 
 const StepSchema = z.object({
@@ -103,8 +104,8 @@ router.post('/task-sets', authenticate, requireRole('parent'), (req, res, next) 
   try {
     const body = TaskSetSchema.parse(req.body);
     const result = db.prepare(
-      'INSERT INTO task_sets (family_id, name, type, emoji, description, category, ticket_reward, display_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(req.user.familyId, body.name, body.type, body.emoji ?? null, body.description, body.category, body.ticket_reward, body.display_mode);
+      'INSERT INTO task_sets (family_id, name, type, emoji, description, category, ticket_reward, display_mode, notify_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(req.user.familyId, body.name, body.type, body.emoji ?? null, body.description, body.category, body.ticket_reward, body.display_mode, body.notify_mode);
     res.status(201).json(parseRow(db.prepare('SELECT * FROM task_sets WHERE id = ?').get(result.lastInsertRowid)));
   } catch (err) { next(err); }
 });
@@ -124,6 +125,7 @@ router.put('/task-sets/:id', authenticate, requireRole('parent'), (req, res, nex
     if (body.category      !== undefined) { updates.push('category = ?');      values.push(body.category); }
     if (body.ticket_reward !== undefined) { updates.push('ticket_reward = ?'); values.push(body.ticket_reward); }
     if (body.display_mode  !== undefined) { updates.push('display_mode = ?');  values.push(body.display_mode); }
+    if (body.notify_mode   !== undefined) { updates.push('notify_mode = ?');   values.push(body.notify_mode); }
     if (!updates.length) return res.status(400).json({ error: 'Nothing to update.' });
 
     values.push(id);

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db from '../db/db.js';
 import { authenticate } from '../middleware/auth.js';
 import { insertActivity } from '../services/activityService.js';
+import { insertNotification } from '../services/notificationService.js';
 import { getKingOfCrowns } from '../services/streakService.js';
 import { assertSameFamily as assertUserInFamily } from '../utils/assertions.js';
 import { localDateISO } from '../utils/dateHelpers.js';
@@ -276,10 +277,10 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
     ).get(stepId, taskSetId);
     if (!step) return res.status(404).json({ error: 'Step not found.' });
 
-    const taskSet = db.prepare('SELECT id, name, ticket_reward FROM task_sets WHERE id = ? AND is_active = 1').get(taskSetId);
+    const taskSet = db.prepare('SELECT id, name, ticket_reward, notify_mode FROM task_sets WHERE id = ? AND is_active = 1').get(taskSetId);
     if (!taskSet) return res.status(404).json({ error: 'Task set not found.' });
 
-    const user = db.prepare('SELECT family_id, require_task_approval, require_set_approval FROM users WHERE id = ?').get(userId);
+    const user = db.prepare('SELECT family_id, name, require_task_approval, require_set_approval FROM users WHERE id = ?').get(userId);
     const family = db.prepare('SELECT use_tickets FROM families WHERE id = ?').get(user.family_id);
     const useTickets = family?.use_tickets !== 0;
 
@@ -404,6 +405,23 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
       // Check if all steps×instances are now complete
       const totalInst = getTotalInstances();
       const doneInst = getDoneInstances();
+
+      // Parent-inbox notification on each step completion (opt-in per set).
+      // Skipped when the set just finished — we'd rather the completion
+      // notification cover it than spam two rows in the inbox.
+      const setJustFinished = totalInst > 0 && doneInst >= totalInst;
+      if (taskSet.notify_mode === 'each_step' && !setJustFinished) {
+        const remaining = Math.max(0, totalInst - doneInst);
+        insertNotification({
+          familyId: user.family_id,
+          subjectUserId: userId,
+          kind: 'task_step',
+          title: `${user.name} completed "${displayName}"`,
+          body: `${taskSet.name} — ${remaining} step${remaining === 1 ? '' : 's'} left`,
+          referenceType: 'task_set',
+          referenceId: taskSetId,
+        });
+      }
       if (totalInst > 0 && doneInst >= totalInst) {
         // Set-level approval: mark assignment as pending instead of awarding
         if (user.require_set_approval === 'set' && req.user.role !== 'parent') {
@@ -433,6 +451,21 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
           referenceType: 'task_set',
           amountCents: useTickets && ticketReward > 0 ? ticketReward : null,
         });
+
+        // Parent-inbox notification when the set closes (opt-in per set).
+        // Fires for both 'each_step' and 'on_completion' modes so that
+        // families who want per-step updates also hear about the finish.
+        if (taskSet.notify_mode === 'each_step' || taskSet.notify_mode === 'on_completion') {
+          insertNotification({
+            familyId: user.family_id,
+            subjectUserId: userId,
+            kind: 'task_set',
+            title: `${user.name} completed: ${taskSet.name}`,
+            body: useTickets && ticketReward > 0 ? `+${ticketReward} 🎟 awarded` : 'All steps done',
+            referenceType: 'task_set',
+            referenceId: taskSetId,
+          });
+        }
       }
 
       const todayCount = db.prepare(

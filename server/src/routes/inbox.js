@@ -54,8 +54,15 @@ router.get('/', authenticate, requireRole('parent'), (req, res, next) => {
         ORDER BY ta.task_set_id ASC
       `).all(kid.id);
 
-      if (chores.length + steps.length + setCompletions.length > 0) {
-        result.push({ ...kid, chores, steps, setCompletions });
+      const notifications = db.prepare(`
+        SELECT id, kind, title, body, reference_type, reference_id, created_at
+        FROM inbox_notifications
+        WHERE subject_user_id = ? AND family_id = ? AND dismissed_at IS NULL
+        ORDER BY created_at DESC
+      `).all(kid.id, familyId);
+
+      if (chores.length + steps.length + setCompletions.length + notifications.length > 0) {
+        result.push({ ...kid, chores, steps, setCompletions, notifications });
       }
     }
 
@@ -96,7 +103,13 @@ router.get('/count', authenticate, requireRole('parent'), (req, res, next) => {
         AND ta.completion_status = 'pending' AND ta.is_active = 1
     `).get(familyId).cnt;
 
-    res.json({ count: choreCount + stepCount + setCount });
+    const notificationCount = db.prepare(`
+      SELECT COUNT(*) AS cnt
+      FROM inbox_notifications
+      WHERE family_id = ? AND dismissed_at IS NULL
+    `).get(familyId).cnt;
+
+    res.json({ count: choreCount + stepCount + setCount + notificationCount });
   } catch (err) {
     next(err);
   }
@@ -336,6 +349,25 @@ router.post('/deny', authenticate, requireRole('parent'), (req, res, next) => {
 
     denyTx();
     res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /api/inbox/notifications/dismiss ───────────────────────────────
+// Body: { notification_ids: number[] } — accepts one or many. Scoped to the
+// caller's family so a parent can't dismiss another family's notifications.
+
+router.post('/notifications/dismiss', authenticate, requireRole('parent'), (req, res, next) => {
+  try {
+    const ids = Array.isArray(req.body?.notification_ids) ? req.body.notification_ids : [];
+    if (!ids.length) return res.json({ ok: true, dismissed: 0 });
+    const familyId = req.user.familyId;
+    const placeholders = ids.map(() => '?').join(',');
+    const result = db.prepare(
+      `UPDATE inbox_notifications SET dismissed_at = datetime('now') WHERE family_id = ? AND dismissed_at IS NULL AND id IN (${placeholders})`
+    ).run(familyId, ...ids);
+    res.json({ ok: true, dismissed: result.changes });
   } catch (err) {
     next(err);
   }
