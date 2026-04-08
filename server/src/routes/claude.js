@@ -18,6 +18,19 @@ const MIME_TYPES = {
   '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.mp4': 'video/mp4',
 };
 
+// CSP for kid-authored apps. Allows inline + eval so beginner JS works, but
+// locks down network egress to the same origin. Cloudflare Insights is
+// explicitly allowed because CF auto-injects its beacon script and the
+// default-src fallback would otherwise block it (and spam the console).
+const KID_APP_CSP = [
+  "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://static.cloudflareinsights.com",
+  "img-src 'self' data: blob: https:",
+  "connect-src 'self' https://cloudflareinsights.com",
+  "frame-src 'none'",
+  "object-src 'none'",
+].join('; ') + ';';
+
 // One-time tickets for WebSocket auth (avoids token expiry issues)
 const wsTickets = new Map(); // ticket -> { kidId, familyId, role, userId, expiresAt }
 
@@ -285,7 +298,7 @@ router.get('/:userId/apps/:appName/*', async (req, res) => {
     const data = await readContainerFile(kidId, resolved);
     const ext = path.extname(filePath).toLowerCase();
     // Relax CSP for kid apps so inline scripts/styles work
-    res.set('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; img-src 'self' data: blob: https:; connect-src 'self'; frame-src 'none'; object-src 'none';");
+    res.set('Content-Security-Policy', KID_APP_CSP);
     res.set('Content-Type', MIME_TYPES[ext] || 'application/octet-stream');
     res.send(data);
   } catch {
@@ -645,7 +658,7 @@ async function serveAppFile(req, res) {
   try {
     const data = await readContainerFile(req.kidId, resolved);
     const ext = path.extname(filePath).toLowerCase();
-    res.set('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; img-src 'self' data: blob: https:; connect-src 'self'; frame-src 'none'; object-src 'none';");
+    res.set('Content-Security-Policy', KID_APP_CSP);
     res.set('Content-Type', MIME_TYPES[ext] || 'application/octet-stream');
     // Never cache kid apps — they change while kids are developing them
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');

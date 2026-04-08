@@ -1,5 +1,15 @@
 # Work Log
 
+## Session Start: 2026-04-08 (evening)
+
+### 2026-04-08 — CSP frame-src fix for workspace app tabs
+- Opening apps from the KidWorkspace Apps dropdown produced blank iframes because Helmet's CSP on the main dashboard had no explicit `frame-src`, so it fell through to `default-src 'self'` and blocked the cross-origin `apps.straychips.com` subdomain. Launching via `/code-apps` worked because that page is served with its own CSP.
+- Added `frameSrc: ["'self'", https://${APPS_HOST}, http://${APPS_HOST}]` to the Helmet directives in `server/src/app.js` (only populated when `APPS_HOST` is set, so dev without a subdomain is unaffected).
+
+### 2026-04-08 — Allow Cloudflare Insights beacon in kid-app CSP
+- Cloudflare auto-injects `static.cloudflareinsights.com/beacon.min.js` into HTML responses, which was being blocked on every kid-app page because the CSP set by `serveAppFile` only declared `default-src 'self'` with no explicit `script-src` (landing pages had no CSP at all, which is why they looked fine).
+- Extracted the CSP into a `KID_APP_CSP` constant in `server/src/routes/claude.js` and added `script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://static.cloudflareinsights.com` plus `connect-src 'self' https://cloudflareinsights.com` so the beacon can load and report.
+
 ## Session Start: 2026-04-06 (evening)
 
 ### 2026-04-06 — App storage works on both origins

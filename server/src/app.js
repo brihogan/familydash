@@ -55,6 +55,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Allow the apps subdomain to be iframed from the main dashboard (KidWorkspace
+// opens kid apps in tabs that are iframes pointing at apps.straychips.com).
+const appsFrameSrc = APPS_HOST ? [`https://${APPS_HOST}`, `http://${APPS_HOST}`] : [];
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -69,6 +72,7 @@ app.use(
         baseUri: ["'self'"],
         formAction: ["'self'"],
         frameAncestors: ["'self'"],
+        frameSrc: ["'self'", ...appsFrameSrc],
         objectSrc: ["'none'"],
       },
     },
