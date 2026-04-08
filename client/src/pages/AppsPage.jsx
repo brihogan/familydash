@@ -209,7 +209,7 @@ export default function AppsPage() {
                 <FontAwesomeIcon icon={faStarSolid} className="text-amber-400" />
                 <h2 className="font-semibold text-gray-900 dark:text-gray-100">My Favorites</h2>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {favorites.map((fav) => (
                   <AppCard
                     key={`${fav.kid.id}-${fav.name}`}
@@ -260,7 +260,7 @@ export default function AppsPage() {
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {visibleApps.map((app) => (
                   <AppCard
                     key={app.name}
