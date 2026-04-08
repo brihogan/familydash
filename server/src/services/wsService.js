@@ -7,8 +7,35 @@ export function setupWebSocket(server) {
   const MAX_WS_PER_KID = 3;
   console.log('[ws] WebSocket server ready on /ws/terminal');
 
+  // Keepalive: send a WS ping every 25s to every open terminal socket. This
+  // keeps the connection warm through Cloudflare (~100s idle cap), reverse
+  // proxies, and stateful middleboxes that silently drop idle TCP streams.
+  // Without this the terminal looks fine until the user starts typing after
+  // being idle, then loses the session. Sockets that don't pong within the
+  // next interval are considered dead and terminated so the client can
+  // reconnect cleanly.
+  const HEARTBEAT_MS = 25_000;
+  const heartbeat = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (ws.isAlive === false) {
+        try { ws.terminate(); } catch { /* ignore */ }
+        continue;
+      }
+      ws.isAlive = false;
+      try { ws.ping(); } catch { /* ignore */ }
+    }
+  }, HEARTBEAT_MS);
+  wss.on('close', () => clearInterval(heartbeat));
+
   wss.on('connection', async (ws, req) => {
     console.log('[ws] New connection attempt');
+    // Mark alive on every pong so the heartbeat interval knows this socket
+    // is still responsive. Any real traffic (data from the PTY, resize
+    // messages, etc.) doesn't need to touch this because the ping frame is
+    // sent unconditionally every interval and the response is what we're
+    // gating on.
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
     let kidId = null;
     try {
       // 1. Parse ticket from query params
