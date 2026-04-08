@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/requireRole.js';
 import path from 'path';
 import { getOrCreateContainer, stopContainer, getContainerStatus, readContainerFile, listContainerApps } from '../services/dockerService.js';
+import { localDateISO } from '../utils/dateHelpers.js';
 
 const MIME_TYPES = {
   '.html': 'text/html', '.htm': 'text/html', '.css': 'text/css',
@@ -69,8 +70,14 @@ function authorizeClaudeAccess(req, res, next) {
 }
 
 // ─── Daily usage helpers ──────────────────────────────────────────────────
+// IMPORTANT: the "daily" window must reset at *local* midnight, not UTC
+// midnight. Previously this used `toISOString().slice(0, 10)` which keyed
+// usage rows by UTC date — so in America/Denver the counter silently reset
+// at 6 PM (MST) / 7 PM (MDT) and kids got a fresh time budget in the
+// evening. We rely on the container's TZ env (see docker-compose.yml) to
+// give `localDateISO()` the right answer.
 function todayDate() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateISO();
 }
 
 function getDailyUsedSeconds(userId) {
@@ -152,7 +159,7 @@ router.post('/grant-time', authenticate, requireRole('parent'), requireClaudeFam
 router.get('/apps', authenticate, requireClaudeFamily, async (req, res, next) => {
   try {
     const kids = db.prepare(
-      'SELECT id, name, COALESCE(public_slug, username, CAST(id AS TEXT)) AS username, avatar_color, avatar_emoji FROM users WHERE family_id = ? AND claude_enabled = 1 AND is_active = 1 ORDER BY sort_order ASC'
+      "SELECT id, name, role, claude_time_limit, COALESCE(public_slug, username, CAST(id AS TEXT)) AS username, avatar_color, avatar_emoji FROM users WHERE family_id = ? AND claude_enabled = 1 AND is_active = 1 ORDER BY sort_order ASC"
     ).all(req.user.familyId);
 
     const stmtMeta = db.prepare(
@@ -214,8 +221,25 @@ router.get('/apps', authenticate, requireClaudeFamily, async (req, res, next) =>
       // Build app list from DB metadata (always available, even when container is stopped)
       const starRows = stmtStarCount.all(kid.id);
       const starMap = Object.fromEntries(starRows.map((s) => [s.app_name, s.stars]));
+
+      // Attach daily time budget for display on the Apps page. Parents have
+      // no limit (-> null). For kids the client renders "X / Y min left".
+      let dailyLimitSeconds = null;
+      let dailyRemainingSeconds = null;
+      if (kid.role !== 'parent') {
+        dailyLimitSeconds = (kid.claude_time_limit || 60) * 60;
+        dailyRemainingSeconds = getDailyRemainingSeconds(kid.id);
+      }
+
       return {
-        ...kid,
+        id: kid.id,
+        name: kid.name,
+        username: kid.username,
+        avatar_color: kid.avatar_color,
+        avatar_emoji: kid.avatar_emoji,
+        role: kid.role,
+        dailyLimitSeconds,
+        dailyRemainingSeconds,
         apps: metaRows.map((m) => ({
           name: m.app_name,
           description: m.description || '',

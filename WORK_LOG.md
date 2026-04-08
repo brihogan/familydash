@@ -10,6 +10,10 @@
 - Cloudflare auto-injects `static.cloudflareinsights.com/beacon.min.js` into HTML responses, which was being blocked on every kid-app page because the CSP set by `serveAppFile` only declared `default-src 'self'` with no explicit `script-src` (landing pages had no CSP at all, which is why they looked fine).
 - Extracted the CSP into a `KID_APP_CSP` constant in `server/src/routes/claude.js` and added `script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://static.cloudflareinsights.com` plus `connect-src 'self' https://cloudflareinsights.com` so the beacon can load and report.
 
+### 2026-04-08 — Fix Claude daily-usage timezone bug + show remaining time on Apps page
+- `server/src/routes/claude.js::todayDate()` was using `new Date().toISOString().slice(0, 10)` which keys the usage row by UTC date. For a container on `TZ=America/Denver`, that meant the counter silently reset at 6 PM MST / 7 PM MDT and kids got a fresh budget in the evening on top of their morning session. Switched to `localDateISO()` from `utils/dateHelpers.js` which honors the container's TZ env. Existing UTC-keyed rows become harmless historical leftovers; today's row starts accumulating at local midnight going forward.
+- Extended `GET /api/claude/apps` to include `dailyLimitSeconds` + `dailyRemainingSeconds` per kid (null for parents). `AppsPage.jsx` now renders "{remaining} / {limit} min left" next to each kid's name, colored amber under 10 minutes and red at zero.
+
 ### 2026-04-08 — Task-set parent notifications (opt-in per set)
 - New per-task-set dropdown "Parent Notifications" in the Edit Set modal (`SettingsTasksPage.jsx`), below Display Mode and above Save. Options: Off (default), On each step completion, On set (final step) completion.
 - Migration v49 adds `task_sets.notify_mode` (`off` | `each_step` | `on_completion`, default `off`). Task Set zod schema + POST/PUT endpoints thread it through.

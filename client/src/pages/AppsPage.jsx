@@ -230,18 +230,36 @@ export default function AppsPage() {
             const expanded = !!expandedKids[kid.id];
             const visibleApps = expanded ? sortedApps : sortedApps.slice(0, 3);
             const hiddenCount = sortedApps.length - 3;
+            // Remaining terminal time for kids — null for parents (unlimited)
+            const remainingSec = kid.dailyRemainingSeconds;
+            const limitSec = kid.dailyLimitSeconds;
+            const showTime = remainingSec != null && limitSec != null;
+            const remainingMin = showTime ? Math.ceil(remainingSec / 60) : 0;
+            const limitMin = showTime ? Math.round(limitSec / 60) : 0;
+            const timeColor = !showTime ? '' : (
+              remainingSec === 0 ? 'text-red-500 dark:text-red-400'
+                : remainingSec < 600 ? 'text-amber-600 dark:text-amber-400'
+                : 'text-gray-500 dark:text-gray-400'
+            );
             return (
             <div key={kid.id}>
-              <a
-                href={landingUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 mb-3 group"
-                title={`Open ${kid.name}'s landing page`}
-              >
-                <Avatar name={kid.name} color={kid.avatar_color} emoji={kid.avatar_emoji} size="sm" />
-                <h2 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{kid.name}</h2>
-              </a>
+              <div className="flex items-center gap-2 mb-3">
+                <a
+                  href={landingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 group"
+                  title={`Open ${kid.name}'s landing page`}
+                >
+                  <Avatar name={kid.name} color={kid.avatar_color} emoji={kid.avatar_emoji} size="sm" />
+                  <h2 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{kid.name}</h2>
+                </a>
+                {showTime && (
+                  <span className={`text-xs font-medium tabular-nums ${timeColor}`} title="Claude Code terminal time remaining today">
+                    · {remainingMin} / {limitMin} min left
+                  </span>
+                )}
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {visibleApps.map((app) => (
                   <AppCard
