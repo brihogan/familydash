@@ -3,6 +3,7 @@ import { authApi } from '../api/auth.api.js';
 import { setTokenGetter, setRefreshHandler } from '../api/client.js';
 import { cacheSession, getCachedSession, clearDataOnLogout } from '../offline/authOffline.js';
 import { prefetchAllData } from '../offline/syncEngine.js';
+import { showToast } from '../components/shared/Toast.jsx';
 
 const AuthContext = createContext(null);
 
@@ -17,13 +18,38 @@ export function AuthProvider({ children }) {
     setTokenGetter(() => accessToken);
   }, [accessToken]);
 
-  // Register the refresh handler once on mount
+  // Register the refresh handler once on mount. If the refresh itself fails
+  // with a 401/403, that means the refresh token is dead (server restarted,
+  // session invalidated, etc.) — in that case we need to surface it in the
+  // UI, otherwise the offline-first cache silently keeps rendering stale
+  // data and the user has no idea they're signed out until a hard refresh.
+  // We only clear state on a genuine server rejection; a network error
+  // leaves the cached session intact so the user stays usable offline.
   useEffect(() => {
     setRefreshHandler(async () => {
-      const data = await authApi.refresh();
-      setAccessToken(data.accessToken);
-      setUser(userFromToken(data.accessToken));
-      return data.accessToken;
+      try {
+        const data = await authApi.refresh();
+        setAccessToken(data.accessToken);
+        setUser(userFromToken(data.accessToken));
+        return data.accessToken;
+      } catch (err) {
+        const status = err?.response?.status;
+        if (status === 401 || status === 403) {
+          // Functional updater so we only fire the toast on the actual
+          // transition from signed-in → signed-out, not on repeated failed
+          // requests after we've already cleared state.
+          setUser((prev) => {
+            if (prev != null) {
+              showToast('Signed out — please log in again.', 5000);
+            }
+            return null;
+          });
+          setAccessToken(null);
+          setIsOfflineSession(false);
+          clearDataOnLogout();
+        }
+        throw err;
+      }
     });
   }, []);
 

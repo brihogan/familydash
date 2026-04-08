@@ -17,20 +17,30 @@ const router = Router();
 
 const REFRESH_COOKIE = 'refreshToken';
 const CAPACITOR_ORIGINS = ['capacitor://localhost', 'ionic://localhost', 'http://localhost'];
-const COOKIE_OPTS = {
+const BASE_COOKIE_OPTS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax',
   path: '/',
   maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
 };
 
+// Previously this hard-coded `secure: process.env.NODE_ENV === 'production'`,
+// which meant production builds always asked the browser for a Secure
+// cookie. That's correct behind Cloudflare at dash.straychips.com (HTTPS),
+// but breaks on the LAN at http://miniserver.local:3001 — browsers silently
+// drop Secure cookies over plain HTTP, leaving the refresh token unset and
+// every subsequent /auth/refresh call returns 401.
+//
+// `trust proxy` is on (see app.js), so `req.secure` honors X-Forwarded-Proto
+// from Cloudflare for the HTTPS hostname while staying false for direct LAN
+// HTTP requests. That gives us the right answer in both environments
+// without any manual host sniffing.
 function getCookieOpts(req) {
   const origin = req.headers.origin;
   if (origin && CAPACITOR_ORIGINS.includes(origin)) {
-    return { ...COOKIE_OPTS, sameSite: 'none', secure: true };
+    return { ...BASE_COOKIE_OPTS, sameSite: 'none', secure: true };
   }
-  return { ...COOKIE_OPTS };
+  return { ...BASE_COOKIE_OPTS, secure: !!req.secure };
 }
 
 function issueTokens(res, req, payload, remember = true) {
