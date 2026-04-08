@@ -3,6 +3,7 @@ import db from '../db/db.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { insertActivity } from '../services/activityService.js';
+import { getChoresLabels } from '../utils/labels.js';
 
 const router = Router();
 
@@ -110,6 +111,7 @@ router.post('/approve', authenticate, requireRole('parent'), (req, res, next) =>
     const familyId = req.user.familyId;
     const family   = db.prepare('SELECT use_tickets FROM families WHERE id = ?').get(familyId);
     const useTickets = family?.use_tickets !== 0;
+    const choreLabels = getChoresLabels(familyId);
 
     const approveTx = db.transaction(() => {
       // ── Approve chore logs ────────────────────────────────────────────────
@@ -143,8 +145,8 @@ router.post('/approve', authenticate, requireRole('parent'), (req, res, next) =>
           actorUserId:   req.user.userId,
           eventType:     'chore_completed',
           description:   useTickets && log.ticket_reward_at_time > 0
-            ? `Completed chore: ${log.chore_name} (+${log.ticket_reward_at_time} tickets)`
-            : `Completed chore: ${log.chore_name}`,
+            ? `Completed ${choreLabels.singularLower}: ${log.chore_name} (+${log.ticket_reward_at_time} tickets)`
+            : `Completed ${choreLabels.singularLower}: ${log.chore_name}`,
           referenceId:   logId,
           referenceType: 'chore_log',
           amountCents:   useTickets ? log.ticket_reward_at_time : null,
@@ -175,7 +177,7 @@ router.post('/approve', authenticate, requireRole('parent'), (req, res, next) =>
               subjectUserId: parseInt(uid),
               actorUserId:   req.user.userId,
               eventType:     'chores_all_done',
-              description:   `Completed all chores for ${date}! 🌟`,
+              description:   `Completed all ${choreLabels.pluralLower} for ${date}! 🌟`,
               referenceId:   null,
               referenceType: refType,
               amountCents:   null,

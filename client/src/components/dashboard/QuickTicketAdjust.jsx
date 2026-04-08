@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlusMinus, faPlus, faMinus } from '@fortawesome/free-solid-svg-icons';
 import Modal from '../shared/Modal.jsx';
 import { ticketsApi } from '../../api/tickets.api.js';
+import { useFamilySettings } from '../../context/FamilySettingsContext.jsx';
 import db from '../../offline/db.js';
 import { enqueue } from '../../offline/mutationQueue.js';
 import { showToast } from '../shared/Toast.jsx';
@@ -38,6 +39,7 @@ export default function QuickTicketAdjust({
   initialMode = 'add', variant = 'icon', large = false,
   controlledOpen, onControlledClose,
 }) {
+  const { choresLabelLower } = useFamilySettings();
   const isControlled = controlledOpen !== undefined;
   const [internalOpen, setInternalOpen] = useState(false);
   const open = isControlled ? controlledOpen : internalOpen;
@@ -237,7 +239,7 @@ export default function QuickTicketAdjust({
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason</label>
             <input
               type="text"
-              placeholder="e.g. Extra chores, bonus, penalty…"
+              placeholder={`e.g. Extra ${choresLabelLower}, bonus, penalty…`}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               maxLength={200}

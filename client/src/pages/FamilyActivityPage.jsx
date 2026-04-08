@@ -22,14 +22,16 @@ const TYPE_GROUPS = {
   tickets: ['tickets_added', 'tickets_removed'],
 };
 
-const TYPE_OPTIONS = [
-  { key: 'all',     label: 'All' },
-  { key: 'bank',    label: 'Bank' },
-  { key: 'chores',  label: 'Chores' },
-  { key: 'tasks',   label: 'Sets/Steps' },
-  { key: 'rewards', label: 'Rewards' },
-  { key: 'tickets', label: 'Tickets' },
-];
+function buildTypeOptions(choresLabel) {
+  return [
+    { key: 'all',     label: 'All' },
+    { key: 'bank',    label: 'Bank' },
+    { key: 'chores',  label: choresLabel },
+    { key: 'tasks',   label: 'Sets/Steps' },
+    { key: 'rewards', label: 'Rewards' },
+    { key: 'tickets', label: 'Tickets' },
+  ];
+}
 
 const DATE_OPTIONS = [
   { key: 'today',     label: 'Today' },
@@ -58,7 +60,8 @@ const PAGE_SIZE = 30;
 export default function FamilyActivityPage() {
   const location = useLocation();
   const { user } = useAuth();
-  const { useBanking, useSets, useTickets } = useFamilySettings();
+  const { useBanking, useSets, useTickets, choresLabel } = useFamilySettings();
+  const TYPE_OPTIONS = buildTypeOptions(choresLabel);
   const { members: allMembers } = useOfflineFamily();
   const members = allMembers.filter(mb => mb.is_active && mb.show_on_dashboard);
 

@@ -11,12 +11,14 @@ import { turnsApi } from '../api/turns.api.js';
 import Avatar from '../components/shared/Avatar.jsx';
 import Modal from '../components/shared/Modal.jsx';
 
-const SORT_OPTIONS = [
-  { key: 'custom',  label: 'Default Order' },
-  { key: 'balance', label: 'Bank Balance' },
-  { key: 'tickets', label: 'Tickets' },
-  { key: 'chores',  label: 'Chore Progress' },
-];
+function buildSortOptions(choreLabel) {
+  return [
+    { key: 'custom',  label: 'Default Order' },
+    { key: 'balance', label: 'Bank Balance' },
+    { key: 'tickets', label: 'Tickets' },
+    { key: 'chores',  label: `${choreLabel} Progress` },
+  ];
+}
 
 function sortMembers(members, sortKey) {
   const copy = [...members];
@@ -99,7 +101,8 @@ function TurnModal({ turn, logs, logging, onLog, onClose }) {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { useBanking, useTickets } = useFamilySettings();
+  const { useBanking, useTickets, choreLabel } = useFamilySettings();
+  const SORT_OPTIONS = buildSortOptions(choreLabel);
   const isParent = user?.role === 'parent';
   const [sortKey, setSortKey] = useState('custom');
   const [miniCards, setMiniCards] = useState(() => localStorage.getItem('dash_mini') === '1');

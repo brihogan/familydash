@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBroom, faChevronLeft, faPlus } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { choresApi } from '../api/chores.api.js';
 import { familyApi } from '../api/family.api.js';
 import ChoreTemplateList from '../components/chores/ChoreTemplateList.jsx';
@@ -30,6 +31,7 @@ export default function SettingsChoresPage() {
   const { userId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { choresLabel, choreLabel, choresLabelLower, choreLabelLower } = useFamilySettings();
   const isEveryone = !userId;
 
   // ── Per-kid state ─────────────────────────────────────────────────────────
@@ -59,7 +61,7 @@ export default function SettingsChoresPage() {
       const data = await choresApi.getTemplates(userId);
       setTemplates(data.templates);
     } catch {
-      setError('Failed to load chore templates.');
+      setError(`Failed to load ${choreLabelLower} templates.`);
     } finally {
       setLoading(false);
     }
@@ -118,7 +120,7 @@ export default function SettingsChoresPage() {
       setAddModal(false);
       fetchTemplates();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to add chore.');
+      setError(err.response?.data?.error || `Failed to add ${choreLabelLower}.`);
     } finally {
       setFormLoading(false);
     }
@@ -131,14 +133,14 @@ export default function SettingsChoresPage() {
       setEditTemplate(null);
       fetchTemplates();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to update chore.');
+      setError(err.response?.data?.error || `Failed to update ${choreLabelLower}.`);
     } finally {
       setFormLoading(false);
     }
   };
 
   const handleDelete = async (templateId) => {
-    if (!confirm('Delete this chore?')) return;
+    if (!confirm(`Delete this ${choreLabelLower}?`)) return;
     await choresApi.deleteTemplate(userId, templateId);
     fetchTemplates();
   };
@@ -162,7 +164,7 @@ export default function SettingsChoresPage() {
   };
 
   const handleBatchDelete = async () => {
-    if (!confirm(`Delete ${selectedIds.size} chore${selectedIds.size !== 1 ? 's' : ''}?`)) return;
+    if (!confirm(`Delete ${selectedIds.size} ${selectedIds.size !== 1 ? choresLabelLower : choreLabelLower}?`)) return;
     setBatchLoading(true);
     try {
       await Promise.all([...selectedIds].map((id) => choresApi.deleteTemplate(userId, id)));
@@ -170,7 +172,7 @@ export default function SettingsChoresPage() {
       setSelectMode(false);
       fetchTemplates();
     } catch {
-      setError('Failed to delete selected chores.');
+      setError(`Failed to delete selected ${choresLabelLower}.`);
     } finally {
       setBatchLoading(false);
     }
@@ -187,12 +189,12 @@ export default function SettingsChoresPage() {
         ticket_reward: t.ticket_reward,
         days_of_week:  t.days_of_week,
       })));
-      setBatchSuccess(`Copied ${toCopy.length} chore${toCopy.length !== 1 ? 's' : ''} to ${targetKid?.name}.`);
+      setBatchSuccess(`Copied ${toCopy.length} ${toCopy.length !== 1 ? choresLabelLower : choreLabelLower} to ${targetKid?.name}.`);
       setSelectedIds(new Set());
       setSelectMode(false);
       setTimeout(() => setBatchSuccess(''), 4000);
     } catch {
-      setError('Failed to copy chores.');
+      setError(`Failed to copy ${choresLabelLower}.`);
     } finally {
       setBatchLoading(false);
     }
@@ -255,7 +257,7 @@ export default function SettingsChoresPage() {
         </h2>
       )}
       {showCounts && active.length === 0 ? (
-        <p className="text-sm text-gray-400 dark:text-gray-500 italic">No active chores configured.</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500 italic">No active {choresLabelLower} configured.</p>
       ) : (
         <div className="flex gap-1.5">
           <button
@@ -316,7 +318,7 @@ export default function SettingsChoresPage() {
           )}
           <FontAwesomeIcon icon={faBroom} className="text-brand-500 text-2xl shrink-0" />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
-            {isEveryone ? 'Chore Templates — Everyone' : (kidName ? `${kidName}'s Chore Templates` : 'Chore Templates')}
+            {isEveryone ? `${choreLabel} Templates — Everyone` : (kidName ? `${kidName}'s ${choreLabel} Templates` : `${choreLabel} Templates`)}
           </h1>
         </div>
 
@@ -340,7 +342,7 @@ export default function SettingsChoresPage() {
                 <button
                   onClick={() => setAddModal(true)}
                   className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm rounded-lg font-medium transition-colors"
-                  aria-label="Add Chore"
+                  aria-label={`Add ${choreLabel}`}
                 >
                   <FontAwesomeIcon icon={faPlus} />
                 </button>
@@ -351,7 +353,7 @@ export default function SettingsChoresPage() {
                 onClick={() => navigate('/settings/common-chores')}
                 className="text-xs text-gray-400 dark:text-gray-500 hover:text-brand-500 dark:hover:text-brand-400 transition-colors"
               >
-                Common Chores
+                Common {choresLabel}
               </button>
             )}
           </div>
@@ -402,7 +404,7 @@ export default function SettingsChoresPage() {
                       </div>
                       {visible.length === 0 ? (
                         <p className="text-xs text-gray-400 dark:text-gray-500 italic">
-                          No chores{selectedDay !== null ? ' this day' : ''}.
+                          No {choresLabelLower}{selectedDay !== null ? ' this day' : ''}.
                         </p>
                       ) : (
                         <div className="space-y-1.5">
@@ -438,7 +440,7 @@ export default function SettingsChoresPage() {
           {selectMode && (
             <div className="flex items-center gap-2 mb-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-700 rounded-lg px-4 py-2.5">
               <span className="text-sm text-brand-700 font-medium flex-1">
-                {selectedIds.size === 0 ? 'Select chores below' : `${selectedIds.size} selected`}
+                {selectedIds.size === 0 ? `Select ${choresLabelLower} below` : `${selectedIds.size} selected`}
               </span>
               {selectedIds.size > 0 && (
                 <>
@@ -485,7 +487,7 @@ export default function SettingsChoresPage() {
             />
           )}
 
-          <Modal open={addModal} onClose={() => setAddModal(false)} title="Add Chore">
+          <Modal open={addModal} onClose={() => setAddModal(false)} title={`Add ${choreLabel}`}>
             <ChoreTemplateForm
               onSave={handleAdd}
               onCancel={() => setAddModal(false)}
@@ -494,7 +496,7 @@ export default function SettingsChoresPage() {
             />
           </Modal>
 
-          <Modal open={!!editTemplate} onClose={() => setEditTemplate(null)} title="Edit Chore">
+          <Modal open={!!editTemplate} onClose={() => setEditTemplate(null)} title={`Edit ${choreLabel}`}>
             <ChoreTemplateForm
               initial={editTemplate}
               onSave={handleEdit}

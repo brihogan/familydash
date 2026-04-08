@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBroom, faCrown } from '@fortawesome/free-solid-svg-icons';
 import { inboxApi } from '../api/inbox.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import useOfflineChores from '../offline/hooks/useOfflineChores.js';
 import useOfflineFamily from '../offline/hooks/useOfflineFamily.js';
 import useOfflineTickets from '../offline/hooks/useOfflineTickets.js';
@@ -23,6 +24,7 @@ import useScrollLock from '../hooks/useScrollLock.js';
 
 function ChoresCompletionModal({ choreCount, onClose }) {
   useScrollLock(true);
+  const { choresLabel, choresLabelLower } = useFamilySettings();
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
@@ -37,14 +39,14 @@ function ChoresCompletionModal({ choreCount, onClose }) {
         style={{ animation: 'award-pop 420ms cubic-bezier(0.34,1.56,0.64,1) both' }}
       >
         <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mb-0.5">Congrats!</p>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">You've completed all your chores!</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">You've completed all your {choresLabelLower}!</p>
 
         {/* Broom icon in dimmed circle */}
         <div className="w-28 h-28 rounded-full bg-gray-200/70 dark:bg-gray-700/70 flex items-center justify-center mb-6">
           <FontAwesomeIcon icon={faBroom} className="text-5xl text-brand-500" />
         </div>
 
-        <p className="text-sm text-gray-500 dark:text-gray-400">Chores completed: {choreCount}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{choresLabel} completed: {choreCount}</p>
 
         <button
           onClick={onClose}
@@ -60,6 +62,7 @@ function ChoresCompletionModal({ choreCount, onClose }) {
 export default function KidChoresPage() {
   const { userId } = useParams();
   const { user } = useAuth();
+  const { choresLabel } = useFamilySettings();
   const isParent = user?.role === 'parent';
   const [date, setDate] = useState(todayISO());
   const [actionLoading, setActionLoading] = useState(false);
@@ -123,7 +126,7 @@ export default function KidChoresPage() {
         <div className="flex items-center gap-2 min-w-0">
           <FontAwesomeIcon icon={faBroom} className="text-brand-500 text-2xl shrink-0" />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
-            {isParent ? `${kids.find((k) => String(k.id) === userId)?.name ?? '...'}'s Chores` : 'My Chores'}
+            {isParent ? `${kids.find((k) => String(k.id) === userId)?.name ?? '...'}'s ${choresLabel}` : `My ${choresLabel}`}
           </h1>
         </div>
         <DateNav date={date} onChange={setDate} compact />

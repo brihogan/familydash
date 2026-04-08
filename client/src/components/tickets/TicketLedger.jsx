@@ -1,15 +1,16 @@
 import { relativeTime } from '../../utils/relativeTime.js';
 import EmptyState from '../shared/EmptyState.jsx';
-
-const TYPE_LABELS = {
-  chore_reward: 'Chore',
-  redemption: 'Redemption',
-  manual: 'Manual',
-};
+import { useFamilySettings } from '../../context/FamilySettingsContext.jsx';
 
 export default function TicketLedger({ ledger }) {
+  const { choreLabel, choresLabelLower } = useFamilySettings();
+  const typeLabels = {
+    chore_reward: choreLabel,
+    redemption: 'Redemption',
+    manual: 'Manual',
+  };
   if (!ledger.length) {
-    return <EmptyState title="No ticket history" description="Complete chores to earn tickets!" />;
+    return <EmptyState title="No ticket history" description={`Complete ${choresLabelLower} to earn tickets!`} />;
   }
   return (
     <div className="space-y-1">
@@ -19,8 +20,8 @@ export default function TicketLedger({ ledger }) {
             {entry.amount > 0 ? '↑' : '↓'}
           </span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{entry.description || TYPE_LABELS[entry.type]}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">{TYPE_LABELS[entry.type]} · {relativeTime(entry.created_at)}</p>
+            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{entry.description || typeLabels[entry.type]}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">{typeLabels[entry.type]} · {relativeTime(entry.created_at)}</p>
           </div>
           <span className={`text-sm font-bold ${entry.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
             {entry.amount > 0 ? '+' : ''}{entry.amount}

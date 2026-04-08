@@ -29,14 +29,16 @@ const TYPE_GROUPS = {
   tickets: ['tickets_added', 'tickets_removed'],
 };
 
-const TYPE_OPTIONS = [
-  { key: 'all',     label: 'All' },
-  { key: 'bank',    label: 'Bank' },
-  { key: 'chores',  label: 'Chores' },
-  { key: 'tasks',   label: 'Sets/Steps' },
-  { key: 'rewards', label: 'Rewards' },
-  { key: 'tickets', label: 'Tickets' },
-];
+function buildTypeOptions(choresLabel) {
+  return [
+    { key: 'all',     label: 'All' },
+    { key: 'bank',    label: 'Bank' },
+    { key: 'chores',  label: choresLabel },
+    { key: 'tasks',   label: 'Sets/Steps' },
+    { key: 'rewards', label: 'Rewards' },
+    { key: 'tickets', label: 'Tickets' },
+  ];
+}
 
 const DATE_OPTIONS = [
   { key: 'today',     label: 'Today' },
@@ -57,7 +59,7 @@ const SEL = 'border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 
 // ─── Weekly bar chart ─────────────────────────────────────────────────────────
 
 function WeeklyChart({ data }) {
-  const { useTickets } = useFamilySettings();
+  const { useTickets, choresLabel, choresLabelLower } = useFamilySettings();
   const globalMax = Math.max(
     ...data.flatMap((d) => [
       useTickets ? d.ticketsFromChores + d.ticketsFromParents : 0,
@@ -94,7 +96,7 @@ function WeeklyChart({ data }) {
                 <div
                   className="flex-1 flex flex-col rounded-t-sm overflow-hidden transition-all"
                   style={{ height: `${Math.max((ticketsTotal / globalMax) * 88, 4)}px` }}
-                  title={`${day.ticketsFromChores} from chores, ${day.ticketsFromParents} from parent`}
+                  title={`${day.ticketsFromChores} from ${choresLabelLower}, ${day.ticketsFromParents} from parent`}
                 >
                   {day.ticketsFromParents > 0 && (
                     <div className="bg-emerald-400 w-full" style={{ flex: day.ticketsFromParents }} />
@@ -119,7 +121,7 @@ function WeeklyChart({ data }) {
                   <div
                     className="w-full flex flex-col rounded-t-sm overflow-hidden transition-all"
                     style={{ height: `${choreBarH}px` }}
-                    title={`${day.choresDone}/${day.choresTotal} chores done, ${stepsDone} task steps`}
+                    title={`${day.choresDone}/${day.choresTotal} ${choresLabelLower} done, ${stepsDone} task steps`}
                   >
                     {day.choresTotal - day.choresDone > 0 && (
                       <div className="bg-red-400 w-full" style={{ flex: day.choresTotal - day.choresDone }} />
@@ -152,7 +154,7 @@ function WeeklyChart({ data }) {
         {useTickets && (
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-amber-400" />
-            <span className="text-xs text-gray-500 dark:text-gray-400">Tickets (chores)</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">Tickets ({choresLabelLower})</span>
           </div>
         )}
         {useTickets && (
@@ -163,7 +165,7 @@ function WeeklyChart({ data }) {
         )}
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-sm bg-blue-400" />
-          <span className="text-xs text-gray-500 dark:text-gray-400">Chores done</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">{choresLabel} done</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-sm bg-violet-400" />
@@ -171,11 +173,11 @@ function WeeklyChart({ data }) {
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-sm bg-red-400" />
-          <span className="text-xs text-gray-500 dark:text-gray-400">Chores pending</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">{choresLabel} pending</span>
         </div>
         <div className="flex items-center gap-1.5">
           <FontAwesomeIcon icon={faCrown} className="text-yellow-400 text-xs" />
-          <span className="text-xs text-gray-500 dark:text-gray-400">All chores done</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">All {choresLabelLower} done</span>
         </div>
       </div>
     </div>
@@ -310,7 +312,8 @@ function StatCard({ onClick, children, accent = 'brand' }) {
 export default function KidOverviewPage() {
   const { userId } = useParams();
   const { user, logout } = useAuth();
-  const { useBanking, useSets, useTickets } = useFamilySettings();
+  const { useBanking, useSets, useTickets, choresLabel, choresLabelLower } = useFamilySettings();
+  const TYPE_OPTIONS = buildTypeOptions(choresLabel);
   const navigate   = useNavigate();
   const isParent   = user?.role === 'parent';
 
@@ -548,7 +551,7 @@ export default function KidOverviewPage() {
               pct={chorePct}
               done={choreDone}
               size={56}
-              title={`Chores: ${choreProgressToday.done}/${choreProgressToday.total}`}
+              title={`${choresLabel}: ${choreProgressToday.done}/${choreProgressToday.total}`}
               onClick={(e) => { e.stopPropagation(); navigate(`/chores/${userId}`); }}
             >
               <FontAwesomeIcon icon={choreDone ? faCrown : faBroom} className={choreDone ? 'text-yellow-400' : undefined} />
@@ -578,11 +581,11 @@ export default function KidOverviewPage() {
             )}
           </div>
           {choreProgressToday.total > 0 ? (
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">{chorePct}% of chores done</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">{chorePct}% of {choresLabelLower} done</p>
           ) : (
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-3 italic">No chores today</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-3 italic">No {choresLabelLower} today</p>
           )}
-          <p className="text-xs text-brand-500 mt-1">View chores →</p>
+          <p className="text-xs text-brand-500 mt-1">View {choresLabelLower} →</p>
         </StatCard>
 
       </div>

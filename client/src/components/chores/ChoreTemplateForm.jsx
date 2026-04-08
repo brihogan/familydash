@@ -18,7 +18,7 @@ const LABEL_CLS = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb
 const INPUT_CLS = 'w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500';
 
 export default function ChoreTemplateForm({ initial, onSave, onCancel, loading, showCopyToggle }) {
-  const { useTickets } = useFamilySettings();
+  const { useTickets, choresLabel, choreLabel, choreLabelLower } = useFamilySettings();
   const [name,         setName]         = useState(initial?.name || '');
   const [description,  setDescription]  = useState(initial?.description || '');
   const [ticketReward, setTicketReward] = useState(initial?.ticket_reward ?? 1);
@@ -46,7 +46,7 @@ export default function ChoreTemplateForm({ initial, onSave, onCancel, loading, 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
-        <label className={LABEL_CLS}>Chore Name</label>
+        <label className={LABEL_CLS}>{choreLabel} Name</label>
         <input
           type="text"
           value={name}
@@ -133,7 +133,7 @@ export default function ChoreTemplateForm({ initial, onSave, onCancel, loading, 
 
       {showCopyToggle && !initial && (
         <p className="text-xs text-gray-400 dark:text-gray-500 italic">
-          Want more than one kid to have this chore? Use Common Chores instead.
+          Want more than one kid to have this {choreLabelLower}? Use Common {choresLabel} instead.
         </p>
       )}
 
@@ -145,7 +145,7 @@ export default function ChoreTemplateForm({ initial, onSave, onCancel, loading, 
           disabled={loading}
           className="flex-1 bg-brand-500 hover:bg-brand-600 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
         >
-          {loading ? 'Saving…' : initial ? 'Save Changes' : 'Add Chore'}
+          {loading ? 'Saving…' : initial ? 'Save Changes' : `Add ${choreLabel}`}
         </button>
         <button
           type="button"

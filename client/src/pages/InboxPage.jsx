@@ -5,9 +5,11 @@ import useOfflineInbox from '../offline/hooks/useOfflineInbox.js';
 import Avatar from '../components/shared/Avatar.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import { relativeTime } from '../utils/relativeTime.js';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 
 export default function InboxPage() {
   const navigate = useNavigate();
+  const { choresLabel } = useFamilySettings();
   const { kids, loading, refresh: fetchInbox } = useOfflineInbox();
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -245,7 +247,7 @@ export default function InboxPage() {
                       {sortedDays.length > 0 && sortedDays.map((day) => (
                         <div key={day}>
                           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                            Chores — {formatDayLabel(day)}
+                            {choresLabel} — {formatDayLabel(day)}
                           </p>
                           <div className="space-y-2">
                             {choresByDay[day].map((chore) => renderItem('chore', chore.id, chore.chore_name, relativeTime(chore.completed_at), `chore:${chore.id}`))}

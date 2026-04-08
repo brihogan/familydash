@@ -92,7 +92,7 @@ export default function TaskSetDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { useTickets } = useFamilySettings();
+  const { useTickets, choresLabelLower } = useFamilySettings();
   const isParent = user?.role === 'parent';
 
   // ── Data ──────────────────────────────────────────────────────────────────
@@ -794,7 +794,7 @@ export default function TaskSetDetailPage() {
             </div>
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
               {setForm.type === 'Project'
-                ? <><strong className="text-gray-700 dark:text-gray-300">Project:</strong> Can be assigned repeatedly — once all steps are finished it stays on the kid's list for the rest of the day, then resets overnight so it can be assigned again. Great for complicated chores or multi-step routines.</>
+                ? <><strong className="text-gray-700 dark:text-gray-300">Project:</strong> Can be assigned repeatedly — once all steps are finished it stays on the kid's list for the rest of the day, then resets overnight so it can be assigned again. Great for complicated {choresLabelLower} or multi-step routines.</>
                 : <><strong className="text-gray-700 dark:text-gray-300">Award:</strong> Assigned once. When completed it moves to the kid's Trophy Shelf permanently. Great for badges, achievements, scavenger hunts, and one-time milestones.</>
               }
             </p>

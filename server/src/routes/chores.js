@@ -9,6 +9,7 @@ import { getOrGenerateLogs } from '../services/choreService.js';
 import { insertActivity } from '../services/activityService.js';
 import { assertSameFamily } from '../utils/assertions.js';
 import { localDateISO as todayISO } from '../utils/dateHelpers.js';
+import { getChoresLabels } from '../utils/labels.js';
 
 const router = Router();
 
@@ -72,14 +73,15 @@ router.post('/:id/chores/:cid/complete', authenticate, requireOwnOrParent, requi
           `).run(userId, log.ticket_reward_at_time, `Completed: ${log.chore_name}`, logId);
         }
 
+        const labels = getChoresLabels(user.family_id);
         insertActivity({
           familyId: user.family_id,
           subjectUserId: userId,
           actorUserId: req.user.userId,
           eventType: 'chore_completed',
           description: useTickets
-            ? `Completed chore: ${log.chore_name} (+${log.ticket_reward_at_time} tickets)`
-            : `Completed chore: ${log.chore_name}`,
+            ? `Completed ${labels.singularLower}: ${log.chore_name} (+${log.ticket_reward_at_time} tickets)`
+            : `Completed ${labels.singularLower}: ${log.chore_name}`,
           referenceId: logId,
           referenceType: 'chore_log',
           amountCents: useTickets ? log.ticket_reward_at_time : null,
@@ -101,12 +103,13 @@ router.post('/:id/chores/:cid/complete', authenticate, requireOwnOrParent, requi
           AND reference_type = ?
       `).get(userId, refType);
       if (!alreadyLogged) {
+        const labels = getChoresLabels(user.family_id);
         insertActivity({
           familyId: user.family_id,
           subjectUserId: userId,
           actorUserId: req.user.userId,
           eventType: 'chores_all_done',
-          description: `Completed all chores for ${date}! 🌟`,
+          description: `Completed all ${labels.pluralLower} for ${date}! 🌟`,
           referenceId: null,
           referenceType: refType,
           amountCents: null,
@@ -174,14 +177,15 @@ router.post('/:id/chores/:cid/uncomplete', authenticate, requireOwnOrParent, req
           `).run(userId, -log.ticket_reward_at_time, `Undone: ${log.chore_name}`, logId);
         }
 
+        const labels = getChoresLabels(undoUserRow.family_id);
         insertActivity({
           familyId: undoUserRow.family_id,
           subjectUserId: userId,
           actorUserId: req.user.userId,
           eventType: 'chore_undone',
           description: useTickets
-            ? `Undid chore: ${log.chore_name} (-${log.ticket_reward_at_time} tickets)`
-            : `Undid chore: ${log.chore_name}`,
+            ? `Undid ${labels.singularLower}: ${log.chore_name} (-${log.ticket_reward_at_time} tickets)`
+            : `Undid ${labels.singularLower}: ${log.chore_name}`,
           referenceId: logId,
           referenceType: 'chore_log',
           amountCents: useTickets ? -log.ticket_reward_at_time : null,

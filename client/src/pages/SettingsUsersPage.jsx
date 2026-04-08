@@ -176,7 +176,7 @@ function AddUserForm({ onSave, onCancel, loading }) {
 }
 
 function SortableMemberRow({ member, onNavigate, onDeactivate, onEmojiClick }) {
-  const { useTickets } = useFamilySettings();
+  const { useTickets, choresLabel, choresLabelLower } = useFamilySettings();
   const {
     attributes,
     listeners,
@@ -386,8 +386,8 @@ export default function SettingsUsersPage() {
           <FontAwesomeIcon icon={faBroom} className="text-brand-500 text-lg" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm text-gray-900 dark:text-gray-100">Common Chores</p>
-          <p className="text-xs text-gray-400 dark:text-gray-500">Create chores here and share them to all kids at once</p>
+          <p className="font-medium text-sm text-gray-900 dark:text-gray-100">Common {choresLabel}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">Create {choresLabelLower} here and share them to all kids at once</p>
         </div>
       </div>
 

@@ -10,6 +10,14 @@
 - Cloudflare auto-injects `static.cloudflareinsights.com/beacon.min.js` into HTML responses, which was being blocked on every kid-app page because the CSP set by `serveAppFile` only declared `default-src 'self'` with no explicit `script-src` (landing pages had no CSP at all, which is why they looked fine).
 - Extracted the CSP into a `KID_APP_CSP` constant in `server/src/routes/claude.js` and added `script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://static.cloudflareinsights.com` plus `connect-src 'self' https://cloudflareinsights.com` so the beacon can load and report.
 
+### 2026-04-08 — Customizable "Chores" label
+- Added a per-family `chores_label` column (migration v48) and surfaced it through GET/PATCH `/api/family/settings`; defaults to `'Chores'` with a 40-char cap.
+- Extended `FamilySettingsContext` to expose `choresLabel` / `choreLabel` (singular derived by stripping trailing 's') plus lowercase variants, and an `updateChoresLabel` setter with optimistic state.
+- Added a "Labels" section to `SettingsPage` with a text input that saves the label.
+- Threaded the label through every user-facing "Chore(s)" reference I could find: Layout nav links (parent + kid), KidChoresPage heading + completion modal, ChoreList/ChoreHistoryList empty states, ChoreTemplateForm + ChoreTemplateList (titles, tooltips, button labels), SettingsChoresPage (titles, confirms, errors, modals, empty states), SettingsCommonChoresPage, SettingsUserDetailPage (section headers, approval toggle, delete warning), SettingsUsersPage Common Chores card, SettingsTasksPage + TaskSetDetailPage "complicated chores" blurb, DashboardPage/DisplayPage sort options, DashboardRow/DashboardTable progress-ring tooltips, KidOverviewPage legend/labels/tooltips + activity filter, KidTicketsPage ledger filter, FamilyActivityPage filter, InboxPage/InboxKidPage day group headers, RewardsPage "daily chore potential" line, QuickTicketAdjust placeholder, TicketLedger type label + empty state, ParentChoreHistoryPage section heading.
+- Server-side activity log strings now pick up the current label via a new `server/src/utils/labels.js` helper used by `chores.js` (complete/uncomplete endpoints, `chores_all_done` milestone) and `inbox.js` (approve path). Historical entries remain as-is — only new logs use the renamed label.
+- Client build verified with `vite build`.
+
 ### 2026-04-08 — AppsPage card redesign
 - Per-kid sections now sort apps by launch count desc and show only the top 3, with a "Show N more" / "Show less" chevron toggle (state tracked in `expandedKids`).
 - Dropped the explicit Open button — the whole card is clickable and launches the app.

@@ -3,16 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { dashboardApi } from '../api/dashboard.api.js';
 import { familyApi } from '../api/family.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import DashboardTable from '../components/dashboard/DashboardTable.jsx';
 
 const REFRESH_INTERVAL_MS = 60_000;
 
-const SORT_OPTIONS = [
-  { key: 'custom',  label: 'Custom Order' },
-  { key: 'balance', label: 'Bank Balance' },
-  { key: 'tickets', label: 'Tickets' },
-  { key: 'chores',  label: 'Chore Progress' },
-];
+function buildSortOptions(choreLabel) {
+  return [
+    { key: 'custom',  label: 'Custom Order' },
+    { key: 'balance', label: 'Bank Balance' },
+    { key: 'tickets', label: 'Tickets' },
+    { key: 'chores',  label: `${choreLabel} Progress` },
+  ];
+}
 
 function sortMembers(members, sortKey) {
   const copy = [...members];
@@ -38,6 +41,8 @@ function sortMembers(members, sortKey) {
 
 export default function DisplayPage() {
   const { logout } = useAuth();
+  const { choreLabel } = useFamilySettings();
+  const SORT_OPTIONS = buildSortOptions(choreLabel);
   const navigate = useNavigate();
   const [members, setMembers] = useState([]);
   const [familyName, setFamilyName] = useState('');

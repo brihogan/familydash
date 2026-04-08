@@ -24,8 +24,10 @@ import ChoreTemplateForm from '../components/chores/ChoreTemplateForm.jsx';
 import Modal from '../components/shared/Modal.jsx';
 import Avatar from '../components/shared/Avatar.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 
 function SortableRow({ template, kids, assigningCell, onToggleAssign, isAssigned, onEdit, onDelete }) {
+  const { choreLabelLower } = useFamilySettings();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: template.id,
   });
@@ -77,14 +79,14 @@ function SortableRow({ template, kids, assigningCell, onToggleAssign, isAssigned
           <button
             onClick={() => onEdit(template)}
             className="w-7 h-7 flex items-center justify-center rounded-md border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-brand-400 hover:text-brand-600 transition-colors"
-            title="Edit chore"
+            title={`Edit ${choreLabelLower}`}
           >
             <FontAwesomeIcon icon={faPen} className="text-xs" />
           </button>
           <button
             onClick={() => onDelete(template.id)}
             className="w-7 h-7 flex items-center justify-center rounded-md border border-red-200 dark:border-red-800 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-            title="Delete chore"
+            title={`Delete ${choreLabelLower}`}
           >
             <FontAwesomeIcon icon={faTrash} className="text-xs" />
           </button>
@@ -95,6 +97,7 @@ function SortableRow({ template, kids, assigningCell, onToggleAssign, isAssigned
 }
 
 function SortableMobileCard({ template, kids, assigningCell, onToggleAssign, isAssigned, onEdit, onDelete, expanded, onToggleExpand }) {
+  const { choreLabelLower } = useFamilySettings();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: template.id,
   });
@@ -126,14 +129,14 @@ function SortableMobileCard({ template, kids, assigningCell, onToggleAssign, isA
           <button
             onClick={() => onEdit(template)}
             className="w-7 h-7 flex items-center justify-center rounded-md border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-brand-400 hover:text-brand-600 transition-colors"
-            title="Edit chore"
+            title={`Edit ${choreLabelLower}`}
           >
             <FontAwesomeIcon icon={faPen} className="text-xs" />
           </button>
           <button
             onClick={() => onDelete(template.id)}
             className="w-7 h-7 flex items-center justify-center rounded-md border border-red-200 dark:border-red-800 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-            title="Delete chore"
+            title={`Delete ${choreLabelLower}`}
           >
             <FontAwesomeIcon icon={faTrash} className="text-xs" />
           </button>
@@ -191,6 +194,7 @@ function SortableMobileCard({ template, kids, assigningCell, onToggleAssign, isA
 
 export default function SettingsCommonChoresPage() {
   const navigate = useNavigate();
+  const { choresLabel, choreLabel, choresLabelLower, choreLabelLower } = useFamilySettings();
   const [templates, setTemplates] = useState([]);
   const [kids, setKids] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -242,7 +246,7 @@ export default function SettingsCommonChoresPage() {
       setAddModal(false);
       fetchData();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to add chore.');
+      setError(err.response?.data?.error || `Failed to add ${choreLabelLower}.`);
     } finally {
       setFormLoading(false);
     }
@@ -255,19 +259,19 @@ export default function SettingsCommonChoresPage() {
       setEditTemplate(null);
       fetchData();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to update chore.');
+      setError(err.response?.data?.error || `Failed to update ${choreLabelLower}.`);
     } finally {
       setFormLoading(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this common chore? It will be removed from all kids.')) return;
+    if (!confirm(`Delete this common ${choreLabelLower}? It will be removed from all kids.`)) return;
     try {
       await commonChoresApi.remove(id);
       fetchData();
     } catch {
-      setError('Failed to delete chore.');
+      setError(`Failed to delete ${choreLabelLower}.`);
     }
   };
 
@@ -324,17 +328,17 @@ export default function SettingsCommonChoresPage() {
             </button>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               <FontAwesomeIcon icon={faBroom} className="mr-2 text-brand-500" />
-              Common Chores
+              Common {choresLabel}
             </h1>
           </div>
           <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5 ml-10">
-            Shared chores assigned to multiple kids at once. Drag to reorder.
+            Shared {choresLabelLower} assigned to multiple kids at once. Drag to reorder.
           </p>
         </div>
         <button
           onClick={() => setAddModal(true)}
           className="text-brand-500 hover:text-brand-600 transition-colors"
-          title="Add Chore"
+          title={`Add ${choreLabel}`}
         >
           <FontAwesomeIcon icon={faSquarePlus} className="text-2xl" />
         </button>
@@ -352,7 +356,7 @@ export default function SettingsCommonChoresPage() {
       ) : templates.length === 0 ? (
         <div className="text-center py-12 text-gray-400 dark:text-gray-500">
           <FontAwesomeIcon icon={faBroom} className="text-4xl mb-3 opacity-30" />
-          <p className="text-sm">No common chores yet. Add one to get started.</p>
+          <p className="text-sm">No common {choresLabelLower} yet. Add one to get started.</p>
         </div>
       ) : (
         <>
@@ -387,7 +391,7 @@ export default function SettingsCommonChoresPage() {
                   <tr className="h-4 lg:h-6 bg-white dark:bg-gray-800" aria-hidden><td colSpan={999} className="p-0 border-0" /></tr>
                   <tr className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                     <th className="text-left px-4 py-3 font-semibold text-gray-700 dark:text-gray-300 min-w-[180px]">
-                      Chore
+                      {choreLabel}
                     </th>
                     {kids.map((k) => (
                       <th key={k.id} className="px-3 py-3 text-center min-w-[80px]">
@@ -422,7 +426,7 @@ export default function SettingsCommonChoresPage() {
         </>
       )}
 
-      <Modal open={addModal} onClose={() => setAddModal(false)} title="Add Common Chore">
+      <Modal open={addModal} onClose={() => setAddModal(false)} title={`Add Common ${choreLabel}`}>
         <ChoreTemplateForm
           onSave={handleAdd}
           onCancel={() => setAddModal(false)}
@@ -430,7 +434,7 @@ export default function SettingsCommonChoresPage() {
         />
       </Modal>
 
-      <Modal open={!!editTemplate} onClose={() => setEditTemplate(null)} title="Edit Common Chore">
+      <Modal open={!!editTemplate} onClose={() => setEditTemplate(null)} title={`Edit Common ${choreLabel}`}>
         <ChoreTemplateForm
           initial={editTemplate}
           onSave={handleEdit}

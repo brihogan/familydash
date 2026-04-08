@@ -16,8 +16,10 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPen, faTrash, faUsers } from '@fortawesome/free-solid-svg-icons';
+import { useFamilySettings } from '../../context/FamilySettingsContext.jsx';
 
 function SortableChoreRow({ template, onEdit, onDelete, selectMode, selected, onToggleSelect, onCommonEdit }) {
+  const { choresLabel, choreLabelLower } = useFamilySettings();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: template.id,
     disabled: selectMode,
@@ -51,7 +53,7 @@ function SortableChoreRow({ template, onEdit, onDelete, selectMode, selected, on
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium">
           {template.common_chore_id && (
-            <FontAwesomeIcon icon={faUsers} className="text-brand-400 mr-1.5 text-xs" title="Common chore (shared)" />
+            <FontAwesomeIcon icon={faUsers} className="text-brand-400 mr-1.5 text-xs" title={`Common ${choreLabelLower} (shared)`} />
           )}
           {template.name}
         </p>
@@ -70,7 +72,7 @@ function SortableChoreRow({ template, onEdit, onDelete, selectMode, selected, on
             <button
               onClick={() => onCommonEdit?.()}
               className="w-7 h-7 flex items-center justify-center rounded-md border border-brand-200 dark:border-brand-700 text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors shrink-0"
-              title="Edit in Common Chores"
+              title={`Edit in Common ${choresLabel}`}
             >
               <FontAwesomeIcon icon={faPen} className="text-xs" />
             </button>
@@ -79,14 +81,14 @@ function SortableChoreRow({ template, onEdit, onDelete, selectMode, selected, on
               <button
                 onClick={() => onEdit(template)}
                 className="w-7 h-7 flex items-center justify-center rounded-md border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-brand-400 hover:text-brand-600 transition-colors shrink-0"
-                title="Edit chore"
+                title={`Edit ${choreLabelLower}`}
               >
                 <FontAwesomeIcon icon={faPen} className="text-xs" />
               </button>
               <button
                 onClick={() => onDelete(template.id)}
                 className="w-7 h-7 flex items-center justify-center rounded-md border border-red-200 dark:border-red-800 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
-                title="Delete chore"
+                title={`Delete ${choreLabelLower}`}
               >
                 <FontAwesomeIcon icon={faTrash} className="text-xs" />
               </button>

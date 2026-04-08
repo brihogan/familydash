@@ -61,7 +61,7 @@ function MoonIcon() {
 export default function Layout() {
   const { user, logout, patchUser } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const { useBanking, useSets, useTickets } = useFamilySettings();
+  const { useBanking, useSets, useTickets, choresLabel } = useFamilySettings();
   const navigate = useNavigate();
   const location = useLocation();
   const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
@@ -249,7 +249,7 @@ export default function Layout() {
               </NavLink>
               <NavLink to={`/chores/${defaultMemberId}`} className={() => kidPathClass('/chores')} onClick={close}>
                 <FontAwesomeIcon icon={faBroom} className="w-4 shrink-0" />
-                Chores
+                {choresLabel}
               </NavLink>
               {useBanking && (
                 <NavLink to={`/bank/${defaultMemberId}`} className={() => kidPathClass('/bank')} onClick={close}>
@@ -285,7 +285,7 @@ export default function Layout() {
           </NavLink>
           <NavLink to="/settings/users" className={navClass} onClick={close}>
             <FontAwesomeIcon icon={faUsers} className="w-4 shrink-0" />
-            Family &amp; Chores
+            Family &amp; {choresLabel}
           </NavLink>
           {useSets && (
             <NavLink to="/settings/tasks" className={navClass} onClick={close}>
@@ -336,7 +336,7 @@ export default function Layout() {
           </NavLink>
           <NavLink to={`/chores/${user.id}`} className={navClass} onClick={close}>
             <FontAwesomeIcon icon={faBroom} className="w-4 shrink-0" />
-            My Chores
+            My {choresLabel}
             {kidStats && (
               <span className={`ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight ${
                 kidStats.choresRemaining > 0

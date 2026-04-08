@@ -14,7 +14,7 @@ import { formatCents } from '../../utils/formatCents.js';
 export default function DashboardRow({ member, onRefresh, readOnly = false, maskPrivateData = false }) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { useBanking, useSets, useTickets } = useFamilySettings();
+  const { useBanking, useSets, useTickets, choresLabel } = useFamilySettings();
   const isParent = user?.role === 'parent';
   const isOwnRow = member.id === user?.id;
   // Parents can interact with any kid row; kids can only interact with their own row
@@ -111,7 +111,7 @@ export default function DashboardRow({ member, onRefresh, readOnly = false, mask
                 pct={chorePct}
                 done={choreDone}
                 size={56}
-                title={`Chores: ${member.choreDone}/${member.choreTotal}`}
+                title={`${choresLabel}: ${member.choreDone}/${member.choreTotal}`}
                 onClick={(statsClickable || (isOwnRow && member.choresEnabled)) ? (e) => { e.stopPropagation(); navigate(`/chores/${member.id}`); } : undefined}
               >
                 <FontAwesomeIcon icon={choreDone ? faCrown : faBroom} className={choreDone ? 'text-yellow-400' : undefined} />

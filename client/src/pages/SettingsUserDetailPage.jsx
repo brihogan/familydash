@@ -33,7 +33,7 @@ export default function SettingsUserDetailPage() {
   const { userId } = useParams();
   const navigate = useNavigate();
   const { user: authUser, patchUser } = useAuth();
-  const { useBanking, useTickets } = useFamilySettings();
+  const { useBanking, useTickets, choresLabel, choreLabel, choresLabelLower, choreLabelLower } = useFamilySettings();
 
   const [member,          setMember]          = useState(null);
   const [loading,         setLoading]         = useState(true);
@@ -218,8 +218,8 @@ export default function SettingsUserDetailPage() {
     },
     !isKid && {
       field:       'chores_enabled',
-      label:       'Enable Chores',
-      description: 'Allow this parent to have their own chore list and appear on the dashboard.',
+      label:       `Enable ${choresLabel}`,
+      description: `Allow this parent to have their own ${choreLabelLower} list and appear on the dashboard.`,
     },
   ].filter(Boolean);
 
@@ -288,7 +288,7 @@ export default function SettingsUserDetailPage() {
       {/* ── Chores & Tickets ── */}
       {(isKid || !!member.chores_enabled) && (
         <div className="mb-6 space-y-3">
-          <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Chores {isKid ? '& Tickets' : ''}</h2>
+          <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">{choresLabel} {isKid ? '& Tickets' : ''}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
             <button
@@ -299,9 +299,9 @@ export default function SettingsUserDetailPage() {
                 <span className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-500/20 flex items-center justify-center text-brand-600 dark:text-brand-400">
                   <FontAwesomeIcon icon={faListCheck} />
                 </span>
-                <h3 className="font-semibold text-gray-900 dark:text-gray-100">Chores</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-gray-100">{choresLabel}</h3>
               </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Manage {member.name}'s chore list and schedule.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Manage {member.name}'s {choreLabelLower} list and schedule.</p>
             </button>
 
             {isKid && useTickets && (
@@ -313,7 +313,7 @@ export default function SettingsUserDetailPage() {
                   <h3 className="font-semibold text-gray-900 dark:text-gray-100">Tickets / Day</h3>
                 </div>
                 <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{member.daily_ticket_potential ?? 0}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Maximum tickets earnable per day from chores.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Maximum tickets earnable per day from {choresLabelLower}.</p>
               </div>
             )}
 
@@ -371,8 +371,8 @@ export default function SettingsUserDetailPage() {
           {/* Require Chore Approval toggle */}
           <div className="flex items-start justify-between gap-6 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-gray-900 dark:text-gray-100">Require Chore Approval</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Kids can check off chores but they'll show up under the parent's inbox before tickets are awarded.</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100">Require {choreLabel} Approval</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Kids can check off {choresLabelLower} but they'll show up under the parent's inbox before tickets are awarded.</p>
             </div>
             <Toggle checked={!!member.require_task_approval} onChange={(v) => handleToggle('require_task_approval', v)} />
           </div>
@@ -584,7 +584,7 @@ export default function SettingsUserDetailPage() {
             {/* What gets deleted */}
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg p-3 mb-5 text-sm text-red-700 dark:text-red-300 space-y-1">
               <p className="font-semibold mb-1.5">Everything will be permanently deleted:</p>
-              <p>· Chores and chore history</p>
+              <p>· {choresLabel} and {choreLabelLower} history</p>
               <p>· Bank accounts and all transactions</p>
               <p>· Tickets, ticket history, and reward redemptions</p>
               <p>· Task set assignments and completions</p>

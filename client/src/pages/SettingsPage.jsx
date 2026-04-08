@@ -5,11 +5,12 @@ import { faGear, faUsers, faClipboardCheck, faTrophy, faArrowsRotate } from '@fo
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { familyApi } from '../api/family.api.js';
 
-const SETTINGS_CARDS = [
+function buildSettingsCards(choresLabel) {
+  return [
   {
     to:          '/settings/users',
     icon:        faUsers,
-    label:       'Family & Chores',
+    label:       `Family & ${choresLabel}`,
     description: 'Add or manage parents and kids.',
   },
   {
@@ -30,7 +31,8 @@ const SETTINGS_CARDS = [
     label:       'Turns',
     description: 'Track whose turn it is for family activities.',
   },
-];
+  ];
+}
 
 function Toggle({ checked, onChange }) {
   return (
@@ -52,9 +54,23 @@ function Toggle({ checked, onChange }) {
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const { useBanking, updateUseBanking, useSets, updateUseSets, useTickets, updateUseTickets } = useFamilySettings();
+  const {
+    useBanking, updateUseBanking,
+    useSets, updateUseSets,
+    useTickets, updateUseTickets,
+    choresLabel, updateChoresLabel,
+  } = useFamilySettings();
   const [trmnlUrl, setTrmnlUrl] = useState('');
   const [trmnlSaved, setTrmnlSaved] = useState(false);
+  const [labelDraft, setLabelDraft] = useState(choresLabel);
+  const [labelSaved, setLabelSaved] = useState(false);
+  useEffect(() => { setLabelDraft(choresLabel); }, [choresLabel]);
+  const saveChoresLabel = async () => {
+    await updateChoresLabel(labelDraft);
+    setLabelSaved(true);
+    setTimeout(() => setLabelSaved(false), 2000);
+  };
+  const SETTINGS_CARDS = buildSettingsCards(choresLabel);
 
   useEffect(() => {
     familyApi.getSettings().then((data) => {
@@ -89,7 +105,7 @@ export default function SettingsPage() {
           <div className="flex-1 min-w-0">
             <p className="font-medium text-gray-900 dark:text-gray-100">Use Tickets &amp; Rewards</p>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              Chores and/or Sets can earn tickets that can be redeemed for rewards that the family creates.
+              {choresLabel} and/or Sets can earn tickets that can be redeemed for rewards that the family creates.
               This gives motivation to complete tasks.
             </p>
           </div>
@@ -114,6 +130,34 @@ export default function SettingsPage() {
             </p>
           </div>
           <Toggle checked={useSets} onChange={updateUseSets} />
+        </div>
+      </div>
+
+      {/* ── Labels ── */}
+      <div className="mb-6 space-y-3">
+        <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Labels</h2>
+        <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+          <p className="font-medium text-gray-900 dark:text-gray-100 mb-1">"{choresLabel}" label</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+            What do you call this in your family? Use a plural word like "Chores", "Habits", or "Tasks" — it'll show up everywhere in the UI.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={labelDraft}
+              onChange={(e) => setLabelDraft(e.target.value)}
+              placeholder="Chores"
+              maxLength={40}
+              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-400"
+            />
+            <button
+              onClick={saveChoresLabel}
+              disabled={!labelDraft.trim() || labelDraft.trim() === choresLabel}
+              className="px-4 py-1.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm rounded-lg font-medium transition-colors shrink-0"
+            >
+              {labelSaved ? 'Saved!' : 'Save'}
+            </button>
+          </div>
         </div>
       </div>
 

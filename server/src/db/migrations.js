@@ -386,4 +386,7 @@ export function runMigrations(db) {
     )
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_turn_logs_turn ON turn_logs(turn_id)`);
+
+  // v48: chores_label — per-family display label for "Chores" (e.g. "Habits", "Tasks")
+  try { db.exec(`ALTER TABLE families ADD COLUMN chores_label TEXT NOT NULL DEFAULT 'Chores'`); } catch (_) {}
 }

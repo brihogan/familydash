@@ -5,6 +5,7 @@ import { faBroom } from '@fortawesome/free-solid-svg-icons';
 import { choresApi } from '../api/chores.api.js';
 import { activityApi } from '../api/activity.api.js';
 import { familyApi } from '../api/family.api.js';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import ChoreHistoryList from '../components/chores/ChoreHistoryList.jsx';
 import ChoreList from '../components/chores/ChoreList.jsx';
 import ChoreProgress from '../components/chores/ChoreProgress.jsx';
@@ -62,6 +63,7 @@ function DayActivityLog({ activity }) {
 
 export default function ParentChoreHistoryPage() {
   const { userId } = useParams();
+  const { choresLabel } = useFamilySettings();
   const [date, setDate] = useState(todayISO());
   const [logs, setLogs] = useState([]);
   const [activity, setActivity] = useState([]);
@@ -136,7 +138,7 @@ export default function ParentChoreHistoryPage() {
 
           {/* Chores section */}
           <section>
-            <h2 className="text-base font-semibold text-gray-700 mb-3">Chores</h2>
+            <h2 className="text-base font-semibold text-gray-700 mb-3">{choresLabel}</h2>
 
             {logs.length > 0 && (
               <div className="mb-4">

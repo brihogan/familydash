@@ -36,7 +36,7 @@ function darkenHex(hex, amount = 50) {
 function DashboardCard({ member, onRefresh, readOnly, maskPrivateData, mini }) {
   const { user } = useAuth();
   const { isDark } = useTheme();
-  const { useBanking, useSets, useTickets } = useFamilySettings();
+  const { useBanking, useSets, useTickets, choresLabel } = useFamilySettings();
   const navigate = useNavigate();
   const isParent = user?.role === 'parent';
   const isOwnRow = member.id === user?.id;
@@ -117,7 +117,7 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData, mini }) {
                 pct={chorePct}
                 done={choreDone}
                 size={46}
-                title={`Chores: ${member.choreDone}/${member.choreTotal}`}
+                title={`${choresLabel}: ${member.choreDone}/${member.choreTotal}`}
                 onClick={(isInteractiveKidRow || (isOwnRow && member.choresEnabled)) ? (e) => { e.stopPropagation(); navigate(`/chores/${member.id}`); } : undefined}
               >
                 <FontAwesomeIcon icon={choreDone ? faCrown : faBroom} className={`text-xs ${choreDone ? 'text-yellow-400' : ''}`} />
@@ -162,7 +162,7 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData, mini }) {
               trackColor={ringTrackColor}
               progressColor={choreDone ? ringDoneColor : ringProgressColor}
               bgColor={choreDone ? ringDoneColor : ringBgColor}
-              title={`Chores: ${member.choreDone}/${member.choreTotal}`}
+              title={`${choresLabel}: ${member.choreDone}/${member.choreTotal}`}
               onClick={(isInteractiveKidRow || (isOwnRow && member.choresEnabled)) ? (e) => { e.stopPropagation(); navigate(`/chores/${member.id}`); } : undefined}
             >
               <FontAwesomeIcon icon={choreDone ? faCrown : faBroom} className={choreDone ? 'text-yellow-400' : undefined} />
@@ -283,7 +283,7 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData, mini }) {
 // ── Table + cards ─────────────────────────────────────────────────────────────
 
 export default function DashboardTable({ members, onRefresh, readOnly = false, maskPrivateData = false, miniCards = false }) {
-  const { useBanking, useSets, useTickets } = useFamilySettings();
+  const { useBanking, useSets, useTickets, choresLabel } = useFamilySettings();
   return (
     <>
       {/* ── Mobile cards (below md) ── */}

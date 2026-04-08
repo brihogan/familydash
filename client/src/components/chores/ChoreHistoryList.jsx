@@ -2,10 +2,10 @@ import { relativeTime } from '../../utils/relativeTime.js';
 import { useFamilySettings } from '../../context/FamilySettingsContext.jsx';
 
 export default function ChoreHistoryList({ logs, onUndo, disabled }) {
-  const { useTickets } = useFamilySettings();
+  const { useTickets, choresLabelLower } = useFamilySettings();
   const completed = logs.filter((l) => l.completed_at);
   if (!completed.length) {
-    return <p className="text-sm text-gray-400 dark:text-gray-500 italic">No completed chores for this date.</p>;
+    return <p className="text-sm text-gray-400 dark:text-gray-500 italic">No completed {choresLabelLower} for this date.</p>;
   }
   return (
     <div className="space-y-2">

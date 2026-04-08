@@ -7,10 +7,12 @@ import useOfflineInbox from '../offline/hooks/useOfflineInbox.js';
 import Avatar from '../components/shared/Avatar.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import { relativeTime } from '../utils/relativeTime.js';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 
 export default function InboxKidPage() {
   const { kidId } = useParams();
   const navigate  = useNavigate();
+  const { choresLabel } = useFamilySettings();
 
   const { kids, loading, refresh: fetchKidInbox } = useOfflineInbox();
   const kid = kids.find((k) => String(k.id) === kidId) || null;
@@ -235,7 +237,7 @@ export default function InboxKidPage() {
           return sortedDays.map((day) => (
             <div key={day}>
               <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                Chores — {formatDayLabel(day)}
+                {choresLabel} — {formatDayLabel(day)}
               </h3>
               <div className="space-y-2">
                 {choresByDay[day].map((chore) =>

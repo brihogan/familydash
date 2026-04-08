@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTicket } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import useOfflineTickets from '../offline/hooks/useOfflineTickets.js';
 import useOfflineFamily from '../offline/hooks/useOfflineFamily.js';
 import TicketBalance from '../components/tickets/TicketBalance.jsx';
@@ -20,12 +21,14 @@ const DATE_OPTIONS = [
 
 const SELECT_CLS = 'border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-400';
 
-const TICKET_TYPE_OPTIONS = [
-  { key: 'all',    label: 'All' },
-  { key: 'chore',  label: 'Chore' },
-  { key: 'add',    label: 'Add' },
-  { key: 'remove', label: 'Remove' },
-];
+function buildTicketTypeOptions(choreLabel) {
+  return [
+    { key: 'all',    label: 'All' },
+    { key: 'chore',  label: choreLabel },
+    { key: 'add',    label: 'Add' },
+    { key: 'remove', label: 'Remove' },
+  ];
+}
 
 function localMidnightISO(offsetDays = 0) {
   const d = new Date();
@@ -37,6 +40,8 @@ function localMidnightISO(offsetDays = 0) {
 export default function KidTicketsPage() {
   const { userId } = useParams();
   const { user } = useAuth();
+  const { choreLabel } = useFamilySettings();
+  const TICKET_TYPE_OPTIONS = buildTicketTypeOptions(choreLabel);
   const isParent = user?.role === 'parent';
   const navigate = useNavigate();
 

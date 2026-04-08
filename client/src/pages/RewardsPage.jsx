@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTrophy, faGear, faPlus } from '@fortawesome/free-solid-svg-icons';
 import { rewardsApi } from '../api/rewards.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import useOfflineRewards from '../offline/hooks/useOfflineRewards.js';
 import useOfflineFamily from '../offline/hooks/useOfflineFamily.js';
 import useOfflineTickets from '../offline/hooks/useOfflineTickets.js';
@@ -129,12 +130,13 @@ function daysToEarn(cost, dailyPotential) {
 }
 
 function EarningReference({ kids }) {
+  const { choreLabelLower } = useFamilySettings();
   if (!kids.length) return null;
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
       <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
         Time to Earn
-        <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">based on each kid's daily chore potential</span>
+        <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">based on each kid's daily {choreLabelLower} potential</span>
       </h2>
       <div className="overflow-x-auto">
         <table className="text-sm w-full">
