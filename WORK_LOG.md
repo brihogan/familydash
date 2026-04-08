@@ -10,6 +10,11 @@
 - Cloudflare auto-injects `static.cloudflareinsights.com/beacon.min.js` into HTML responses, which was being blocked on every kid-app page because the CSP set by `serveAppFile` only declared `default-src 'self'` with no explicit `script-src` (landing pages had no CSP at all, which is why they looked fine).
 - Extracted the CSP into a `KID_APP_CSP` constant in `server/src/routes/claude.js` and added `script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://static.cloudflareinsights.com` plus `connect-src 'self' https://cloudflareinsights.com` so the beacon can load and report.
 
+### 2026-04-08 — Strict routing fix for bare app URLs
+- Typing `apps.straychips.com/fox/probe` (no trailing slash) served the app's HTML directly instead of redirecting to `/fox/probe/`, so the browser resolved relative script tags (`state.js`, `game.js`, etc.) against `/fox/` instead of `/fox/probe/` and every file 404'd. Clicking from the landing page or the dashboard worked because those links already include the trailing slash.
+- Root cause: `appsRouter` and `subdomainRouter` were created with default `Router()`, which has `strict: false` — so `/:username/:appName/` matched both `/fox/probe/` and `/fox/probe`, and the redirect route never fired.
+- Fix: `Router({ strict: true })` on both routers so the no-slash request reaches the redirect handler.
+
 ## Session Start: 2026-04-06 (evening)
 
 ### 2026-04-06 — App storage works on both origins

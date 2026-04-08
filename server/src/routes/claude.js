@@ -540,7 +540,13 @@ router.post('/apps/:username/:appName/launch', (req, res) => {
 // ─── Public apps router mounted at /apps ──────────────────────────────────
 // Serves kid projects at /apps/:username/:appName
 
-const appsRouter = Router();
+// Strict routing so `/:username/:appName` and `/:username/:appName/` are
+// treated as distinct paths — without this, Express matches both against the
+// first registered route (the serve handler), so the no-trailing-slash URL
+// never reaches the redirect route and the browser resolves the app's
+// relative script paths against the parent directory. Same reason for
+// `subdomainRouter` below.
+const appsRouter = Router({ strict: true });
 
 function resolveKidId(req, res, next) {
   const identifier = req.params.username;
@@ -745,7 +751,7 @@ if (APPS_CORS_ORIGIN) {
   });
 }
 
-const subdomainRouter = Router();
+const subdomainRouter = Router({ strict: true });
 
 // Storage API: /apps/:username/:appName/data[/:key]
 subdomainRouter.get('/:username/:appName/data', noStoreStorage, requireSameOrigin, (req, res) => {
