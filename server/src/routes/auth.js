@@ -58,6 +58,22 @@ function issueTokens(res, req, payload, remember = true) {
   if (!remember) delete cookieOpts.maxAge; // session cookie — expires when browser closes
 
   res.cookie(REFRESH_COOKIE, refreshToken, cookieOpts);
+
+  // Set a non-httpOnly name cookie readable by the multiplayer SDK on the apps
+  // subdomain. domain=.straychips.com makes it available across subdomains.
+  const appsHost = process.env.APPS_HOST || '';
+  if (appsHost && payload.name) {
+    const rootDomain = appsHost.replace(/^[^.]+/, ''); // ".straychips.com"
+    res.cookie('mp_name', payload.name.split(' ')[0], {
+      domain: rootDomain,
+      path: '/',
+      sameSite: 'lax',
+      secure: !!req.secure,
+      httpOnly: false,
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+  }
+
   return { accessToken, refreshToken };
 }
 

@@ -335,7 +335,6 @@ export default function AppsPage() {
           userId={workspace.userId}
           timeLimit={myTimeLimit}
           allApps={allAppsFlat}
-          mpName={user?.name ? user.name.split(' ')[0] : ''}
           initialView={workspace.initialView}
           onClose={() => { setWorkspace(null); load(); }}
         />

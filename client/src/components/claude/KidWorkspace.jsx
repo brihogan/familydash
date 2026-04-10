@@ -320,7 +320,7 @@ function FloatingTerminal({ terminalRef, onSetMode }) {
 }
 
 // ─── Main workspace ────────────────────────────────────────────────────────
-export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, mpName, initialView, onClose }) {
+export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, initialView, onClose }) {
   const [activeTab, setActiveTab] = useState(initialView === 'terminal' ? 'terminal' : null);
   const [runningApps, setRunningApps] = useState([]);
   const [showAppList, setShowAppList] = useState(false);
@@ -811,11 +811,6 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
                       src={src}
                       title={app.appName}
                       sandbox="allow-scripts allow-same-origin allow-forms"
-                      onLoad={(e) => {
-                        if (mpName) {
-                          try { e.target.contentWindow.postMessage({ type: 'mp_realName', name: mpName }, '*'); } catch {}
-                        }
-                      }}
                       style={{
                         position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none',
                         display: activeTab === app.key ? 'block' : 'none',

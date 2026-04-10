@@ -41,19 +41,27 @@
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
 
   // ─── Real name detection ─────────────────────────────────────────────
-  // Cached in localStorage so it persists across apps on the subdomain.
-  // Source 1: ?mpName= query param (direct link from dashboard)
-  (function cacheRealName() {
+  // The server sets a shared mp_name cookie (domain=.straychips.com) on login
+  // so it's available on both dash. and apps. subdomains. Read it directly.
+  function getCookie(name) {
+    try {
+      var match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+      return match ? decodeURIComponent(match[1]) : null;
+    } catch { return null; }
+  }
+  var _mpRealName = getCookie('mp_name') || lsGet(LS_REAL) || null;
+  // Also cache from ?mpName= param or postMessage as fallbacks
+  (function () {
     try {
       var params = new URLSearchParams(location.search);
       var name = params.get('mpName');
-      if (name) lsSet(LS_REAL, name);
+      if (name) { lsSet(LS_REAL, name); _mpRealName = _mpRealName || name; }
     } catch {}
   })();
-  // Source 2: postMessage from parent frame (KidWorkspace iframe)
   window.addEventListener('message', function (e) {
     if (e.data && e.data.type === 'mp_realName' && e.data.name) {
       lsSet(LS_REAL, e.data.name);
+      _mpRealName = _mpRealName || e.data.name;
     }
   });
 
@@ -560,7 +568,7 @@
       ssSet(SS_NAME, self._playerName);
       document.getElementById('mp-my-name').textContent = self._playerName;
     });
-    var realName = lsGet(LS_REAL);
+    var realName = _mpRealName || lsGet(LS_REAL);
     if (realName) {
       var realBtn = document.getElementById('mp-use-real');
       realBtn.textContent = 'Use "' + realName + '"';
