@@ -549,11 +549,16 @@
       if (e.key === 'Enter') document.getElementById('mp-join-btn').click();
     });
 
-    // Request room list
+    // Request room list + auto-refresh every 3s while lobby is open
     this._send({ type: 'list' });
+    this._lobbyRefresh = setInterval(function () {
+      if (document.getElementById('mp-lobby')) self._send({ type: 'list' });
+      else clearInterval(self._lobbyRefresh);
+    }, 3000);
   };
 
   P._closeLobby = function () {
+    if (this._lobbyRefresh) { clearInterval(this._lobbyRefresh); this._lobbyRefresh = null; }
     var el = document.getElementById('mp-lobby');
     if (el) el.remove();
   };
