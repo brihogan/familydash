@@ -562,14 +562,13 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
                 if (!v) {
                   // Refresh apps list when opening the dropdown
                   claudeApi.listApps().then((data) => {
-                    const mp = mpName ? `?mpName=${encodeURIComponent(mpName)}` : '';
                     const fresh = (data.kids || []).flatMap((k) =>
                       k.apps.map((a) => ({
                         appName: a.name, username: k.username, ownerName: k.name,
                         ownerId: k.id, icon: a.icon, starred: a.starred,
-                        url: (APPS_ORIGIN
+                        url: APPS_ORIGIN
                           ? `${APPS_ORIGIN}/${k.username}/${a.name}/`
-                          : `/apps/${k.username}/${a.name}/`) + mp,
+                          : `/apps/${k.username}/${a.name}/`,
                       }))
                     );
                     setAllApps(fresh);
@@ -812,6 +811,11 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
                       src={src}
                       title={app.appName}
                       sandbox="allow-scripts allow-same-origin allow-forms"
+                      onLoad={(e) => {
+                        if (mpName) {
+                          try { e.target.contentWindow.postMessage({ type: 'mp_realName', name: mpName }, '*'); } catch {}
+                        }
+                      }}
                       style={{
                         position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none',
                         display: activeTab === app.key ? 'block' : 'none',

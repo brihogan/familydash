@@ -40,7 +40,9 @@
   function lsGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
 
-  // ─── Real name detection (from ?mpName= param, cached in localStorage) ──
+  // ─── Real name detection ─────────────────────────────────────────────
+  // Cached in localStorage so it persists across apps on the subdomain.
+  // Source 1: ?mpName= query param (direct link from dashboard)
   (function cacheRealName() {
     try {
       var params = new URLSearchParams(location.search);
@@ -48,6 +50,12 @@
       if (name) lsSet(LS_REAL, name);
     } catch {}
   })();
+  // Source 2: postMessage from parent frame (KidWorkspace iframe)
+  window.addEventListener('message', function (e) {
+    if (e.data && e.data.type === 'mp_realName' && e.data.name) {
+      lsSet(LS_REAL, e.data.name);
+    }
+  });
 
   // ─── CSS ─────────────────────────────────────────────────────────────
   var CSS = '\

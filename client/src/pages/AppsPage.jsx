@@ -91,8 +91,6 @@ export default function AppsPage() {
   const hasApps = kids.some((k) => k.apps.length > 0);
 
   // Build flat app list for the workspace dropdown (includes owner + starred info)
-  // Append ?mpName= so the multiplayer SDK can offer "use real name"
-  const mpParam = user?.name ? `?mpName=${encodeURIComponent(user.name.split(' ')[0])}` : '';
   const allAppsFlat = kids.flatMap((kid) =>
     kid.apps.map((app) => ({
       appName: app.name,
@@ -101,9 +99,9 @@ export default function AppsPage() {
       ownerId: kid.id,
       icon: app.icon,
       starred: app.starred,
-      url: (import.meta.env.VITE_APPS_ORIGIN
+      url: import.meta.env.VITE_APPS_ORIGIN
         ? `${import.meta.env.VITE_APPS_ORIGIN}/${kid.username}/${app.name}/`
-        : `/apps/${kid.username}/${app.name}/`) + mpParam,
+        : `/apps/${kid.username}/${app.name}/`,
     }))
   );
 
