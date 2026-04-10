@@ -55,51 +55,67 @@ function containerName(userId) {
 export async function getOrCreateContainer(userId) {
   const name = containerName(userId);
 
+  // Resolve the current image ID so we can detect containers built from an old image.
+  // When CLAUDE.md.template or the Dockerfile changes, a `docker build` updates the
+  // image tag but existing containers still reference the old image ID. We remove and
+  // recreate stale containers automatically — workspace/auth volumes are preserved so
+  // no kid data is lost.
+  let currentImageId = null;
+  try {
+    currentImageId = (await docker.getImage(CONTAINER_IMAGE).inspect()).Id;
+  } catch { /* image not found yet — will surface at createContainer */ }
+
   try {
     const container = docker.getContainer(name);
     const info = await container.inspect();
-    if (!info.State.Running) {
-      await container.start();
+
+    if (currentImageId && info.Image !== currentImageId) {
+      // Image has been updated — remove and fall through to recreate
+      console.log(`[docker] Container ${name} is stale (image updated) — recreating`);
+      await container.remove({ force: true });
+    } else {
+      if (!info.State.Running) await container.start();
+      return container;
     }
-    return container;
   } catch (err) {
     if (err.statusCode !== 404) throw err;
-
-    // Migration: remove legacy container if it exists (old naming: claude-kid-{userId})
-    // Volumes are keyed per-user so data persists
-    try {
-      const legacy = docker.getContainer(`claude-kid-${userId}`);
-      await legacy.remove({ force: true });
-      console.log(`[docker] Removed legacy container claude-kid-${userId}`);
-    } catch { /* no legacy container, proceed */ }
-
-    // Create new container
-    const container = await docker.createContainer({
-      Image: CONTAINER_IMAGE,
-      name,
-      Env: [
-        'TERM=xterm-256color',
-        'PATH=/home/coder/.claude/bin:/home/coder/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-      ],
-      Tty: true,
-      OpenStdin: true,
-      HostConfig: {
-        Memory: 1024 * 1024 * 1024,      // 1 GB
-        NanoCpus: 1_000_000_000,          // 1 CPU core
-        PidsLimit: 500,
-        CapDrop: ['ALL'],                 // Drop all Linux capabilities
-        SecurityOpt: ['no-new-privileges'], // Prevent privilege escalation
-        ...(CLAUDE_NETWORK ? { NetworkMode: CLAUDE_NETWORK } : {}),
-        Binds: [
-          `claude-auth-${userId}:/home/coder/.claude`,
-          `claude-workspace-${userId}:/home/coder/workspace`,
-          `claude-npm-${userId}:/home/coder/.npm-global`,
-        ],
-      },
-    });
-    await container.start();
-    return container;
+    // 404 = container doesn't exist yet, fall through to create
   }
+
+  // Migration: remove legacy container if it exists (old naming: claude-kid-{userId})
+  // Volumes are keyed per-user so data persists
+  try {
+    const legacy = docker.getContainer(`claude-kid-${userId}`);
+    await legacy.remove({ force: true });
+    console.log(`[docker] Removed legacy container claude-kid-${userId}`);
+  } catch { /* no legacy container, proceed */ }
+
+  // Create new container
+  const container = await docker.createContainer({
+    Image: CONTAINER_IMAGE,
+    name,
+    Env: [
+      'TERM=xterm-256color',
+      'PATH=/home/coder/.claude/bin:/home/coder/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+    ],
+    Tty: true,
+    OpenStdin: true,
+    HostConfig: {
+      Memory: 1024 * 1024 * 1024,      // 1 GB
+      NanoCpus: 1_000_000_000,          // 1 CPU core
+      PidsLimit: 500,
+      CapDrop: ['ALL'],                 // Drop all Linux capabilities
+      SecurityOpt: ['no-new-privileges'], // Prevent privilege escalation
+      ...(CLAUDE_NETWORK ? { NetworkMode: CLAUDE_NETWORK } : {}),
+      Binds: [
+        `claude-auth-${userId}:/home/coder/.claude`,
+        `claude-workspace-${userId}:/home/coder/workspace`,
+        `claude-npm-${userId}:/home/coder/.npm-global`,
+      ],
+    },
+  });
+  await container.start();
+  return container;
 }
 
 export async function createExecSession(userId, opts = {}) {

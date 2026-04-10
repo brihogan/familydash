@@ -10,6 +10,21 @@
   ```
   Use `persistent: true` so it runs for the whole session.
 
+## Deploying kid container changes
+
+When `docker/claude-code/CLAUDE.md.template` or `docker/claude-code/Dockerfile` changes, the
+`familydash-claude-code` image must be rebuilt on miniserver for kid terminals to pick up the update:
+
+```bash
+# On miniserver, in the repo root:
+docker build -t familydash-claude-code:latest docker/claude-code/
+```
+
+Existing kid containers are automatically recreated on next terminal open — `getOrCreateContainer`
+in `dockerService.js` compares the running container's image ID against the current
+`familydash-claude-code:latest` digest and removes stale containers (workspace volumes are
+preserved, so no kid data is lost). No manual `docker rm` needed after the rebuild.
+
 ## Before every task
 
 Try to give me an estimate of time for how long it'll take you to perform the task. Remind me to touch grass, smell the roses, do some stretches, hang from the pull-up bar, go tidy/clean something, hug my wife, or other similar suggestions since you'll be busy for a few moments anyway.

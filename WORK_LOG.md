@@ -2,6 +2,9 @@
 
 ## Session Start: 2026-04-10 (continued session)
 
+### 2026-04-10 — Auto-detect stale kid containers after image rebuild
+- `getOrCreateContainer` now compares the running container's image ID against the current `familydash-claude-code:latest` digest. If stale, it removes and recreates the container automatically (workspace volumes preserved). Updated `CLAUDE.md` with the rebuild deploy process.
+
 ### 2026-04-10 — Fix ticket adjustment modal not closing on success
 - `QuickTicketAdjust` called `setOpen(false)` which doesn't exist (should be `handleClose()`). The adjustment succeeded but the ReferenceError was caught and displayed as "Failed to adjust tickets." Fixed with a one-line change.
 
