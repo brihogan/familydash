@@ -203,6 +203,11 @@
 
   P.leaveRoom = function () {
     this._send({ type: 'leave' });
+    // Emit leave for every other player so game code cleans up its tracking
+    var self = this;
+    this._players.forEach(function (p) {
+      if (p.id !== self._playerId) self._emit('leave', { id: p.id, name: p.name });
+    });
     this._roomCode = null;
     this._room = null;
     this._players = [];
@@ -388,6 +393,11 @@
         break;
 
       case 'kicked':
+        // Emit leave for every other player so game code cleans up its tracking
+        var self2 = this;
+        this._players.forEach(function (p) {
+          if (p.id !== self2._playerId) self2._emit('leave', { id: p.id, name: p.name });
+        });
         this._roomCode = null;
         this._room = null;
         this._players = [];
