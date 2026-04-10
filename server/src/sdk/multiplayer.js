@@ -571,24 +571,33 @@
     // Wire up events
     document.getElementById('mp-lobby-close').addEventListener('click', function () { self._closeLobby(); });
     document.getElementById('mp-my-name').textContent = this._playerName;
+    var realName = _mpRealName || lsGet(LS_REAL);
+    var realBtn = document.getElementById('mp-use-real');
+    function updateRealBtn() {
+      if (realName && self._playerName !== realName) {
+        realBtn.textContent = 'Use "' + realName + '"';
+        realBtn.style.display = '';
+      } else {
+        realBtn.style.display = 'none';
+      }
+    }
     document.getElementById('mp-reroll').addEventListener('click', function () {
       self._playerName = randomName();
       ssSet(SS_NAME, self._playerName);
       self._send({ type: 'rename', name: self._playerName });
       document.getElementById('mp-my-name').textContent = self._playerName;
+      updateRealBtn();
     });
-    var realName = _mpRealName || lsGet(LS_REAL);
     if (realName) {
-      var realBtn = document.getElementById('mp-use-real');
-      realBtn.textContent = 'Use "' + realName + '"';
-      realBtn.style.display = '';
       realBtn.addEventListener('click', function () {
         self._playerName = realName;
         ssSet(SS_NAME, realName);
         self._send({ type: 'rename', name: realName });
         document.getElementById('mp-my-name').textContent = realName;
+        updateRealBtn();
       });
     }
+    updateRealBtn();
 
     document.getElementById('mp-create-vis').addEventListener('change', function () {
       document.getElementById('mp-passcode-row').style.display = this.value === 'private' ? 'block' : 'none';
