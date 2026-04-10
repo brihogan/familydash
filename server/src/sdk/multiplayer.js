@@ -494,7 +494,7 @@
     </div>\
     <div class="mp-error" id="mp-error"></div>\
     <div class="mp-section">\
-      <div class="mp-section-title">Public Rooms</div>\
+      <div class="mp-section-title">Rooms</div>\
       <div id="mp-room-list"><div class="mp-empty">Loading...</div></div>\
     </div>\
     <div class="mp-section">\
@@ -579,18 +579,27 @@
     var self = this;
 
     if (!rooms || rooms.length === 0) {
-      container.innerHTML = '<div class="mp-empty">No public rooms yet. Create one!</div>';
+      container.innerHTML = '<div class="mp-empty">No rooms yet. Create one!</div>';
       return;
     }
 
     container.innerHTML = '';
     rooms.forEach(function (r) {
+      var isPrivate = r.visibility === 'private';
+      var lock = isPrivate ? ' \uD83D\uDD12' : '';
       var card = document.createElement('div');
       card.className = 'mp-room-card';
-      card.innerHTML = '<div><div class="mp-room-name">' + esc(r.name) + '</div>' +
+      card.innerHTML = '<div><div class="mp-room-name">' + esc(r.name) + lock + '</div>' +
         '<div class="mp-room-info">Host: ' + esc(r.hostName) + ' \u00B7 Code: ' + esc(r.code) + '</div></div>' +
         '<div class="mp-room-players">' + r.playerCount + '/' + r.maxPlayers + '</div>';
-      card.addEventListener('click', function () { self.joinRoom(r.code); });
+      card.addEventListener('click', function () {
+        if (isPrivate) {
+          var pass = prompt('Enter passcode for ' + r.name + ':');
+          if (pass !== null) self.joinRoom(r.code, { passcode: pass });
+        } else {
+          self.joinRoom(r.code);
+        }
+      });
       container.appendChild(card);
     });
   };

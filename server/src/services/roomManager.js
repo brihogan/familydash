@@ -322,7 +322,7 @@ class RoomManager {
     const list = [];
     for (const room of this.rooms.values()) {
       if (room.appSlug !== appSlug) continue;
-      if (room.visibility !== 'public') continue;
+      if (room.visibility === 'unlisted') continue;
       if (room.playerCount === 0) continue;
       list.push(room.toListEntry());
     }
