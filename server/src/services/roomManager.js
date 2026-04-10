@@ -342,6 +342,18 @@ class RoomManager {
     return { ok: true };
   }
 
+  renamePlayer(playerId, newName) {
+    const code = this.playerRoom.get(playerId);
+    if (!code) return;
+    const room = this.rooms.get(code);
+    if (!room) return;
+    const player = room.players.get(playerId);
+    if (!player) return;
+    const oldName = player.name;
+    player.name = newName;
+    room.broadcast({ type: 'player_renamed', playerId, oldName, newName }, playerId);
+  }
+
   listRooms(appSlug) {
     const list = [];
     for (const room of this.rooms.values()) {

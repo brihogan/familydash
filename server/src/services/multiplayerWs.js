@@ -95,7 +95,7 @@ export function setupMultiplayerWs(wss) {
 
     // Player identity
     const playerId = url.searchParams.get('playerId') || crypto.randomUUID();
-    const playerName = url.searchParams.get('playerName') || generateName();
+    let playerName = url.searchParams.get('playerName') || generateName();
     const reconnectRoom = url.searchParams.get('reconnectRoom') || null;
 
     // Send welcome
@@ -193,6 +193,14 @@ export function setupMultiplayerWs(wss) {
           if (typeof msg.playerId === 'string') {
             const result = roomManager.kickPlayer(playerId, msg.playerId);
             if (result.error) send(ws, { type: 'error', message: result.error });
+          }
+          break;
+        }
+
+        case 'rename': {
+          if (typeof msg.name === 'string' && msg.name.length > 0 && msg.name.length <= 30) {
+            playerName = msg.name;
+            roomManager.renamePlayer(playerId, playerName);
           }
           break;
         }

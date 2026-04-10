@@ -412,6 +412,14 @@
         this._emit('host_changed', { id: msg.playerId, name: msg.playerName });
         break;
 
+      case 'player_renamed':
+        this._players.forEach(function (p) {
+          if (p.id === msg.playerId) p.name = msg.newName;
+        });
+        this._updatePlayerList();
+        this._emit('rename', { id: msg.playerId, oldName: msg.oldName, newName: msg.newName });
+        break;
+
       case 'state':
         this._emit('state', { id: msg.playerId, name: msg.playerName }, msg.data);
         break;
@@ -566,6 +574,7 @@
     document.getElementById('mp-reroll').addEventListener('click', function () {
       self._playerName = randomName();
       ssSet(SS_NAME, self._playerName);
+      self._send({ type: 'rename', name: self._playerName });
       document.getElementById('mp-my-name').textContent = self._playerName;
     });
     var realName = _mpRealName || lsGet(LS_REAL);
@@ -576,6 +585,7 @@
       realBtn.addEventListener('click', function () {
         self._playerName = realName;
         ssSet(SS_NAME, realName);
+        self._send({ type: 'rename', name: realName });
         document.getElementById('mp-my-name').textContent = realName;
       });
     }
