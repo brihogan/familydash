@@ -68,7 +68,7 @@ function issueTokens(res, req, payload, remember = true) {
       domain: rootDomain,
       path: '/',
       sameSite: 'lax',
-      secure: !!req.secure,
+      secure: false, // just a display name, not auth — must work over HTTP too
       httpOnly: false,
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
