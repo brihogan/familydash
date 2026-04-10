@@ -33,9 +33,21 @@
   var SS_ID = 'mp_playerId';
   var SS_NAME = 'mp_playerName';
   var SS_ROOM = 'mp_roomCode';
+  var LS_REAL = 'mp_realName';
   function ssGet(k) { try { return sessionStorage.getItem(k); } catch { return null; } }
   function ssSet(k, v) { try { sessionStorage.setItem(k, v); } catch {} }
   function ssRemove(k) { try { sessionStorage.removeItem(k); } catch {} }
+  function lsGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
+
+  // ─── Real name detection (from ?mpName= param, cached in localStorage) ──
+  (function cacheRealName() {
+    try {
+      var params = new URLSearchParams(location.search);
+      var name = params.get('mpName');
+      if (name) lsSet(LS_REAL, name);
+    } catch {}
+  })();
 
   // ─── CSS ─────────────────────────────────────────────────────────────
   var CSS = '\
@@ -500,6 +512,7 @@
       <div class="mp-name-row">\
         <span class="mp-name-display" id="mp-my-name"></span>\
         <button class="mp-btn-sm" id="mp-reroll">Reroll</button>\
+        <button class="mp-btn-sm" id="mp-use-real" style="display:none;"></button>\
       </div>\
     </div>\
     <div class="mp-error" id="mp-error"></div>\
@@ -539,6 +552,17 @@
       ssSet(SS_NAME, self._playerName);
       document.getElementById('mp-my-name').textContent = self._playerName;
     });
+    var realName = lsGet(LS_REAL);
+    if (realName) {
+      var realBtn = document.getElementById('mp-use-real');
+      realBtn.textContent = 'Use "' + realName + '"';
+      realBtn.style.display = '';
+      realBtn.addEventListener('click', function () {
+        self._playerName = realName;
+        ssSet(SS_NAME, realName);
+        document.getElementById('mp-my-name').textContent = realName;
+      });
+    }
 
     document.getElementById('mp-create-vis').addEventListener('change', function () {
       document.getElementById('mp-passcode-row').style.display = this.value === 'private' ? 'block' : 'none';

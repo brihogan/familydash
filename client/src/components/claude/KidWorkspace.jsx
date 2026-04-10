@@ -320,7 +320,7 @@ function FloatingTerminal({ terminalRef, onSetMode }) {
 }
 
 // ─── Main workspace ────────────────────────────────────────────────────────
-export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, initialView, onClose }) {
+export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, mpName, initialView, onClose }) {
   const [activeTab, setActiveTab] = useState(initialView === 'terminal' ? 'terminal' : null);
   const [runningApps, setRunningApps] = useState([]);
   const [showAppList, setShowAppList] = useState(false);
@@ -562,13 +562,14 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
                 if (!v) {
                   // Refresh apps list when opening the dropdown
                   claudeApi.listApps().then((data) => {
+                    const mp = mpName ? `?mpName=${encodeURIComponent(mpName)}` : '';
                     const fresh = (data.kids || []).flatMap((k) =>
                       k.apps.map((a) => ({
                         appName: a.name, username: k.username, ownerName: k.name,
                         ownerId: k.id, icon: a.icon, starred: a.starred,
-                        url: APPS_ORIGIN
+                        url: (APPS_ORIGIN
                           ? `${APPS_ORIGIN}/${k.username}/${a.name}/`
-                          : `/apps/${k.username}/${a.name}/`,
+                          : `/apps/${k.username}/${a.name}/`) + mp,
                       }))
                     );
                     setAllApps(fresh);
