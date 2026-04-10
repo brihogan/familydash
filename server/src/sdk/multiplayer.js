@@ -367,6 +367,15 @@
         break;
 
       case 'room_created':
+        this._roomCode = msg.room.code;
+        this._room = msg.room;
+        this._players = msg.room.players || [];
+        ssSet(SS_ROOM, msg.room.code);
+        this._updateBadge();
+        this._closeLobby();
+        this._showPlayerList(); // show code so host can share it
+        this._emit('room', { code: msg.room.code, name: msg.room.name, players: this._players });
+        break;
       case 'room_joined':
         this._roomCode = msg.room.code;
         this._room = msg.room;
@@ -708,7 +717,9 @@
   </div>\
   <div class="mp-body">\
     <div class="mp-section">\
-      <div class="mp-section-title">Code: ' + esc(this._roomCode) + '</div>\
+      <div class="mp-section-title">Room Code</div>\
+      <div style="font-size:28px;font-weight:700;letter-spacing:4px;color:#c4b5fd;text-align:center;padding:8px 0 12px;user-select:all;">' + esc(this._roomCode) + '</div>\
+      <div class="mp-section-title">Players</div>\
       <div id="mp-player-rows">' + playersHtml + '</div>\
     </div>\
     <button class="mp-btn mp-btn-danger" id="mp-leave-btn">Leave Room</button>\
