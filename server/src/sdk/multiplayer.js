@@ -111,7 +111,7 @@
 .mp-row{display:flex;gap:8px;margin-bottom:8px;}\
 .mp-row .mp-input{flex:1;}\
 .mp-row .mp-btn{width:auto;padding:10px 16px;}\
-.mp-passcode-row{margin-top:8px;display:none;}\
+.mp-passcode-row{margin-top:8px;display:none;max-width:200px;}\
 \
 .mp-error{background:rgba(239,68,68,.12);color:#f87171;padding:10px 14px;\
   border-radius:10px;font-size:13px;margin-bottom:12px;display:none;}\
@@ -519,7 +519,7 @@
       <select class="mp-select" id="mp-create-vis" style="margin-bottom:8px;">\
         <option value="public">Public (anyone can find it)</option>\
         <option value="unlisted">Unlisted (join by code only)</option>\
-        <option value="private">Private (code + passcode)</option>\
+        <option value="private">Private (passcode)</option>\
       </select>\
       <div class="mp-passcode-row" id="mp-passcode-row">\
         <input class="mp-input" id="mp-create-pass" placeholder="Passcode" maxlength="20">\
