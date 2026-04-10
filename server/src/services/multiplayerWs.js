@@ -131,7 +131,6 @@ export function setupMultiplayerWs(wss) {
             playerId,
             playerName,
             ws,
-            name: typeof msg.name === 'string' ? msg.name : undefined,
             visibility: msg.visibility,
             passcode: typeof msg.passcode === 'string' ? msg.passcode : undefined,
             maxPlayers: typeof msg.maxPlayers === 'number' ? msg.maxPlayers : undefined,

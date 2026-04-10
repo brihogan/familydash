@@ -37,6 +37,24 @@ export function generateName() {
   return adj + animal;
 }
 
+// ─── Room name generation (safe — no user input) ────────────────────────────
+
+const COLORS = [
+  'Red','Blue','Green','Gold','Pink','Teal','Plum','Jade','Mint','Lime',
+  'Sage','Coral','Amber','Ruby','Onyx','Navy','Aqua','Rose','Ice','Sun',
+];
+const PLACES = [
+  'Castle','Mountain','River','Forest','Valley','Bridge','Tower','Island',
+  'Garden','Harbor','Canyon','Meadow','Comet','Ridge','Falls','Lake','Cave',
+  'Peak','Reef','Cove','Dune','Fort','Den','Bay','Nest','Mesa','Glen',
+];
+
+function generateRoomName() {
+  const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+  const place = PLACES[Math.floor(Math.random() * PLACES.length)];
+  return color + ' ' + place;
+}
+
 // ─── Room code generation ────────────────────────────────────────────────────
 
 function generateCode() {
@@ -168,7 +186,7 @@ class RoomManager {
     this._cleanupTimer = setInterval(() => this._cleanup(), CLEANUP_INTERVAL_MS);
   }
 
-  createRoom({ appSlug, playerId, playerName, ws, name, visibility, passcode, maxPlayers }) {
+  createRoom({ appSlug, playerId, playerName, ws, visibility, passcode, maxPlayers }) {
     // Enforce per-app room cap
     let appCount = 0;
     for (const r of this.rooms.values()) {
@@ -188,7 +206,7 @@ class RoomManager {
 
     const room = new Room({
       code,
-      name: (name || `${playerName}'s Room`).slice(0, 40),
+      name: generateRoomName(),
       appSlug,
       hostId: playerId,
       visibility: ['public', 'unlisted', 'private'].includes(visibility) ? visibility : 'public',

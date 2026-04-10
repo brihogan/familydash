@@ -190,7 +190,6 @@
     opts = opts || {};
     this._send({
       type: 'create',
-      name: opts.name,
       visibility: opts.visibility || 'public',
       passcode: opts.passcode,
       maxPlayers: opts.maxPlayers || 8,
@@ -507,7 +506,6 @@
     </div>\
     <div class="mp-section">\
       <div class="mp-section-title">Create Room</div>\
-      <input class="mp-input" id="mp-create-name" placeholder="Room name (optional)" maxlength="40" style="margin-bottom:8px;">\
       <select class="mp-select" id="mp-create-vis" style="margin-bottom:8px;">\
         <option value="public">Public (anyone can find it)</option>\
         <option value="unlisted">Unlisted (join by code only)</option>\
@@ -537,10 +535,9 @@
     });
 
     document.getElementById('mp-create-btn').addEventListener('click', function () {
-      var name = document.getElementById('mp-create-name').value.trim();
       var vis = document.getElementById('mp-create-vis').value;
       var pass = document.getElementById('mp-create-pass').value.trim();
-      self.createRoom({ name: name || undefined, visibility: vis, passcode: vis === 'private' ? pass : undefined });
+      self.createRoom({ visibility: vis, passcode: vis === 'private' ? pass : undefined });
     });
 
     document.getElementById('mp-join-btn').addEventListener('click', function () {

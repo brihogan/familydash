@@ -7,6 +7,7 @@
 - Refactored `wsService.js` and `index.js` to use `noServer` mode for both terminal and multiplayer WebSocket servers with path-based upgrade routing.
 - Updated `CLAUDE.md.template` with full multiplayer API docs + complete example game so kids' Claude instances know how to wire up multiplayer.
 - SDK served at `/sdk/multiplayer.js` on main domain, apps router, and apps subdomain. CSP updated for `ws:/wss:` connect-src.
+- Room names are now server-generated (Color + Place, e.g. "Gold Canyon") to prevent strangers entering bad words.
 
 ## Session Start: 2026-04-08 (evening)
 

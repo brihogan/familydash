@@ -159,7 +159,7 @@ mp.leaveRoom()    // leave the current room
 The lobby UI handles this automatically, but you can also do it in code:
 
 ```js
-mp.createRoom({ name: 'My Room', visibility: 'public', maxPlayers: 4 });
+mp.createRoom({ visibility: 'public', maxPlayers: 4 });
 mp.joinRoom('ABCD');
 mp.joinRoom('ABCD', { passcode: '1234' }); // for private rooms
 ```
