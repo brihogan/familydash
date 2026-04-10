@@ -102,20 +102,13 @@ class Room {
     this.touch();
   }
 
-  banPlayer(playerId, ip) {
-    const expiresAt = Date.now() + BAN_DURATION_MS;
-    this.bans.set(playerId, expiresAt);
-    if (ip) this.bans.set(ip, expiresAt);
+  banPlayer(playerId) {
+    this.bans.set(playerId, Date.now() + BAN_DURATION_MS);
   }
 
-  isBanned(playerId, ip) {
-    const now = Date.now();
-    const byId = this.bans.get(playerId);
-    if (byId && byId > now) return true;
-    if (ip) {
-      const byIp = this.bans.get(ip);
-      if (byIp && byIp > now) return true;
-    }
+  isBanned(playerId) {
+    const expiresAt = this.bans.get(playerId);
+    if (expiresAt && expiresAt > Date.now()) return true;
     return false;
   }
 
@@ -250,7 +243,7 @@ class RoomManager {
   joinRoom({ code, playerId, playerName, ws, ip, passcode, appSlug }) {
     const room = this.rooms.get(code?.toUpperCase());
     if (!room) return { error: 'Room not found' };
-    if (room.isBanned(playerId, ip)) return { error: 'You are temporarily banned from this room' };
+    if (room.isBanned(playerId)) return { error: 'You are temporarily banned from this room' };
     if (room.appSlug !== appSlug) return { error: 'Room is for a different app' };
     if (room.playerCount >= room.maxPlayers) return { error: 'Room is full' };
     if (room.visibility === 'private' && room.passcode && room.passcode !== passcode) {
@@ -270,7 +263,7 @@ class RoomManager {
   reconnectToRoom({ playerId, roomCode, ws, ip }) {
     const room = this.rooms.get(roomCode);
     if (!room) return { error: 'Room no longer exists' };
-    if (room.isBanned(playerId, ip)) return { error: 'You are temporarily banned from this room' };
+    if (room.isBanned(playerId)) return { error: 'You are temporarily banned from this room' };
     if (!room.reconnectPlayer(playerId, ws)) return { error: 'Reconnect window expired' };
 
     this.playerRoom.set(playerId, room.code);
@@ -334,8 +327,8 @@ class RoomManager {
     const target = room.players.get(targetId);
     if (!target) return { error: 'Player not found' };
 
-    // Ban the player for 5 minutes (by ID + IP so refreshing/new tabs don't bypass)
-    room.banPlayer(targetId, target.ip);
+    // Ban the player for 5 minutes (by ID — survives page refresh within same tab)
+    room.banPlayer(targetId);
 
     // Notify the kicked player
     try { if (target.ws.readyState === 1) target.ws.send(JSON.stringify({ type: 'kicked' })); } catch { /* ignore */ }
