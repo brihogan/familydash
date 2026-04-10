@@ -1,6 +1,9 @@
 # Work Log
 
-## Session Start: 2026-04-10 (evening)
+## Session Start: 2026-04-10 (continued session)
+
+### 2026-04-10 — Fix ticket adjustment modal not closing on success
+- `QuickTicketAdjust` called `setOpen(false)` which doesn't exist (should be `handleClose()`). The adjustment succeeded but the ReferenceError was caught and displayed as "Failed to adjust tickets." Fixed with a one-line change.
 
 ### 2026-04-10 — Multiplayer room system for kid apps
 - Built a full multiplayer WebSocket room system so kids can make their apps multiplayer. Three new server files: `roomManager.js` (in-memory room lifecycle, fun name gen, auto-cleanup), `multiplayerWs.js` (WS handler with origin + app validation, reconnect support), and `server/src/sdk/multiplayer.js` (self-contained browser SDK with iPad-hardened reconnection, built-in lobby/player list UI).

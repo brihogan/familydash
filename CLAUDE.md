@@ -4,6 +4,11 @@
 
 - Always read `WORK_LOG.md` at the start of each session to understand prior context. 
 - Record the session start date and time in the WORK_LOG.md making a new Session header in WORK_LOG (also so that after every task we can be told how long we've been working for - see below).
+- When starting or restarting the dev server, always use the Monitor tool (not a background `&` process) so server errors surface as real-time notifications in the chat. Kill any existing server first, then start with:
+  ```
+  cd /Users/bhogan/SynologyDrive/Code/FamilyDash/server && node --watch --env-file=../.env index.js 2>&1 | grep --line-buffered -E "(error|Error|ERROR|warn|WARN|Restart|restart|\[ws\]|\[mp\]|running on port|Unhandled|uncaught|Cannot|EADDRINUSE)"
+  ```
+  Use `persistent: true` so it runs for the whole session.
 
 ## Before every task
 

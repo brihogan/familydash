@@ -120,7 +120,7 @@ export default function QuickTicketAdjust({
       }
 
       saveRecent({ mode, amount, description: desc });
-      setOpen(false);
+      handleClose();
       onDone();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to adjust tickets.');
