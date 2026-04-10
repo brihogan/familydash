@@ -1,8 +1,6 @@
-import { WebSocketServer } from 'ws';
 import { createExecSession, touchActivity, resizeExec } from './dockerService.js';
 
-export function setupWebSocket(server) {
-  const wss = new WebSocketServer({ server, path: '/ws/terminal' });
+export function setupTerminalWs(wss) {
   const activeConnections = new Map(); // kidId -> count
   const MAX_WS_PER_KID = 3;
   console.log('[ws] WebSocket server ready on /ws/terminal');

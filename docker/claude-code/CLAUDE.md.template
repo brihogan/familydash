@@ -64,3 +64,180 @@ async function saveScore(name, score) {
   });
 }
 ```
+
+## Multiplayer API
+
+Make any app multiplayer by adding the SDK. It handles everything: random player
+names, room creation/joining, a lobby UI, a player list, connection management,
+and reconnection on mobile. The kid only needs to decide what game state to share.
+
+### Setup
+
+Add this script tag to your index.html `<head>` (before your game script):
+
+```html
+<script src="/sdk/multiplayer.js"></script>
+```
+
+Then in your JS, create a MultiPlayer instance:
+
+```js
+const mp = new MultiPlayer();
+```
+
+That's it! A floating "Multiplayer" button appears. Players get a fun random
+name (like "SwiftFox" or "NeonPanda"). Clicking the button opens the lobby
+where players can create rooms, browse public rooms, or join by code.
+
+### Sending game state to other players
+
+Call `mp.sendState(data)` in your game loop to broadcast your state. The SDK
+throttles automatically (max 20 updates/sec). Only send what other players need:
+
+```js
+// In your game loop / requestAnimationFrame callback:
+mp.sendState({ x: player.x, y: player.y, sprite: 'walking', color: '#ff0' });
+```
+
+### Receiving state from other players
+
+```js
+mp.on('state', (player, data) => {
+  // player = { id, name }
+  // data = whatever the other player sent via sendState()
+  ctx.fillStyle = data.color;
+  ctx.fillRect(data.x, data.y, 20, 20);
+  ctx.fillText(player.name, data.x, data.y - 10);
+});
+```
+
+### Predefined messages
+
+Players can send short message IDs (not free text). Use these for in-game
+communication like emotes or callouts:
+
+```js
+// Send a message
+mp.sendMessage('follow_me');
+mp.sendMessage('thumbs_up');
+mp.sendMessage('watch_out');
+
+// Receive messages
+mp.on('message', (player, messageId) => {
+  showBubble(player.name + ': ' + messageId);
+});
+```
+
+### Events
+
+```js
+mp.on('ready', (me) => { });          // connected, me = { id, name }
+mp.on('room', (info) => { });         // joined/created room, info = { code, name, players }
+mp.on('join', (player) => { });       // a player joined, player = { id, name }
+mp.on('leave', (player) => { });      // a player left, player = { id, name }
+mp.on('state', (player, data) => {}); // state update from another player
+mp.on('message', (player, id) => {}); // predefined message from another player
+mp.on('kicked', () => { });           // you were kicked from the room
+mp.on('host_changed', (p) => { });    // room host changed
+mp.on('error', (msg) => { });         // error message
+```
+
+### Utility methods
+
+```js
+mp.getMe()        // { id, name } — your player info
+mp.getPlayers()   // array of { id, name, isHost } in the room
+mp.isHost()       // true if you're the room host
+mp.isInRoom()     // true if currently in a room
+mp.getRoomCode()  // the room code (e.g. "ABCD") or null
+mp.showLobby()    // open the lobby UI manually
+mp.leaveRoom()    // leave the current room
+```
+
+### Creating / joining rooms via code
+
+The lobby UI handles this automatically, but you can also do it in code:
+
+```js
+mp.createRoom({ name: 'My Room', visibility: 'public', maxPlayers: 4 });
+mp.joinRoom('ABCD');
+mp.joinRoom('ABCD', { passcode: '1234' }); // for private rooms
+```
+
+Room visibility options: `'public'` (listed in lobby), `'unlisted'` (join by
+code only), `'private'` (code + passcode required).
+
+### Complete example: multiplayer tag game
+
+```html
+<!DOCTYPE html>
+<html><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tag!</title>
+  <script src="/sdk/multiplayer.js"></script>
+</head><body style="margin:0;overflow:hidden;background:#111;">
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+canvas.width = innerWidth; canvas.height = innerHeight;
+
+const mp = new MultiPlayer();
+let myX = canvas.width/2, myY = canvas.height/2;
+const others = {};  // playerId -> { x, y, name }
+
+// Track other players
+mp.on('state', (player, data) => {
+  others[player.id] = { x: data.x, y: data.y, name: player.name };
+});
+mp.on('leave', (player) => { delete others[player.id]; });
+
+// Simple touch/mouse movement
+let targetX = myX, targetY = myY;
+canvas.addEventListener('pointerdown', (e) => { targetX = e.clientX; targetY = e.clientY; });
+canvas.addEventListener('pointermove', (e) => { if (e.buttons) { targetX = e.clientX; targetY = e.clientY; } });
+
+function update() {
+  // Move toward target
+  myX += (targetX - myX) * 0.1;
+  myY += (targetY - myY) * 0.1;
+
+  // Send position to other players
+  mp.sendState({ x: Math.round(myX), y: Math.round(myY) });
+
+  // Draw
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw other players
+  for (const id in others) {
+    const o = others[id];
+    ctx.fillStyle = '#6d28d9';
+    ctx.beginPath(); ctx.arc(o.x, o.y, 16, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(o.name, o.x, o.y - 22);
+  }
+
+  // Draw me
+  ctx.fillStyle = '#4ade80';
+  ctx.beginPath(); ctx.arc(myX, myY, 16, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+  const me = mp.getMe();
+  ctx.fillText(me.name, myX, myY - 22);
+
+  requestAnimationFrame(update);
+}
+update();
+</script></body></html>
+```
+
+### Important notes
+
+- The multiplayer button and lobby UI are built into the SDK — you don't need
+  to build any room/player UI yourself.
+- Rooms auto-clean up after 10 minutes of inactivity.
+- If a player disconnects (switches tabs, phone locks), they auto-reconnect
+  and rejoin within 30 seconds.
+- State updates are throttled to 20/sec. Call sendState() as often as you want.
+- Keep state payloads small — only send what others need to render your player.

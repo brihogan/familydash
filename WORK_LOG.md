@@ -1,5 +1,13 @@
 # Work Log
 
+## Session Start: 2026-04-10 (evening)
+
+### 2026-04-10 — Multiplayer room system for kid apps
+- Built a full multiplayer WebSocket room system so kids can make their apps multiplayer. Three new server files: `roomManager.js` (in-memory room lifecycle, fun name gen, auto-cleanup), `multiplayerWs.js` (WS handler with origin + app validation, reconnect support), and `server/src/sdk/multiplayer.js` (self-contained browser SDK with iPad-hardened reconnection, built-in lobby/player list UI).
+- Refactored `wsService.js` and `index.js` to use `noServer` mode for both terminal and multiplayer WebSocket servers with path-based upgrade routing.
+- Updated `CLAUDE.md.template` with full multiplayer API docs + complete example game so kids' Claude instances know how to wire up multiplayer.
+- SDK served at `/sdk/multiplayer.js` on main domain, apps router, and apps subdomain. CSP updated for `ws:/wss:` connect-src.
+
 ## Session Start: 2026-04-08 (evening)
 
 ### 2026-04-08 — CSP frame-src fix for workspace app tabs

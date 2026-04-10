@@ -126,6 +126,12 @@ app.use('/api/family', turnsRouter);
 app.use('/api/claude', claudeRouter);
 app.use('/apps', appsRouter);
 
+// SDK files (main domain — for apps served at /apps/:user/:app/)
+app.get('/sdk/multiplayer.js', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=300');
+  res.sendFile(join(__dirname, 'sdk', 'multiplayer.js'));
+});
+
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

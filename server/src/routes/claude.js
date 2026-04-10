@@ -5,8 +5,13 @@ import crypto from 'crypto';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/requireRole.js';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { getOrCreateContainer, stopContainer, getContainerStatus, readContainerFile, listContainerApps } from '../services/dockerService.js';
 import { localDateISO } from '../utils/dateHelpers.js';
+
+const __claude_dirname = dirname(fileURLToPath(import.meta.url));
+const SDK_DIR = join(__claude_dirname, '..', 'sdk');
 
 const MIME_TYPES = {
   '.html': 'text/html', '.htm': 'text/html', '.css': 'text/css',
@@ -27,7 +32,7 @@ const KID_APP_CSP = [
   "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://static.cloudflareinsights.com",
   "img-src 'self' data: blob: https:",
-  "connect-src 'self' https://cloudflareinsights.com",
+  "connect-src 'self' ws: wss: https://cloudflareinsights.com",
   "frame-src 'none'",
   "object-src 'none'",
 ].join('; ') + ';';
@@ -742,6 +747,12 @@ appsRouter.delete('/:username/:appName/data/:key', noStoreStorage, requireSameOr
   res.json({ ok: true });
 });
 
+// ─── SDK files ───────────────────────────────────────────────────────────────
+appsRouter.get('/sdk/multiplayer.js', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=300');
+  res.sendFile(join(SDK_DIR, 'multiplayer.js'));
+});
+
 // Match /fox/radar-rat-race/ (trailing slash, serve index.html)
 appsRouter.get('/:username/:appName/', resolveKidId, serveAppFile);
 // Match /fox/radar-rat-race/style.css (sub-resources)
@@ -820,6 +831,12 @@ subdomainRouter.post('/:username/:appName/launch', (req, res) => {
   db.prepare('INSERT INTO app_metadata (user_id, app_name, launches) VALUES (?, ?, 1) ON CONFLICT(user_id, app_name) DO UPDATE SET launches = launches + 1').run(user.id, req.params.appName);
   const meta = db.prepare('SELECT launches FROM app_metadata WHERE user_id = ? AND app_name = ?').get(user.id, req.params.appName);
   res.json({ launches: meta?.launches || 1 });
+});
+
+// SDK files (subdomain)
+subdomainRouter.get('/sdk/multiplayer.js', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=300');
+  res.sendFile(join(SDK_DIR, 'multiplayer.js'));
 });
 
 // Static file serving on subdomain
