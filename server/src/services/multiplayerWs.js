@@ -108,7 +108,7 @@ export function setupMultiplayerWs(wss) {
 
     // Try auto-reconnect to room
     if (reconnectRoom) {
-      const result = roomManager.reconnectToRoom({ playerId, roomCode: reconnectRoom, ws });
+      const result = roomManager.reconnectToRoom({ playerId, roomCode: reconnectRoom, ws, ip });
       if (!result.error) {
         send(ws, { type: 'room_joined', room: result.room.toJoinInfo() });
       }
@@ -131,6 +131,7 @@ export function setupMultiplayerWs(wss) {
             playerId,
             playerName,
             ws,
+            ip,
             visibility: msg.visibility,
             passcode: typeof msg.passcode === 'string' ? msg.passcode : undefined,
             maxPlayers: typeof msg.maxPlayers === 'number' ? msg.maxPlayers : undefined,
@@ -150,6 +151,7 @@ export function setupMultiplayerWs(wss) {
             playerId,
             playerName,
             ws,
+            ip,
             passcode: typeof msg.passcode === 'string' ? msg.passcode : undefined,
             appSlug,
           });

@@ -28,6 +28,7 @@ const MAX_ROOMS_PER_APP = 50;
 const MAX_PLAYERS_CAP = 16;
 const STATE_THROTTLE_MS = 50;              // max 20 state updates/sec per player
 const MESSAGE_THROTTLE_MS = 200;           // max 5 messages/sec per player
+const BAN_DURATION_MS = 5 * 60_000;        // kicked players banned for 5 min
 
 // ─── Name generation ─────────────────────────────────────────────────────────
 
@@ -76,8 +77,9 @@ class Room {
     this.visibility = visibility;       // 'public' | 'unlisted' | 'private'
     this.passcode = passcode || null;
     this.maxPlayers = Math.min(maxPlayers || 8, MAX_PLAYERS_CAP);
-    this.players = new Map();           // playerId -> { id, name, ws, state, joinedAt }
+    this.players = new Map();           // playerId -> { id, name, ip, ws, state, joinedAt }
     this.disconnected = new Map();      // playerId -> { name, state, disconnectedAt }
+    this.bans = new Map();              // key (playerId or ip) -> expiresAt
     this.createdAt = Date.now();
     this.lastActivity = Date.now();
   }
@@ -94,10 +96,34 @@ class Room {
     this.lastActivity = Date.now();
   }
 
-  addPlayer(id, name, ws) {
-    this.players.set(id, { id, name, ws, state: null, joinedAt: Date.now(), lastState: 0, lastMsg: 0 });
+  addPlayer(id, name, ws, ip) {
+    this.players.set(id, { id, name, ip, ws, state: null, joinedAt: Date.now(), lastState: 0, lastMsg: 0 });
     this.disconnected.delete(id);
     this.touch();
+  }
+
+  banPlayer(playerId, ip) {
+    const expiresAt = Date.now() + BAN_DURATION_MS;
+    this.bans.set(playerId, expiresAt);
+    if (ip) this.bans.set(ip, expiresAt);
+  }
+
+  isBanned(playerId, ip) {
+    const now = Date.now();
+    const byId = this.bans.get(playerId);
+    if (byId && byId > now) return true;
+    if (ip) {
+      const byIp = this.bans.get(ip);
+      if (byIp && byIp > now) return true;
+    }
+    return false;
+  }
+
+  purgeExpiredBans() {
+    const now = Date.now();
+    for (const [key, expiresAt] of this.bans) {
+      if (expiresAt <= now) this.bans.delete(key);
+    }
   }
 
   removePlayer(id) {
@@ -186,7 +212,7 @@ class RoomManager {
     this._cleanupTimer = setInterval(() => this._cleanup(), CLEANUP_INTERVAL_MS);
   }
 
-  createRoom({ appSlug, playerId, playerName, ws, visibility, passcode, maxPlayers }) {
+  createRoom({ appSlug, playerId, playerName, ws, ip, visibility, passcode, maxPlayers }) {
     // Enforce per-app room cap
     let appCount = 0;
     for (const r of this.rooms.values()) {
@@ -213,7 +239,7 @@ class RoomManager {
       passcode: visibility === 'private' ? (passcode || '').slice(0, 20) : null,
       maxPlayers,
     });
-    room.addPlayer(playerId, playerName, ws);
+    room.addPlayer(playerId, playerName, ws, ip);
     this.rooms.set(code, room);
     this.playerRoom.set(playerId, code);
 
@@ -221,16 +247,17 @@ class RoomManager {
     return { room };
   }
 
-  joinRoom({ code, playerId, playerName, ws, passcode, appSlug }) {
+  joinRoom({ code, playerId, playerName, ws, ip, passcode, appSlug }) {
     const room = this.rooms.get(code?.toUpperCase());
     if (!room) return { error: 'Room not found' };
+    if (room.isBanned(playerId, ip)) return { error: 'You are temporarily banned from this room' };
     if (room.appSlug !== appSlug) return { error: 'Room is for a different app' };
     if (room.playerCount >= room.maxPlayers) return { error: 'Room is full' };
     if (room.visibility === 'private' && room.passcode && room.passcode !== passcode) {
       return { error: 'Incorrect passcode' };
     }
 
-    room.addPlayer(playerId, playerName, ws);
+    room.addPlayer(playerId, playerName, ws, ip);
     this.playerRoom.set(playerId, room.code);
 
     // Notify existing players
@@ -240,9 +267,10 @@ class RoomManager {
     return { room };
   }
 
-  reconnectToRoom({ playerId, roomCode, ws }) {
+  reconnectToRoom({ playerId, roomCode, ws, ip }) {
     const room = this.rooms.get(roomCode);
     if (!room) return { error: 'Room no longer exists' };
+    if (room.isBanned(playerId, ip)) return { error: 'You are temporarily banned from this room' };
     if (!room.reconnectPlayer(playerId, ws)) return { error: 'Reconnect window expired' };
 
     this.playerRoom.set(playerId, room.code);
@@ -305,6 +333,9 @@ class RoomManager {
 
     const target = room.players.get(targetId);
     if (!target) return { error: 'Player not found' };
+
+    // Ban the player for 5 minutes (by ID + IP so refreshing/new tabs don't bypass)
+    room.banPlayer(targetId, target.ip);
 
     // Notify the kicked player
     try { if (target.ws.readyState === 1) target.ws.send(JSON.stringify({ type: 'kicked' })); } catch { /* ignore */ }
@@ -373,6 +404,7 @@ class RoomManager {
     const now = Date.now();
     for (const [code, room] of this.rooms) {
       room.purgeExpiredDisconnects();
+      room.purgeExpiredBans();
       if (room.players.size === 0 && room.disconnected.size === 0 &&
           now - room.lastActivity > EMPTY_ROOM_TTL_MS) {
         this.rooms.delete(code);
