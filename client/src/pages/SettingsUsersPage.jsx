@@ -264,6 +264,7 @@ function SortableMemberRow({ member, onNavigate, onDeactivate, onEmojiClick }) {
 export default function SettingsUsersPage() {
   const navigate = useNavigate();
   const { user, patchUser } = useAuth();
+  const { choresLabel, choresLabelLower } = useFamilySettings();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addModal, setAddModal] = useState(false);

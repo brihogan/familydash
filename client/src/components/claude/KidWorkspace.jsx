@@ -332,6 +332,7 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
   // 'tab' = docked in main content, 'float' = floating window, 'right' = panel right, 'bottom' = panel bottom
   const [terminalMode, setTerminalModeRaw] = useState('tab');
   const [terminalReloadKey, setTerminalReloadKey] = useState(0);
+  const remainingSecRef = useRef(timeLimit * 60);
   const [appReloadKeys, setAppReloadKeys] = useState({}); // appKey -> number
   const heartbeatRef = useRef(null);
   const appListRef = useRef(null);
@@ -379,6 +380,9 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
     }
   }, []);
 
+  // Keep remainingSecRef in sync so the interval closure can read current value
+  useEffect(() => { remainingSecRef.current = remainingSec; }, [remainingSec]);
+
   // Daily time tracking via server heartbeat
   useEffect(() => {
     document.documentElement.style.overflow = 'hidden';
@@ -389,17 +393,35 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
       .then((data) => {
         if (data.unlimited) { setUnlimited(true); return; }
         setRemainingSec(data.remainingSeconds);
+        remainingSecRef.current = data.remainingSeconds;
       })
       .catch(() => {});
 
-    // Heartbeat every 30s — server adds 30s usage, returns remaining
+    // Heartbeat every 30s:
+    // - When time remains: POST heartbeat (adds 30s usage, returns remaining)
+    // - When expired: GET daily-remaining (read-only, no usage added) so we
+    //   can detect when a parent grants time and auto-reconnect the terminal
     heartbeatRef.current = setInterval(() => {
-      claudeApi.heartbeat()
-        .then((data) => {
-          if (data.unlimited) { setUnlimited(true); return; }
-          setRemainingSec(data.remainingSeconds);
-        })
-        .catch(() => {});
+      if (remainingSecRef.current <= 0) {
+        claudeApi.getDailyRemaining()
+          .then((data) => {
+            if (data.unlimited) { setUnlimited(true); return; }
+            if (data.remainingSeconds > 0) {
+              setRemainingSec(data.remainingSeconds);
+              remainingSecRef.current = data.remainingSeconds;
+              setTerminalReloadKey((k) => k + 1); // reconnect the terminal
+            }
+          })
+          .catch(() => {});
+      } else {
+        claudeApi.heartbeat()
+          .then((data) => {
+            if (data.unlimited) { setUnlimited(true); return; }
+            setRemainingSec(data.remainingSeconds);
+            remainingSecRef.current = data.remainingSeconds;
+          })
+          .catch(() => {});
+      }
     }, 30000);
 
     return () => {
@@ -727,7 +749,7 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, background: '#1a1b26' }}>
             <span style={{ fontSize: 48 }}>&#x23F0;</span>
             <p style={{ fontSize: 18, color: '#e5e7eb', fontFamily: 'sans-serif' }}>Time's up!</p>
-            <p style={{ fontSize: 14, color: '#9ca3af', fontFamily: 'sans-serif' }}>Your session time limit has been reached.</p>
+            <p style={{ fontSize: 14, color: '#9ca3af', fontFamily: 'sans-serif', textAlign: 'center', maxWidth: 280 }}>Your session time limit has been reached. Ask a parent to give you more time — the terminal will reconnect automatically.</p>
             <button
               onClick={onClose}
               style={{ marginTop: 8, padding: '10px 28px', fontSize: 15, color: '#fff', background: '#6366f1', border: 'none', borderRadius: 8, cursor: 'pointer' }}

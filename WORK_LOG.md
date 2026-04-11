@@ -1,5 +1,11 @@
 # Work Log
 
+## Session Start: 2026-04-11 (evening)
+
+### 2026-04-11 — Fix SettingsUsersPage crash + grant-time heartbeat
+- `SettingsUsersPage` used `choresLabel`/`choresLabelLower` in JSX without calling `useFamilySettings()` → `ReferenceError` crashed the whole page. Added the hook call to the component body.
+- `KidWorkspace` heartbeat fired `POST /api/claude/heartbeat` every 30 seconds even while the kid was on the "Time's up" lock screen — this added 30 seconds of usage per tick, consuming any time a parent had just granted. Fixed: when `remainingSec <= 0`, the interval now calls `GET /api/claude/daily-remaining` (read-only) instead. When remaining becomes > 0 (parent granted time), it auto-increments `terminalReloadKey` to reconnect the terminal. Updated the "Time's up" screen copy to say the terminal will reconnect automatically.
+
 ## Session Start: 2026-04-10 (continued session)
 
 ### 2026-04-10 — Auto-detect stale kid containers after image rebuild
