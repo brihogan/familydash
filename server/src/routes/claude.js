@@ -87,7 +87,11 @@ function todayDate() {
 
 function getDailyUsedSeconds(userId) {
   const row = db.prepare('SELECT seconds_used FROM claude_daily_usage WHERE user_id = ? AND date = ?').get(userId, todayDate());
-  return row?.seconds_used || 0;
+  const user = db.prepare('SELECT claude_time_limit FROM users WHERE id = ?').get(userId);
+  const limitSec = (user?.claude_time_limit || 60) * 60;
+  // Clamp to the limit so over-accumulated rows (e.g. from a workspace left open
+  // overnight) never require more than one full grant to restore.
+  return Math.min(row?.seconds_used || 0, limitSec);
 }
 
 function getDailyRemainingSeconds(userId) {
@@ -98,10 +102,12 @@ function getDailyRemainingSeconds(userId) {
 }
 
 function addDailyUsage(userId, seconds) {
+  const user = db.prepare('SELECT claude_time_limit FROM users WHERE id = ?').get(userId);
+  const limitSec = (user?.claude_time_limit || 60) * 60;
   db.prepare(`
     INSERT INTO claude_daily_usage (user_id, date, seconds_used) VALUES (?, ?, ?)
-    ON CONFLICT(user_id, date) DO UPDATE SET seconds_used = seconds_used + ?
-  `).run(userId, todayDate(), seconds, seconds);
+    ON CONFLICT(user_id, date) DO UPDATE SET seconds_used = MIN(seconds_used + ?, ?)
+  `).run(userId, todayDate(), Math.min(seconds, limitSec), seconds, limitSec);
 }
 
 // POST /api/claude/heartbeat — workspace calls every 30s, tracks daily usage
