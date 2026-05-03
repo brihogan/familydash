@@ -9,7 +9,9 @@ RUN mkdir -p /home/coder/workspace /home/coder/.claude \
 
 USER coder
 
-# Install Claude Code under coder's own npm prefix so auto-update works
+# Install Claude Code under coder's own npm prefix.
+# /home/coder/.npm-global is intentionally NOT a persisted volume — image rebuild
+# is the only way Claude is upgraded for kids, so the binary always matches the image.
 RUN npm config set prefix /home/coder/.npm-global
 ENV PATH="/home/coder/.npm-global/bin:$PATH"
 RUN npm install -g @anthropic-ai/claude-code

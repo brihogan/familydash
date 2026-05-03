@@ -25,6 +25,12 @@ in `dockerService.js` compares the running container's image ID against the curr
 `familydash-claude-code:latest` digest and removes stale containers (workspace volumes are
 preserved, so no kid data is lost). No manual `docker rm` needed after the rebuild.
 
+`/home/coder/.npm-global` is **not** a persisted volume — the Claude binary always comes from
+the image. That means an image rebuild fully replaces the Claude install for everyone, and
+self-updates inside a session don't survive a container restart. This is intentional: it
+prevents drift between the image and what's actually running, and avoids the "broken binary
+in the npm volume" failure mode.
+
 ## Before every task
 
 Try to give me an estimate of time for how long it'll take you to perform the task. Remind me to touch grass, smell the roses, do some stretches, hang from the pull-up bar, go tidy/clean something, hug my wife, or other similar suggestions since you'll be busy for a few moments anyway.

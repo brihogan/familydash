@@ -110,7 +110,6 @@ export async function getOrCreateContainer(userId) {
       Binds: [
         `claude-auth-${userId}:/home/coder/.claude`,
         `claude-workspace-${userId}:/home/coder/workspace`,
-        `claude-npm-${userId}:/home/coder/.npm-global`,
       ],
     },
   });

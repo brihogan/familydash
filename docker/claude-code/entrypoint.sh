@@ -1,4 +1,9 @@
 #!/bin/bash
+# Self-heal Claude binary permissions in case anything wrote it back without +x
+if [ -f /home/coder/.npm-global/bin/claude ]; then
+  chmod +x /home/coder/.npm-global/bin/claude 2>/dev/null || true
+fi
+
 # Restore .claude.json from backup if missing (backup is persisted in the .claude volume)
 if [ ! -f /home/coder/.claude.json ] && [ -d /home/coder/.claude/backups ]; then
   BACKUP=$(ls -t /home/coder/.claude/backups/.claude.json.backup.* 2>/dev/null | head -1)

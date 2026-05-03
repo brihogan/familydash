@@ -1,5 +1,11 @@
 # Work Log
 
+## Session Start: 2026-05-03 (evening)
+
+### 2026-05-03 — Drop persisted npm-global volume so kid `claude` isn't shadowed by stale binary
+- Kid terminals failed with `Permission denied` on `/home/coder/.npm-global/bin/claude` and parent terminals hung at the v2.1.116 splash. Root cause for the kid: the per-user `claude-npm-${userId}` named volume preserved a broken Claude install across the auto-recreate-on-stale-image flow added in `ee7c3cc`, shadowing the freshly-built image binary.
+- Removed the `claude-npm-*` bind from `getOrCreateContainer` so `/home/coder/.npm-global` always comes from the image; added a self-heal `chmod +x` to `entrypoint.sh`; documented the non-persistence in `CLAUDE.md` and the `Dockerfile`. Parent hang requires diagnostic output from miniserver before treatment — see plan file.
+
 ## Session Start: 2026-04-11 (evening)
 
 ### 2026-04-11 — Fix SettingsUsersPage crash + grant-time heartbeat
