@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { badgesApi } from '../../api/badges.api.js';
 import { BADGE_LEVELS } from '../../constants/badgeLevels.js';
 import useScrollLock from '../../hooks/useScrollLock.js';
+import { useTheme } from '../../context/ThemeContext.jsx';
 import BadgeImageLightbox from './BadgeImageLightbox.jsx';
 
 function LevelPill({ level }) {
@@ -32,6 +33,7 @@ export default function BadgePreviewModal({ badge, userId, userLevel, canEnroll,
   const [lightbox,  setLightbox]  = useState(false);
 
   useScrollLock(true);
+  const { isDark } = useTheme();
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
@@ -82,7 +84,7 @@ export default function BadgePreviewModal({ badge, userId, userLevel, canEnroll,
           </button>
 
           {/* ── Header ── */}
-          <div className="p-5 sm:p-6 bg-gradient-to-b from-brand-50 to-white dark:from-brand-900/20 dark:to-gray-800 border-b border-gray-200 dark:border-gray-700">
+          <div className="p-5 sm:p-6 bg-gradient-to-b from-brand-50 to-white dark:from-brand-900/40 dark:via-gray-800 dark:to-gray-800 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-start gap-4">
               {badge.image_file ? (
                 <button
@@ -100,8 +102,12 @@ export default function BadgePreviewModal({ badge, userId, userLevel, canEnroll,
                 </button>
               ) : (
                 <span
-                  className="w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center text-6xl flex-shrink-0 rounded-full shadow-md ring-2 ring-amber-200 dark:ring-amber-700"
-                  style={{ background: 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)' }}
+                  className="w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center text-6xl flex-shrink-0 rounded-full shadow-md ring-2 ring-amber-200 dark:ring-amber-700/70"
+                  style={{
+                    background: isDark
+                      ? 'radial-gradient(circle at center, #4B4133 0%, #2A2520 100%)'
+                      : 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)',
+                  }}
                 >
                   {detail?.emoji || badge.emoji || '🏅'}
                 </span>

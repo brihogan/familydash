@@ -4,7 +4,10 @@ dist/
 *.db
 *.db-wal
 *.db-shm
-/data/
+/data/*
+!/data/uploads/
+/data/uploads/*
+!/data/uploads/badges/
 server/public/
 client/dev-dist/
 ios/App/App/public/

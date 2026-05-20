@@ -172,11 +172,13 @@ export default function KidTasksPage() {
       : 'border-gray-200/70 dark:border-gray-700/60';
 
     // For Curiosity badges, tint the card's top gradient with the kid's current
-    // badge level color so the level is felt at-a-glance.
+    // badge level color so the level is felt at-a-glance. Uses backgroundImage
+    // so the Tailwind bg-white / dark:bg-gray-800 base color shows through at
+    // the bottom (works in both light + dark mode).
     const kidLevelCfg = member?.badge_level && BADGE_LEVELS[member.badge_level];
     const useLevelTint = !!(ts.badge_id && kidLevelCfg);
     const cardStyle = useLevelTint
-      ? { background: `linear-gradient(to bottom, ${kidLevelCfg.color}33 0%, ${kidLevelCfg.color}10 35%, white 90%)` }
+      ? { backgroundImage: `linear-gradient(to bottom, ${kidLevelCfg.color}33 0%, ${kidLevelCfg.color}10 35%, transparent 70%)` }
       : undefined;
 
     return (
@@ -196,7 +198,7 @@ export default function KidTasksPage() {
           <div
             onClick={() => !isFlipped && navigate(`/tasks/${userId}/${ts.id}`)}
             style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', ...(cardStyle || {}) }}
-            className={`relative h-full flex flex-col items-center p-4 pt-12 ${useLevelTint ? '' : 'bg-gradient-to-b from-gray-50 to-white dark:from-gray-700/40 dark:to-gray-800'} border rounded-2xl shadow-md hover:shadow-lg cursor-pointer transition-all ${borderClass} hover:border-brand-300/70 dark:hover:border-brand-500/40`}
+            className={`relative h-full flex flex-col items-center p-4 pt-12 ${useLevelTint ? 'bg-white dark:bg-gray-800' : 'bg-gradient-to-b from-gray-50 to-white dark:from-gray-700/40 dark:to-gray-800'} border rounded-2xl shadow-md hover:shadow-lg cursor-pointer transition-all ${borderClass} hover:border-brand-300/70 dark:hover:border-brand-500/40`}
           >
             {/* Top-left: primary category/type pill (also clickable as filter) */}
             {(() => {
