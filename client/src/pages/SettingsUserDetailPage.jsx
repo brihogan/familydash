@@ -10,6 +10,7 @@ import Avatar from '../components/shared/Avatar.jsx';
 import EmojiPicker from '../components/shared/EmojiPicker.jsx';
 import useScrollLock from '../hooks/useScrollLock.js';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
+import { BADGE_LEVELS } from '../constants/badgeLevels.js';
 
 function Toggle({ checked, onChange }) {
   return (
@@ -33,7 +34,7 @@ export default function SettingsUserDetailPage() {
   const { userId } = useParams();
   const navigate = useNavigate();
   const { user: authUser, patchUser } = useAuth();
-  const { useBanking, useTickets, choresLabel, choreLabel, choresLabelLower, choreLabelLower } = useFamilySettings();
+  const { useBanking, useTickets, useBadges, choresLabel, choreLabel, choresLabelLower, choreLabelLower } = useFamilySettings();
 
   const [member,          setMember]          = useState(null);
   const [loading,         setLoading]         = useState(true);
@@ -500,6 +501,64 @@ export default function SettingsUserDetailPage() {
           </div>
           )}
       </div>}
+
+      {/* ── Badges ── */}
+      {useBadges && (
+      <div className="mb-6 space-y-3">
+        <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Badges</h2>
+
+        {/* Badge Level */}
+        <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-gray-900 dark:text-gray-100">Badge Level</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                Sets which level requirements {member.name} sees when picking a badge.
+              </p>
+            </div>
+            <select
+              value={member.badge_level ?? ''}
+              onChange={(e) => handleToggle('badge_level', e.target.value || null)}
+              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+            >
+              <option value="">Not set</option>
+              {Object.entries(BADGE_LEVELS).map(([key, lvl]) => (
+                <option key={key} value={key}>{lvl.label} · {lvl.ageRange}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Max Active Badges */}
+        <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-gray-900 dark:text-gray-100">Max Active Badges</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                How many badges {member.name} can be working on at once.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={member.max_active_badges ?? 3}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  if (!isNaN(v)) setMember((prev) => ({ ...prev, max_active_badges: v }));
+                }}
+                onBlur={(e) => {
+                  const v = Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 3));
+                  handleToggle('max_active_badges', v);
+                }}
+                className="w-16 px-2 py-1.5 text-sm text-center rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+      )}
 
       {/* ── Deactivate / Reactivate ── */}
       <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700 mb-6">

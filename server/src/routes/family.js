@@ -39,7 +39,7 @@ router.get('/', authenticate, (req, res, next) => {
     const members = db.prepare(`
       SELECT u.id, u.name, u.username, u.email, u.role, u.avatar_color, u.avatar_emoji, u.ticket_balance,
              u.is_active, u.sort_order, u.show_on_dashboard, u.show_balance_on_dashboard, u.require_task_approval,
-             u.require_set_approval, u.allow_transfers, u.allow_withdraws, u.require_currency_work, u.chores_enabled, u.allow_login, u.claude_enabled, u.claude_time_limit, u.claude_model, u.public_slug, u.created_at,
+             u.require_set_approval, u.allow_transfers, u.allow_withdraws, u.require_currency_work, u.chores_enabled, u.allow_login, u.claude_enabled, u.claude_time_limit, u.claude_model, u.public_slug, u.badge_level, u.max_active_badges, u.created_at,
              COALESCE(ct.daily_potential, 0) AS daily_ticket_potential
       FROM users u
       LEFT JOIN (
@@ -227,6 +227,8 @@ const UpdateUserSchema = z.object({
   claude_enabled: z.boolean().optional(),
   claude_time_limit: z.number().int().min(5).max(480).optional(),
   claude_model: z.enum(['sonnet', 'opus', 'haiku']).optional(),
+  badge_level: z.enum(['preschool', 'level1', 'level2', 'level3', 'level4', 'level5']).nullable().optional(),
+  max_active_badges: z.number().int().min(1).max(20).optional(),
 }).strict();
 
 router.put('/users/:id', authenticate, requireRole('parent'), async (req, res, next) => {
@@ -313,6 +315,12 @@ router.put('/users/:id', authenticate, requireRole('parent'), async (req, res, n
     if (body.claude_model !== undefined) {
       updates.push('claude_model = ?'); values.push(body.claude_model);
     }
+    if (body.badge_level !== undefined) {
+      updates.push('badge_level = ?'); values.push(body.badge_level ?? null);
+    }
+    if (body.max_active_badges !== undefined) {
+      updates.push('max_active_badges = ?'); values.push(body.max_active_badges);
+    }
 
     if (updates.length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
 
@@ -386,12 +394,13 @@ router.delete('/users/:id/permanent', authenticate, requireRole('parent'), (req,
 
 router.get('/settings', authenticate, (req, res, next) => {
   try {
-    const family = db.prepare('SELECT use_banking, use_sets, use_tickets, trmnl_webhook_url, chores_label FROM families WHERE id = ?').get(req.user.familyId);
+    const family = db.prepare('SELECT use_banking, use_sets, use_tickets, use_badges, trmnl_webhook_url, chores_label FROM families WHERE id = ?').get(req.user.familyId);
     if (!family) return res.status(404).json({ error: 'Family not found.' });
     const resp = {
       useBanking: family.use_banking === 1,
       useSets: family.use_sets === 1,
       useTickets: family.use_tickets === 1,
+      useBadges: family.use_badges === 1,
       choresLabel: family.chores_label || 'Chores',
     };
     if (req.user.role === 'parent') resp.trmnlWebhookUrl = family.trmnl_webhook_url || '';
@@ -406,7 +415,7 @@ router.get('/settings', authenticate, (req, res, next) => {
 
 router.patch('/settings', authenticate, requireRole('parent'), (req, res, next) => {
   try {
-    const { use_banking, use_sets, use_tickets, trmnl_webhook_url, chores_label } = req.body;
+    const { use_banking, use_sets, use_tickets, use_badges, trmnl_webhook_url, chores_label } = req.body;
     if (use_banking !== undefined) {
       db.prepare('UPDATE families SET use_banking = ? WHERE id = ?')
         .run(use_banking ? 1 : 0, req.user.familyId);
@@ -419,6 +428,10 @@ router.patch('/settings', authenticate, requireRole('parent'), (req, res, next) 
       db.prepare('UPDATE families SET use_tickets = ? WHERE id = ?')
         .run(use_tickets ? 1 : 0, req.user.familyId);
     }
+    if (use_badges !== undefined) {
+      db.prepare('UPDATE families SET use_badges = ? WHERE id = ?')
+        .run(use_badges ? 1 : 0, req.user.familyId);
+    }
     if (trmnl_webhook_url !== undefined) {
       db.prepare('UPDATE families SET trmnl_webhook_url = ? WHERE id = ?')
         .run(trmnl_webhook_url || null, req.user.familyId);
@@ -428,11 +441,12 @@ router.patch('/settings', authenticate, requireRole('parent'), (req, res, next) 
       db.prepare('UPDATE families SET chores_label = ? WHERE id = ?')
         .run(cleaned, req.user.familyId);
     }
-    const family = db.prepare('SELECT use_banking, use_sets, use_tickets, trmnl_webhook_url, chores_label FROM families WHERE id = ?').get(req.user.familyId);
+    const family = db.prepare('SELECT use_banking, use_sets, use_tickets, use_badges, trmnl_webhook_url, chores_label FROM families WHERE id = ?').get(req.user.familyId);
     res.json({
       useBanking: family.use_banking === 1,
       useSets: family.use_sets === 1,
       useTickets: family.use_tickets === 1,
+      useBadges: family.use_badges === 1,
       trmnlWebhookUrl: family.trmnl_webhook_url || '',
       choresLabel: family.chores_label || 'Chores',
     });

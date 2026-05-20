@@ -121,18 +121,20 @@ router.get('/', authenticate, (req, res, next) => {
     if (memberIds.length > 0) {
       const ph = memberIds.map(() => '?').join(',');
       const taskRows = db.prepare(`
-        SELECT user_id, id, name, emoji, type, step_count, completed_count FROM (
+        SELECT user_id, id, name, emoji, type, badge_image_file, step_count, completed_count FROM (
           SELECT
             ta.user_id,
             ts.id,
             ts.name,
             ts.emoji,
             ts.type,
+            b.image_file AS badge_image_file,
             (SELECT COALESCE(SUM(s.repeat_count), 0) FROM task_steps s WHERE s.task_set_id = ts.id AND s.is_active = 1) AS step_count,
             (SELECT COUNT(*) FROM task_step_completions c WHERE c.task_set_id = ts.id AND c.user_id = ta.user_id) AS completed_count,
             (SELECT MAX(completed_at) FROM task_step_completions c WHERE c.task_set_id = ts.id AND c.user_id = ta.user_id) AS earned_at
           FROM task_assignments ta
           JOIN task_sets ts ON ts.id = ta.task_set_id
+          LEFT JOIN badges b ON b.id = ts.badge_id
           WHERE ta.user_id IN (${ph}) AND ta.is_active = 1 AND ts.is_active = 1
         ) WHERE NOT (
           step_count > 0 AND completed_count = step_count
@@ -151,6 +153,7 @@ router.get('/', authenticate, (req, res, next) => {
             name:           row.name,
             emoji:          row.emoji,
             type:           row.type,
+            badgeImageFile: row.badge_image_file,
             stepCount:      row.step_count,
             completedCount: row.completed_count,
           });

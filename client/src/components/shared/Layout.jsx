@@ -61,7 +61,7 @@ function MoonIcon() {
 export default function Layout() {
   const { user, logout, patchUser } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const { useBanking, useSets, useTickets, choresLabel } = useFamilySettings();
+  const { useBanking, useSets, useTickets, useBadges, choresLabel } = useFamilySettings();
   const navigate = useNavigate();
   const location = useLocation();
   const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
@@ -269,6 +269,12 @@ export default function Layout() {
                   Sets &amp; Steps
                 </NavLink>
               )}
+              {useBadges && (
+                <NavLink to={`/badges/${defaultMemberId}`} className={() => kidPathClass('/badges')} onClick={close}>
+                  <FontAwesomeIcon icon={faShieldHalved} className="w-4 shrink-0" />
+                  Badges
+                </NavLink>
+              )}
               <NavLink to={`/trophies/${defaultMemberId}`} className={() => kidPathClass('/trophies')} onClick={close}>
                 <FontAwesomeIcon icon={faTrophy} className="w-4 shrink-0" />
                 Trophies
@@ -291,6 +297,12 @@ export default function Layout() {
             <NavLink to="/settings/tasks" className={navClass} onClick={close}>
               <FontAwesomeIcon icon={faClipboardCheck} className="w-4 shrink-0" />
               Set Management
+            </NavLink>
+          )}
+          {useBadges && (
+            <NavLink to="/settings/badges" className={navClass} onClick={close}>
+              <FontAwesomeIcon icon={faShieldHalved} className="w-4 shrink-0" />
+              Badge Library
             </NavLink>
           )}
           {useTickets && (
@@ -367,6 +379,12 @@ export default function Layout() {
                   {kidStats.ticketBalance}
                 </span>
               )}
+            </NavLink>
+          )}
+          {useBadges && (
+            <NavLink to={`/badges/${user.id}`} className={navClass} onClick={close}>
+              <FontAwesomeIcon icon={faShieldHalved} className="w-4 shrink-0" />
+              My Badges
             </NavLink>
           )}
           {useSets && (

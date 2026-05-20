@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -7,6 +7,9 @@ import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import Fireworks from '../components/shared/Fireworks.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
+import { badgesApi } from '../api/badges.api.js';
+import { BADGE_LEVELS } from '../constants/badgeLevels.js';
+import BadgeImageLightbox from '../components/badges/BadgeImageLightbox.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { playChoreCheck, playVictory } from '../utils/sounds.js';
 import useScrollLock from '../hooks/useScrollLock.js';
@@ -334,7 +337,16 @@ function AwardCompletionModal({ taskSet, userId, assignedAt, completedAt, pendin
             className="absolute rounded-full bg-gradient-to-br from-yellow-50 via-yellow-100 to-amber-200 dark:from-yellow-200 dark:via-amber-200 dark:to-amber-300 flex items-center justify-center leading-none overflow-hidden"
             style={{ inset: pad + 10, fontSize: 44 }}
           >
-            <IconDisplay value={taskSet.emoji} fallback="🏆" />
+            {taskSet.badge_image_file ? (
+              <img
+                src={`/api/uploads/badges/${taskSet.badge_image_file}`}
+                alt={taskSet.name}
+                className="w-full h-full object-cover"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            ) : (
+              <IconDisplay value={taskSet.emoji} fallback="🏆" />
+            )}
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
@@ -827,6 +839,16 @@ export default function UserTaskDetailPage() {
   const [pendingApproval,  setPendingApproval]  = useState(false);
   const completedAtRef = useRef(null);
 
+  // Badge optional pool (for swap chevron)
+  const [optionalPool,     setOptionalPool]     = useState(null);
+  const [poolOpen,         setPoolOpen]         = useState(false);
+  const [swapping,         setSwapping]         = useState(false);
+  const [swapError,        setSwapError]        = useState('');
+  const [imageLightbox,    setImageLightbox]    = useState(false);
+  const [descExpanded,     setDescExpanded]     = useState(false);
+  const [descOverflowing,  setDescOverflowing]  = useState(false);
+  const descRef = useRef(null);
+
   const fetchDetail = useCallback(async () => {
     setLoading(true);
     try {
@@ -844,6 +866,61 @@ export default function UserTaskDetailPage() {
   }, [userId, taskSetId]);
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
+
+  // Measure whether the description overflows when clamped to 2 lines.
+  useLayoutEffect(() => {
+    const el = descRef.current;
+    if (!el || descExpanded) return;
+    setDescOverflowing(el.scrollHeight - el.clientHeight > 1);
+  }, [taskSet?.description, descExpanded]);
+
+  // Load optional pool when needed (chevron or shortfall picker)
+  const loadOptionalPool = useCallback(async () => {
+    if (!taskSet?.badge_id) return;
+    try {
+      const data = await badgesApi.getBadgeOptionals(taskSet.badge_id);
+      setOptionalPool(data.optionals || []);
+    } catch {
+      setOptionalPool([]);
+    }
+  }, [taskSet?.badge_id]);
+
+  // Auto-load pool for badge task sets so the kid sees options upfront
+  useEffect(() => {
+    if (taskSet?.badge_id && !optionalPool) {
+      loadOptionalPool();
+    }
+  }, [taskSet?.badge_id, optionalPool, loadOptionalPool]);
+
+  const handleOpenPool = () => setPoolOpen((o) => !o);
+
+  const handleSwapOptional = async (removeStepId, addOptionalReqId) => {
+    setSwapping(true);
+    setSwapError('');
+    try {
+      const result = await badgesApi.swapOptional(userId, taskSetId, removeStepId, addOptionalReqId);
+      setSteps(result.steps);
+      setOptionalPool(null);
+    } catch (e) {
+      setSwapError(e?.response?.data?.error || 'Could not swap optional.');
+    } finally {
+      setSwapping(false);
+    }
+  };
+
+  const handleAddOptional = async (addOptionalReqId) => {
+    setSwapping(true);
+    setSwapError('');
+    try {
+      const result = await badgesApi.addOptional(userId, taskSetId, addOptionalReqId);
+      setSteps(result.steps);
+      setOptionalPool(null);
+    } catch (e) {
+      setSwapError(e?.response?.data?.error || 'Could not add optional.');
+    } finally {
+      setSwapping(false);
+    }
+  };
 
   const handleToggle = async (step, undo = false, inputResponse = null) => {
     if (toggling.has(step.id)) return;
@@ -950,8 +1027,27 @@ export default function UserTaskDetailPage() {
         todo.push({ ...step, _instance: nextInst, _displayName: name, _limitedToday: disabled });
       }
     }
-    return { todo, done, pending };
+    // For badge sets: split todo into required and optional
+    const isBadge      = !!taskSet?.badge_id;
+    const todoRequired = isBadge ? todo.filter((s) => !s.is_optional) : todo;
+    const todoOptional = isBadge ? todo.filter((s) =>  s.is_optional) : [];
+    return { todo, todoRequired, todoOptional, done, pending };
   })();
+
+  // For the swap chevron: which optional req IDs are already selected
+  const selectedOptReqIds = new Set(
+    steps.filter((s) => s.is_optional && s.is_active !== 0).map((s) => s.badge_opt_req_id)
+  );
+
+  // Unselected optionals from the pool (loaded lazily)
+  const unselectedOptionals = (optionalPool || []).filter((o) => !selectedOptReqIds.has(o.id));
+
+  // Badge optional-pick shortfall (how many more the kid needs to pick)
+  const badgeLevel        = taskSet?.badge_level;
+  const levelOptCount     = (taskSet?.level_opt_counts && badgeLevel) ? (taskSet.level_opt_counts[badgeLevel] ?? 0) : 0;
+  const selectedOptCount  = selectedOptReqIds.size;
+  const optionalsRemaining = Math.max(0, levelOptCount - selectedOptCount);
+  const needsPicks         = !!taskSet?.badge_id && optionalsRemaining > 0;
 
   const totalCount     = steps.reduce((sum, s) => sum + (s.repeat_count || 1), 0);
   const completedCount = steps.reduce((sum, s) => sum + (s.completed_count || 0), 0);
@@ -962,6 +1058,13 @@ export default function UserTaskDetailPage() {
   return (
     <div>
       {showFireworks && <Fireworks onDone={() => setShowFireworks(false)} />}
+      {imageLightbox && taskSet?.badge_image_file && (
+        <BadgeImageLightbox
+          imageFile={taskSet.badge_image_file}
+          alt={taskSet.name}
+          onClose={() => setImageLightbox(false)}
+        />
+      )}
       {showAwardModal && taskSet && (
         <AwardCompletionModal
           taskSet={taskSet}
@@ -985,53 +1088,139 @@ export default function UserTaskDetailPage() {
 
       {/* ── Header ── */}
       <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <button
-              onClick={() => navigate(-1)}
-              className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              aria-label="Go back"
-            >
-              <FontAwesomeIcon icon={faChevronLeft} />
-            </button>
-            <span className="text-2xl flex-shrink-0 text-gray-800 dark:text-gray-200">
-              <IconDisplay value={taskSet.emoji} fallback="📋" />
-            </span>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
+        <div className="flex items-start gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors mt-1"
+            aria-label="Go back"
+          >
+            <FontAwesomeIcon icon={faChevronLeft} />
+          </button>
+
+          {/* Large badge icon with circular progress ring */}
+          {(() => {
+            const size = 120;
+            const sw   = 5;
+            const r    = (size - sw * 2) / 2;
+            const circ = 2 * Math.PI * r;
+            return (
+              <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+                <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
+                  <circle
+                    cx={size / 2} cy={size / 2} r={r}
+                    fill="none" stroke="currentColor" strokeWidth={sw}
+                    className="text-gray-200 dark:text-gray-600"
+                  />
+                  {totalCount > 0 && (
+                    <circle
+                      cx={size / 2} cy={size / 2} r={r}
+                      fill="none" stroke="currentColor" strokeWidth={sw}
+                      strokeDasharray={circ}
+                      strokeDashoffset={circ - (pct / 100) * circ}
+                      strokeLinecap="round"
+                      className={allDone ? 'text-green-500' : 'text-brand-500'}
+                    />
+                  )}
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center p-3">
+                  {taskSet.badge_image_file ? (
+                    <button
+                      type="button"
+                      onClick={() => setImageLightbox(true)}
+                      className="w-full h-full rounded-full overflow-hidden shadow cursor-zoom-in hover:opacity-90 transition-opacity"
+                      aria-label="View badge full size"
+                    >
+                      <img
+                        src={`/api/uploads/badges/${taskSet.badge_image_file}`}
+                        alt={taskSet.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    </button>
+                  ) : taskSet.badge_id ? (
+                    <span
+                      className="w-full h-full flex items-center justify-center text-5xl rounded-full shadow"
+                      style={{ background: 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)' }}
+                    >
+                      <IconDisplay value={taskSet.emoji} fallback="🏅" />
+                    </span>
+                  ) : (
+                    <span className="w-full h-full flex items-center justify-center text-5xl text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-full">
+                      <IconDisplay value={taskSet.emoji} fallback="📋" />
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Title + description + pills below */}
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight">
               {taskSet.name}
             </h1>
-          </div>
-          <div className="flex items-center gap-1.5 flex-wrap justify-end">
-            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full">
-              {taskSet.type}
-            </span>
-            {taskSet.category && (
-              <span className="px-1.5 py-0.5 text-xs font-medium bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-100 border border-brand-200 dark:border-brand-500/30 rounded-full">
-                {taskSet.category}
-              </span>
+            {taskSet.description && (
+              <>
+                <p
+                  ref={descRef}
+                  className={`text-sm text-gray-500 dark:text-gray-400 mt-1 leading-snug ${
+                    descExpanded ? '' : 'line-clamp-2'
+                  }`}
+                >
+                  {taskSet.description}
+                </p>
+                {descOverflowing && (
+                  <button
+                    type="button"
+                    onClick={() => setDescExpanded((v) => !v)}
+                    className="mt-0.5 text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
+                  >
+                    {descExpanded ? 'Show less' : 'Show more…'}
+                  </button>
+                )}
+              </>
             )}
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full whitespace-nowrap">
+                {taskSet.type}
+              </span>
+              {taskSet.category && (
+                <span className="px-2 py-0.5 text-xs font-medium bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-100 border border-brand-200 dark:border-brand-500/30 rounded-full whitespace-nowrap">
+                  {taskSet.category}
+                </span>
+              )}
+              {Array.isArray(taskSet.tags) && taskSet.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 whitespace-nowrap"
+                >
+                  {tag}
+                </span>
+              ))}
+              {taskSet.badge_level && BADGE_LEVELS[taskSet.badge_level] && (() => {
+                const lvl = BADGE_LEVELS[taskSet.badge_level];
+                return (
+                  <span
+                    className="px-2 py-0.5 text-xs font-semibold rounded-full border whitespace-nowrap"
+                    style={{ backgroundColor: lvl.color, color: lvl.textColor, borderColor: lvl.borderColor }}
+                  >
+                    {lvl.label}
+                  </span>
+                );
+              })()}
+              {totalCount > 0 && (
+                <span className={`px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${
+                  allDone
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                }`}>
+                  {allDone ? '🎉 Done' : `${completedCount}/${totalCount}`}
+                </span>
+              )}
+            </div>
           </div>
         </div>
-        {taskSet.description && (
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 ml-9">{taskSet.description}</p>
-        )}
       </div>
-
-      {/* ── Progress bar ── */}
-      {totalCount > 0 && (
-        <div className="mb-5">
-          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-            <span>{allDone ? '🎉 All done!' : `${completedCount} of ${totalCount} completed`}</span>
-            <span>{pct}%</span>
-          </div>
-          <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-300 ${allDone ? 'bg-green-500' : 'bg-brand-500'}`}
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </div>
-      )}
 
       {/* ── Set-level pending approval banner ── */}
       {completionStatus === 'pending' && (
@@ -1104,18 +1293,125 @@ export default function UserTaskDetailPage() {
       ) : (
         /* ── List view (default) ── */
         <div className="space-y-6">
-          {/* ── Todo steps ── */}
-          {expanded.todo.length > 0 && (
-            <div className="space-y-2">
-              {expanded.todo.map((step) => (
-                <StepItem
-                  key={`${step.id}-${step._instance}`}
-                  step={step}
-                  onToggle={handleToggle}
-                  disabled={anyBusy}
-                />
-              ))}
-            </div>
+          {/* ── Todo steps (badge: split into required + optional) ── */}
+          {taskSet.badge_id ? (
+            <>
+              {/* Required steps */}
+              {expanded.todoRequired.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Required</h3>
+                  <div className="space-y-2">
+                    {expanded.todoRequired.map((step) => (
+                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Optional picks: show shortfall banner if below quota */}
+              {needsPicks && (
+                <div className="rounded-xl border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
+                  <p className="font-semibold text-amber-800 dark:text-amber-200 mb-1">
+                    🎯 Pick {optionalsRemaining} more optional task{optionalsRemaining === 1 ? '' : 's'}
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
+                    You need to choose {levelOptCount} optional task{levelOptCount === 1 ? '' : 's'} for your level
+                    {selectedOptCount > 0 ? ` (${selectedOptCount} already picked)` : ''}. Tap one below to add it to your list.
+                  </p>
+                  {swapError && <p className="text-xs text-red-600 dark:text-red-400 mb-2">{swapError}</p>}
+                  <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+                    {!optionalPool && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">Loading options…</p>
+                    )}
+                    {(optionalPool || []).filter((o) => !selectedOptReqIds.has(o.id)).map((opt) => (
+                      <button
+                        key={opt.id}
+                        disabled={swapping}
+                        onClick={() => handleAddOptional(opt.id)}
+                        className="w-full text-left flex gap-2.5 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 bg-white dark:bg-gray-800 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors disabled:opacity-50"
+                      >
+                        <span className="mt-0.5 text-amber-500 shrink-0">+</span>
+                        <span className="text-sm text-gray-700 dark:text-gray-200 leading-snug">{opt.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Selected optional steps */}
+              {(expanded.todoOptional.length > 0 || steps.some((s) => s.is_optional)) && (
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+                    Your Picks ({selectedOptCount}{levelOptCount > 0 ? ` of ${levelOptCount}` : ''} selected)
+                  </h3>
+                  <div className="space-y-2">
+                    {expanded.todoOptional.map((step) => (
+                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} />
+                    ))}
+                  </div>
+
+                  {/* Chevron toggle for unselected optional pool (swap mode) */}
+                  {!needsPicks && (
+                    <>
+                      <button
+                        onClick={handleOpenPool}
+                        className="mt-3 flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-brand-500 transition-colors"
+                      >
+                        <span>{poolOpen ? '▲' : '▼'}</span>
+                        {unselectedOptionals.length > 0
+                          ? `${poolOpen ? 'Hide' : 'See'} other options — change your picks`
+                          : 'No other options available'}
+                      </button>
+
+                      {poolOpen && (
+                        <div className="mt-2 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                          {swapError && (
+                            <p className="text-xs text-red-500 px-3 pt-2">{swapError}</p>
+                          )}
+                          {unselectedOptionals.map((opt) => (
+                            <div key={opt.id} className="flex items-start gap-3 p-3 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                              <span className="mt-0.5 text-gray-300 dark:text-gray-600 text-sm shrink-0">○</span>
+                              <p className="text-sm text-gray-600 dark:text-gray-300 flex-1 leading-snug">{opt.text}</p>
+                              {expanded.todoOptional.length > 0 && (
+                                <div className="shrink-0">
+                                  <select
+                                    disabled={swapping}
+                                    defaultValue=""
+                                    onChange={(e) => {
+                                      const removeId = parseInt(e.target.value, 10);
+                                      if (!isNaN(removeId)) handleSwapOptional(removeId, opt.id);
+                                      e.target.value = '';
+                                    }}
+                                    className="text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 disabled:opacity-50"
+                                  >
+                                    <option value="" disabled>Swap with…</option>
+                                    {expanded.todoOptional.map((s) => (
+                                      <option key={s.id} value={s.id}>{s._displayName.length > 40 ? s._displayName.slice(0, 40) + '…' : s._displayName}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          {optionalPool && unselectedOptionals.length === 0 && (
+                            <p className="text-xs text-gray-400 dark:text-gray-500 p-3">All options are already selected.</p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            /* Non-badge: regular todo list */
+            expanded.todo.length > 0 && (
+              <div className="space-y-2">
+                {expanded.todo.map((step) => (
+                  <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} />
+                ))}
+              </div>
+            )
           )}
 
           {allDone && completionStatus !== 'pending' && (

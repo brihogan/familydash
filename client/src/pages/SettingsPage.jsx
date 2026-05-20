@@ -57,6 +57,7 @@ export default function SettingsPage() {
   const {
     useBanking, updateUseBanking,
     useSets, updateUseSets,
+    useBadges, updateUseBadges,
     useTickets, updateUseTickets,
     choresLabel, updateChoresLabel,
   } = useFamilySettings();
@@ -130,6 +131,16 @@ export default function SettingsPage() {
             </p>
           </div>
           <Toggle checked={useSets} onChange={updateUseSets} />
+        </div>
+        <div className="flex items-start justify-between gap-6 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-gray-900 dark:text-gray-100">Use Badges</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+              Show the Curiosity Untamed badge library so kids and parents can browse, pick, and earn
+              level-based badges. Each person needs a Badge Level set in their profile.
+            </p>
+          </div>
+          <Toggle checked={useBadges} onChange={updateUseBadges} />
         </div>
       </div>
 

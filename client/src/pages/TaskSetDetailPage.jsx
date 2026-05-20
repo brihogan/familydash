@@ -369,7 +369,7 @@ export default function TaskSetDetailPage() {
       <div className="mb-6">
         <div className="flex items-start justify-between gap-3">
 
-          {/* Left: back + emoji + title */}
+          {/* Left: back + badge image (or emoji) + title */}
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => navigate(-1)}
@@ -378,25 +378,42 @@ export default function TaskSetDetailPage() {
             >
               <FontAwesomeIcon icon={faChevronLeft} />
             </button>
-            <span className="text-2xl flex-shrink-0 text-gray-800 dark:text-gray-200">
-              <IconDisplay value={taskSet.emoji} fallback="📋" />
-            </span>
+            {taskSet.badge_image_file ? (
+              <img
+                src={`/api/uploads/badges/${taskSet.badge_image_file}`}
+                alt={taskSet.name}
+                className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            ) : (
+              <span className="text-2xl flex-shrink-0 text-gray-800 dark:text-gray-200">
+                <IconDisplay value={taskSet.emoji} fallback="📋" />
+              </span>
+            )}
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">
               {taskSet.name}
             </h1>
           </div>
 
-          {/* Right: category pill + edit button */}
-          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+          {/* Right: category + tag pills + edit button */}
+          <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
             {taskSet.category && (
               <span className="px-1.5 py-0.5 text-xs font-medium bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-100 border border-brand-200 dark:border-brand-500/30 rounded-full">
                 {taskSet.category}
               </span>
             )}
+            {Array.isArray(taskSet.tags) && taskSet.tags.map((tag) => (
+              <span
+                key={tag}
+                className="px-1.5 py-0.5 text-xs font-medium rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 whitespace-nowrap"
+              >
+                {tag}
+              </span>
+            ))}
             {isParent && (
               <button
                 onClick={openEditSet}
-                className="text-xs px-2.5 py-1 rounded-md border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-brand-400 hover:text-brand-600 transition-colors"
+                className="text-xs px-2.5 py-1 rounded-md border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-brand-400 hover:text-brand-600 transition-colors ml-1"
               >
                 <FontAwesomeIcon icon={faPen} className="mr-1" />
                 Edit

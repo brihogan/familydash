@@ -87,14 +87,16 @@ router.get('/:id/overview', authenticate, requireOwnOrParent, (req, res, next) =
 
     // ── Active task sets for progress rings (same filter as dashboard) ─────────
     const taskSetRows = db.prepare(`
-      SELECT id, name, emoji, type, step_count, completed_count FROM (
+      SELECT id, name, emoji, type, badge_image_file, step_count, completed_count FROM (
         SELECT
           ts.id, ts.name, ts.emoji, ts.type,
+          b.image_file AS badge_image_file,
           (SELECT COALESCE(SUM(s.repeat_count), 0) FROM task_steps s WHERE s.task_set_id = ts.id AND s.is_active = 1) AS step_count,
           (SELECT COUNT(*) FROM task_step_completions c WHERE c.task_set_id = ts.id AND c.user_id = ta.user_id) AS completed_count,
           (SELECT MAX(completed_at) FROM task_step_completions c WHERE c.task_set_id = ts.id AND c.user_id = ta.user_id) AS earned_at
         FROM task_assignments ta
         JOIN task_sets ts ON ts.id = ta.task_set_id
+        LEFT JOIN badges b ON b.id = ts.badge_id
         WHERE ta.user_id = ? AND ta.is_active = 1 AND ts.is_active = 1
       ) WHERE NOT (
         step_count > 0 AND completed_count = step_count
@@ -134,12 +136,13 @@ router.get('/:id/overview', authenticate, requireOwnOrParent, (req, res, next) =
       potentialTicketsPerDay: potential.total,
       last7Days,
       taskSets: taskSetRows.map((r) => ({
-        id:             r.id,
-        name:           r.name,
-        emoji:          r.emoji,
-        type:           r.type,
-        stepCount:      r.step_count,
-        completedCount: r.completed_count,
+        id:              r.id,
+        name:            r.name,
+        emoji:           r.emoji,
+        type:            r.type,
+        badgeImageFile:  r.badge_image_file,
+        stepCount:       r.step_count,
+        completedCount:  r.completed_count,
       })),
       trophyCount:      trophyRows.length + (getKingOfCrowns(req.user.familyId).has(userId) ? 1 : 0),
       trophyCategories,

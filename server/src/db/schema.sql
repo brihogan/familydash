@@ -205,3 +205,37 @@ CREATE TABLE IF NOT EXISTS task_step_completions (
   UNIQUE(task_step_id, user_id, instance)
 );
 CREATE INDEX IF NOT EXISTS idx_task_step_completions_user ON task_step_completions(user_id, task_set_id);
+
+CREATE TABLE IF NOT EXISTS badges (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  name             TEXT    NOT NULL,
+  slug             TEXT    NOT NULL UNIQUE,
+  category         TEXT    NOT NULL DEFAULT '',
+  author           TEXT    NOT NULL DEFAULT '',
+  image_file       TEXT,
+  is_specific      INTEGER NOT NULL DEFAULT 0,
+  note             TEXT,
+  source_url       TEXT,
+  level_opt_counts TEXT    NOT NULL DEFAULT '{}',
+  is_active        INTEGER NOT NULL DEFAULT 1,
+  created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_badges_category ON badges(category);
+CREATE INDEX IF NOT EXISTS idx_badges_slug     ON badges(slug);
+
+CREATE TABLE IF NOT EXISTS badge_level_requirements (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  badge_id   INTEGER NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
+  level      TEXT    NOT NULL,
+  sort_order INTEGER NOT NULL,
+  text       TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_blr_badge ON badge_level_requirements(badge_id, level);
+
+CREATE TABLE IF NOT EXISTS badge_optional_requirements (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  badge_id   INTEGER NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
+  req_number INTEGER NOT NULL,
+  text       TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_bor_badge ON badge_optional_requirements(badge_id);

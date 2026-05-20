@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import KidProfilePicker from '../components/shared/KidProfilePicker.jsx';
@@ -6,6 +7,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import useOfflineTrophies from '../offline/hooks/useOfflineTrophies.js';
 import useOfflineFamily from '../offline/hooks/useOfflineFamily.js';
 import { formatDate } from '../utils/formatDate.js';
+import TrophyDetailModal from '../components/badges/TrophyDetailModal.jsx';
 
 const TYPE_OPTIONS = ['Project', 'Award'];
 
@@ -43,6 +45,8 @@ export default function KidTrophiesPage() {
     { top: '14%', left: '48%', delay: '0.3s', dur: '1.2s' },
   ];
 
+  const [openTrophyId, setOpenTrophyId] = useState(null);
+
   const renderBadgeCard = (ts) => {
     const earnedDate = ts.earned_at ? formatDate(ts.earned_at.slice(0, 10)) : null;
     const shimmerDelay    = `${((ts.id * 1_234_567) % 5000) / 1000}s`;
@@ -51,10 +55,16 @@ export default function KidTrophiesPage() {
       const d = new Date(ts.earned_at.replace(' ', 'T') + 'Z');
       return Date.now() - d.getTime() < 60 * 60 * 1000;
     })();
+    const isReal = ts.id > 0;
     return (
-      <div
+      <button
         key={ts.id}
-        className={`relative flex flex-col items-center p-2.5 bg-gradient-to-b from-amber-50 to-white dark:from-amber-900/20 dark:to-gray-800 border-2 rounded-xl shadow-sm ${
+        type="button"
+        disabled={!isReal}
+        onClick={isReal ? () => setOpenTrophyId(ts.id) : undefined}
+        className={`relative flex flex-col items-center p-2.5 bg-gradient-to-b from-amber-50 to-white dark:from-amber-900/20 dark:to-gray-800 border-2 rounded-xl shadow-sm text-left ${
+          isReal ? 'cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all' : 'cursor-default'
+        } ${
           isRecent ? 'border-amber-400 dark:border-amber-400/70' : 'border-amber-300 dark:border-amber-500/40'
         }`}
         style={isRecent ? { animation: 'trophy-glow 2s ease-in-out infinite' } : undefined}
@@ -73,8 +83,28 @@ export default function KidTrophiesPage() {
         >
           <div className="absolute -inset-1 rounded-full bg-amber-400 opacity-30 blur-md pointer-events-none" />
           <div className="absolute inset-0 rounded-full bg-gradient-to-br from-yellow-300 via-amber-400 to-orange-500 shadow-lg" />
-          <div className="absolute inset-[4px] rounded-full bg-gradient-to-br from-yellow-50 via-yellow-100 to-amber-200 dark:from-yellow-200 dark:via-amber-200 dark:to-amber-300 flex items-center justify-center text-xl leading-none overflow-hidden">
-            <IconDisplay value={ts.emoji} fallback="🏆" />
+          <div
+            className={`absolute inset-[4px] rounded-full flex items-center justify-center text-xl leading-none overflow-hidden ${
+              ts.badge_id
+                ? '' // badge: solid cream/beige radial via style prop OR image fills it
+                : 'bg-gradient-to-br from-yellow-50 via-yellow-100 to-amber-200 dark:from-yellow-200 dark:via-amber-200 dark:to-amber-300'
+            }`}
+            style={
+              ts.badge_id && !ts.badge_image_file
+                ? { background: 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)' }
+                : undefined
+            }
+          >
+            {ts.badge_image_file ? (
+              <img
+                src={`/api/uploads/badges/${ts.badge_image_file}`}
+                alt={ts.name}
+                className="w-full h-full object-cover"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            ) : (
+              <IconDisplay value={ts.emoji} fallback="🏆" />
+            )}
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
@@ -92,7 +122,7 @@ export default function KidTrophiesPage() {
             {earnedDate}
           </span>
         )}
-      </div>
+      </button>
     );
   };
 
@@ -284,6 +314,14 @@ export default function KidTrophiesPage() {
             renderGroups(grouped)
           ) : null}
         </div>
+      )}
+
+      {openTrophyId !== null && (
+        <TrophyDetailModal
+          userId={userId}
+          taskSetId={openTrophyId}
+          onClose={() => setOpenTrophyId(null)}
+        />
       )}
     </div>
   );

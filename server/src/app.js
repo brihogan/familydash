@@ -17,6 +17,7 @@ import activityRouter from './routes/activity.js';
 import overviewRouter from './routes/overview.js';
 import taskSetsRouter from './routes/taskSets.js';
 import userTasksRouter from './routes/userTasks.js';
+import badgesRouter from './routes/badges.js';
 import inboxRouter from './routes/inbox.js';
 import commonChoresRouter from './routes/commonChores.js';
 import adminRouter from './routes/admin.js';
@@ -120,6 +121,7 @@ app.use('/api/users', rewardsRouter);
 app.use('/api/users', activityRouter);
 app.use('/api/users', overviewRouter);
 app.use('/api/users', userTasksRouter);
+app.use('/api', badgesRouter);
 app.use('/api/inbox', inboxRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/family', turnsRouter);
@@ -136,10 +138,12 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Serve uploaded step images
+// Serve uploaded step images and badge images
 const dataDir = process.env.DATABASE_PATH ? dirname(process.env.DATABASE_PATH) : join(__dirname, '..', '..', 'data');
 const stepsUploadsDir = join(dataDir, 'uploads', 'steps');
 app.use('/api/uploads/steps', express.static(stepsUploadsDir));
+const badgeImagesDir = join(dataDir, 'uploads', 'badges');
+app.use('/api/uploads/badges', express.static(badgeImagesDir));
 
 // Serve compiled React build in production
 const publicDir = join(__dirname, '..', 'public');

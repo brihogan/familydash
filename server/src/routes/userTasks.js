@@ -10,6 +10,11 @@ import { localDateISO } from '../utils/dateHelpers.js';
 const router = Router();
 
 function parseRow(row) {
+  if (!row) return row;
+  if (typeof row.tags === 'string') {
+    try { row.tags = JSON.parse(row.tags); }
+    catch { row.tags = []; }
+  }
   return row;
 }
 
@@ -58,12 +63,14 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
 
     const rows = db.prepare(`
       SELECT ts.*, ta.completion_status,
+        b.image_file AS badge_image_file,
         (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)   AS step_count,
         (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ?)                AS completed_count,
         (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ? AND approval_status = 'pending') AS pending_step_count,
         (SELECT MAX(completed_at) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ?)       AS earned_at
       FROM task_sets ts
       JOIN task_assignments ta ON ta.task_set_id = ts.id
+      LEFT JOIN badges b ON b.id = ts.badge_id
       WHERE ta.user_id = ? AND ta.is_active = 1 AND ts.is_active = 1
       ORDER BY ts.name ASC
     `).all(userId, userId, userId, userId);
@@ -230,6 +237,15 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
 
     const taskSet = db.prepare('SELECT * FROM task_sets WHERE id = ? AND is_active = 1').get(taskSetId);
     if (!taskSet) return res.status(404).json({ error: 'Task set not found.' });
+
+    // For badge task sets, fetch level_opt_counts so the kid view can show shortfall
+    if (taskSet.badge_id) {
+      const badge = db.prepare('SELECT level_opt_counts, image_file FROM badges WHERE id = ?').get(taskSet.badge_id);
+      if (badge) {
+        try { taskSet.level_opt_counts = JSON.parse(badge.level_opt_counts || '{}'); } catch { taskSet.level_opt_counts = {}; }
+        taskSet.badge_image_file = badge.image_file || null;
+      }
+    }
 
     const todayDate = localDateISO();
     const steps = db.prepare(`

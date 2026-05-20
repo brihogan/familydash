@@ -1,10 +1,38 @@
 # Work Log
 
+## Session Start: 2026-05-20 (evening)
+
+### 2026-05-20 (continued) — Badge polish, AI content, data fixes, KidTasksPage redesign
+- AI-generated 751 badge descriptions via Haiku 4.5 (`server/scripts/generateBadgeDescriptions.js`, ~$0.55 total) and 155 fitting emojis for image-less badges (`generateBadgeEmojis.js`, ~$0.05). Stored in `badges.description` and `badges.emoji`.
+- Images: cropped all 596 badge images via ImageMagick trim+crop (`cropBadgeImages.js`) to strip drop shadows + colored level outlines, leaving just the inner content. Crop now runs automatically as part of `importBadges.js`.
+- Data fixes (`fixMisattributedBadges.js`): re-parsed badges.json to recover 270 starred requirements that the original scrape had misattributed only to level5 (now promoted to preschool so they apply at all levels) and recovered 1,555+ optionals from level5 unstarred items. Soft-disabled 22 truly-empty badges (Disney parks, etc.) via `is_active = 0`.
+- Migrations: v60 (use_badges family toggle), v61 (badges.description), v62 (badges.emoji). 9 canonical Areas of Discovery moved into task_set tags; category collapsed to "Curiosity" for badge sets.
+- KidTasksPage redesign: greeting header with avatar + completed-today count + ticket pill; colored-dot filter pills with black-selected state; cards now have a primary category pill top-left, tag icon top-right (flip to back for full tag list), thicker progress ring with lighter track, taller cards in 2→3→4→5-column responsive grid, subtle vertical gradient (level-tinted for badge sets), softer shadow + outline, green ✓ overlay + "★ Done" footer when complete.
+- Other UI: badge image fullscreen lightbox renders as circle; BadgePreviewModal flow (View → "I want to start" CTA) replaces forced-pick-on-enroll; existing enrolled badges allow re-enrollment after completion (in-progress check only); KidTasksPage filter shows derived pill options from visible sets and supports click-to-filter from any card pill; KidOverviewPage + DashboardRow + DashboardTable rings show the actual badge image.
+- Level color palette: Preschool=red, Level1=yellow, Level2=blue, Level3=green, Level4=grey, Level5=black.
+- Deploy: `server/scripts/seed-badges.sql` (3.8 MB) checked in to seed badge/req/opt tables on production with one command.
+
+### 2026-05-20 — CuriosityUntamed Badge Library (Phases 1–3)
+- Planned and implemented the full badge library feature: DB migrations v54–v59 (badges, badge_level_requirements, badge_optional_requirements tables; badge_level/max_active_badges on users; badge_id/badge_level on task_sets; is_optional/badge_opt_req_id on task_steps).
+- Import script (`server/scripts/importBadges.js`) loads 751 badges, 5,357 level requirements, 9,370 optional requirements, and copies 596 badge images to `data/uploads/badges/`. Categories normalized to 9 canonical Areas of Discovery; "Do Level X requirements…" prefixes stripped from cumulative level reqs.
+- New `server/src/routes/badges.js` with GET /api/badges (search + category filter + pagination), GET /api/badges/:id (full detail + optional pool), POST /api/users/:userId/badges/enroll (creates Award task_set + steps), PATCH optional-swap.
+- Client: `BadgeBrowserPage` (kid view with search, category pills, badge grid), `BadgeEnrollModal` (optional picker), `SettingsBadgesPage` (parent assigns to kids), `badges.api.js`, `badgeLevels.js` constants.
+- `SettingsUserDetailPage` gets Badges section: badge level dropdown (Preschool/Penguin → Level 5/Owl) and max active badges input.
+- `UserTaskDetailPage` updated for badge sets: required vs optional step split with section headers, chevron toggle reveals unselected optional pool for swapping, level color pill shown in header.
+
+## Session Start: 2026-05-05 (evening)
+
+### 2026-05-05 — Fix kid terminal stuck on "Connection lost. Reconnecting..." loop
+- Diagnosed: `activeConnections` counter in `wsService.js` was incremented before the daily-limit check. The `ws.on('close')` decrement handler isn't attached until later, so kids who hit the early `ws.close(4008, 'Daily time limit reached')` leaked +1 each connect attempt. After 3 leaks, every subsequent connect closed with `4029 Too many connections`, which the client *does* loop on (only `4008`/`1000` are special-cased to stop). Only a server restart cleared the leak.
+- Fix: moved the connection-cap check + increment to *after* the daily-limit early-return so the 4008/4001/4029 paths never increment. The 4500 catch path already handles decrement safely via `Math.max(0, ...)`.
+- Verified the dev server boots clean with the change (`[ws] WebSocket server ready` in logs, /api/health 200). Live verification of the leak fix needs a real kid login + `claude_time_limit=0` repro, which can't be driven from the dev sandbox.
+
 ## Session Start: 2026-05-03 (evening)
 
 ### 2026-05-03 — Drop persisted npm-global volume so kid `claude` isn't shadowed by stale binary
 - Kid terminals failed with `Permission denied` on `/home/coder/.npm-global/bin/claude` and parent terminals hung at the v2.1.116 splash. Root cause for the kid: the per-user `claude-npm-${userId}` named volume preserved a broken Claude install across the auto-recreate-on-stale-image flow added in `ee7c3cc`, shadowing the freshly-built image binary.
-- Removed the `claude-npm-*` bind from `getOrCreateContainer` so `/home/coder/.npm-global` always comes from the image; added a self-heal `chmod +x` to `entrypoint.sh`; documented the non-persistence in `CLAUDE.md` and the `Dockerfile`. Parent hang requires diagnostic output from miniserver before treatment — see plan file.
+- Removed the `claude-npm-*` bind from `getOrCreateContainer` so `/home/coder/.npm-global` always comes from the image; added a self-heal `chmod +x` to `entrypoint.sh`; documented the non-persistence in `CLAUDE.md` and the `Dockerfile`.
+- Deploy: image rebuild + `docker rm -f` of all `dash-*` containers + cleanup of orphaned `claude-npm-*` volumes. Both kid and parent terminals working after the recreate.
 
 ## Session Start: 2026-04-11 (evening)
 

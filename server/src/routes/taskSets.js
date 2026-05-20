@@ -51,6 +51,11 @@ const StepSchema = z.object({
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function parseRow(row) {
+  if (!row) return row;
+  if (typeof row.tags === 'string') {
+    try { row.tags = JSON.parse(row.tags); }
+    catch { row.tags = []; }
+  }
   return row;
 }
 
@@ -69,12 +74,14 @@ router.get('/task-sets', authenticate, (req, res, next) => {
   try {
     const rows = db.prepare(`
       SELECT ts.*,
+        b.image_file AS badge_image_file,
         (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)     AS step_count,
         (SELECT COUNT(*) FROM task_assignments ta
          JOIN users u ON u.id = ta.user_id
          WHERE ta.task_set_id = ts.id AND ta.is_active = 1
            AND (u.role = 'kid' OR u.chores_enabled = 1)) AS assignment_count
       FROM task_sets ts
+      LEFT JOIN badges b ON b.id = ts.badge_id
       WHERE ts.family_id = ? AND ts.is_active = 1
       ORDER BY ts.name ASC
     `).all(req.user.familyId);
@@ -87,7 +94,10 @@ router.get('/task-sets/:id', authenticate, (req, res, next) => {
   try {
     const id = parseInt(req.params.id, 10);
     const row = db.prepare(
-      'SELECT * FROM task_sets WHERE id = ? AND family_id = ? AND is_active = 1'
+      `SELECT ts.*, b.image_file AS badge_image_file
+       FROM task_sets ts
+       LEFT JOIN badges b ON b.id = ts.badge_id
+       WHERE ts.id = ? AND ts.family_id = ? AND ts.is_active = 1`
     ).get(id, req.user.familyId);
     if (!row) return res.status(404).json({ error: 'Task set not found.' });
 

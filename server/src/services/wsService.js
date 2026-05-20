@@ -60,15 +60,10 @@ export function setupTerminalWs(wss) {
       const isParent = entry.role === 'parent';
       console.log('[ws] Authenticated via ticket, kidId:', kidId, 'role:', entry.role);
 
-      // 3. Connection limit per kid
-      const current = activeConnections.get(kidId) || 0;
-      if (current >= MAX_WS_PER_KID) {
-        ws.close(4029, 'Too many connections');
-        return;
-      }
-      activeConnections.set(kidId, current + 1);
-
-      // 4. Check daily limit for kids before creating container
+      // 3. Check daily limit for kids before counting toward the connection cap.
+      // This runs before the cap because ws.on('close') isn't registered yet,
+      // so an early ws.close() here would leak the activeConnections counter
+      // and eventually wedge the kid into a permanent 4029 loop.
       if (!isParent) {
         const { getDailyRemainingSeconds } = await import('../routes/claude.js');
         const remainingSec = getDailyRemainingSeconds(kidId);
@@ -78,7 +73,15 @@ export function setupTerminalWs(wss) {
         }
       }
 
-      // 4. Create Docker exec session
+      // 4. Connection limit per kid
+      const current = activeConnections.get(kidId) || 0;
+      if (current >= MAX_WS_PER_KID) {
+        ws.close(4029, 'Too many connections');
+        return;
+      }
+      activeConnections.set(kidId, current + 1);
+
+      // 5. Create Docker exec session
       // Look up model preference (dynamic import to avoid circular dep)
       const db = (await import('../db/db.js')).default;
       const userRow = db.prepare('SELECT claude_model FROM users WHERE id = ?').get(kidId);

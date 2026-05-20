@@ -134,7 +134,16 @@ export default function DashboardRow({ member, onRefresh, readOnly = false, mask
                       title={ts.name}
                       onClick={statsClickable ? (e) => { e.stopPropagation(); navigate(`/tasks/${member.id}/${ts.id}`); } : undefined}
                     >
-                      <IconDisplay value={ts.emoji} fallback="📋" />
+                      {ts.badgeImageFile ? (
+                        <img
+                          src={`/api/uploads/badges/${ts.badgeImageFile}`}
+                          alt=""
+                          className="w-full h-full rounded-full object-cover"
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      ) : (
+                        <IconDisplay value={ts.emoji} fallback="📋" />
+                      )}
                     </ProgressRing>
                   );
                 })}

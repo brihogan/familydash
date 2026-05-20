@@ -29,6 +29,14 @@ export default function SettingsTasksPage() {
   const [saving,     setSaving]     = useState(false);
   const [formError,  setFormError]  = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Collapsed state per (type, category) key. Curiosity is collapsed by default.
+  const [collapsedGroups, setCollapsedGroups] = useState({});
+  const toggleGroup = (key) => setCollapsedGroups((prev) => ({ ...prev, [key]: !isCollapsed(prev, key) }));
+  function isCollapsed(state, key) {
+    if (key in state) return state[key];
+    // Default: collapse anything in the Curiosity category
+    return key.endsWith('::Curiosity');
+  }
   const triggerRef = useRef(null);
 
   // Assign modal state
@@ -272,11 +280,20 @@ export default function SettingsTasksPage() {
                 onClick={() => navigate(`/task/${ts.id}`)}
                 className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm cursor-pointer hover:border-brand-300 dark:hover:border-brand-500/50 transition-colors"
               >
-                <span className="w-8 text-center flex-shrink-0 text-xl leading-none text-gray-700 dark:text-gray-300">
-                  <IconDisplay value={ts.emoji} fallback="📋" />
-                </span>
+                {ts.badge_image_file ? (
+                  <img
+                    src={`/api/uploads/badges/${ts.badge_image_file}`}
+                    alt={ts.name}
+                    className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                ) : (
+                  <span className="w-8 text-center flex-shrink-0 text-xl leading-none text-gray-700 dark:text-gray-300">
+                    <IconDisplay value={ts.emoji} fallback="📋" />
+                  </span>
+                )}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{ts.name}</p>
                     {ts.step_count > 0 && (
                       <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
@@ -286,6 +303,14 @@ export default function SettingsTasksPage() {
                     {useTickets && ts.ticket_reward > 0 && (
                       <span className="text-xs font-medium text-amber-600 dark:text-amber-300 flex-shrink-0">🎟 {ts.ticket_reward}</span>
                     )}
+                    {Array.isArray(ts.tags) && ts.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 whitespace-nowrap"
+                      >
+                        {tag}
+                      </span>
+                    ))}
                   </div>
                   {ts.description && (
                     <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{ts.description}</p>
@@ -339,16 +364,30 @@ export default function SettingsTasksPage() {
                   <div className="space-y-2">{subGroups[0].items.map(renderRow)}</div>
                 ) : (
                   <div className="space-y-4">
-                    {subGroups.map(({ label: catLabel, items }) => (
-                      <div key={catLabel}>
-                        <div className="pb-1.5 pl-2 mb-2 border-l-2 border-gray-200 dark:border-gray-700">
-                          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            {catLabel}
-                          </span>
+                    {subGroups.map(({ label: catLabel, items }) => {
+                      const key       = `${label}::${catLabel}`;
+                      const collapsed = isCollapsed(collapsedGroups, key);
+                      return (
+                        <div key={catLabel}>
+                          <button
+                            type="button"
+                            onClick={() => toggleGroup(key)}
+                            className="flex items-center gap-1.5 pb-1.5 pl-2 mb-2 w-full text-left border-l-2 border-gray-200 dark:border-gray-700 hover:border-brand-400 transition-colors"
+                          >
+                            <span className="text-gray-400 dark:text-gray-500 text-[10px]">
+                              {collapsed ? '▶' : '▼'}
+                            </span>
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                              {catLabel}
+                            </span>
+                            <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                              {items.length}
+                            </span>
+                          </button>
+                          {!collapsed && <div className="space-y-2">{items.map(renderRow)}</div>}
                         </div>
-                        <div className="space-y-2">{items.map(renderRow)}</div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

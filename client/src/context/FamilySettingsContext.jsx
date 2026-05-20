@@ -22,6 +22,8 @@ const FamilySettingsContext = createContext({
   updateUseSets: () => {},
   useTickets: true,
   updateUseTickets: () => {},
+  useBadges: true,
+  updateUseBadges: () => {},
   ...deriveLabels(DEFAULT_LABEL),
   updateChoresLabel: () => {},
 });
@@ -31,6 +33,7 @@ export function FamilySettingsProvider({ children }) {
   const [useBanking, setUseBanking] = useState(true);
   const [useSets, setUseSets] = useState(true);
   const [useTickets, setUseTickets] = useState(true);
+  const [useBadges, setUseBadges] = useState(true);
   const [choresLabelRaw, setChoresLabelRaw] = useState(DEFAULT_LABEL);
 
   useEffect(() => {
@@ -40,6 +43,7 @@ export function FamilySettingsProvider({ children }) {
         setUseBanking(data.useBanking);
         setUseSets(data.useSets ?? true);
         setUseTickets(data.useTickets ?? true);
+        setUseBadges(data.useBadges ?? true);
         setChoresLabelRaw(data.choresLabel || DEFAULT_LABEL);
       })
       .catch(() => {}); // default true on error
@@ -72,6 +76,15 @@ export function FamilySettingsProvider({ children }) {
     }
   };
 
+  const updateUseBadges = async (val) => {
+    setUseBadges(val); // optimistic
+    try {
+      await familyApi.updateSettings({ use_badges: val });
+    } catch {
+      setUseBadges(!val); // revert on error
+    }
+  };
+
   const updateChoresLabel = async (val) => {
     const prev = choresLabelRaw;
     const next = (val || '').trim() || DEFAULT_LABEL;
@@ -90,6 +103,7 @@ export function FamilySettingsProvider({ children }) {
       useBanking, updateUseBanking,
       useSets, updateUseSets,
       useTickets, updateUseTickets,
+      useBadges, updateUseBadges,
       ...labels,
       updateChoresLabel,
     }}>

@@ -35,6 +35,8 @@ import SettingsTurnsPage from './pages/SettingsTurnsPage.jsx';
 import TurnDetailPage from './pages/TurnDetailPage.jsx';
 import ClaudeTerminalPage from './components/claude/ClaudeTerminal.jsx';
 import AppsPage from './pages/AppsPage.jsx';
+import BadgeBrowserPage from './pages/BadgeBrowserPage.jsx';
+import SettingsBadgesPage from './pages/SettingsBadgesPage.jsx';
 
 export default function App() {
   return (
@@ -59,6 +61,7 @@ export default function App() {
               <Route path="/tickets/:userId" element={<KidTicketsPage />} />
               <Route path="/tasks/:userId" element={<KidTasksPage />} />
               <Route path="/tasks/:userId/:taskSetId" element={<UserTaskDetailPage />} />
+              <Route path="/badges/:userId" element={<BadgeBrowserPage />} />
               <Route path="/trophies/:userId" element={<KidTrophiesPage />} />
               <Route path="/task/:id" element={<TaskSetDetailPage />} />
               <Route path="/rewards" element={<RewardsPage />} />
@@ -83,6 +86,7 @@ export default function App() {
                 <Route path="/settings/chores" element={<SettingsChoresPage />} />
                 <Route path="/settings/chores/:userId" element={<SettingsChoresPage />} />
                 <Route path="/settings/tasks" element={<SettingsTasksPage />} />
+                <Route path="/settings/badges" element={<SettingsBadgesPage />} />
                 <Route path="/settings/turns" element={<SettingsTurnsPage />} />
                 <Route path="/settings/turns/:id" element={<TurnDetailPage />} />
                 <Route path="/settings/rewards" element={<Navigate to="/rewards" replace />} />

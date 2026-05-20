@@ -417,4 +417,68 @@ export function runMigrations(db) {
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_inbox_notif_family_active ON inbox_notifications(family_id, dismissed_at)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_inbox_notif_subject ON inbox_notifications(subject_user_id)`);
+
+  // v54: CuriosityUntamed badge library — badge metadata imported from badges.json
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS badges (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      name             TEXT    NOT NULL,
+      slug             TEXT    NOT NULL UNIQUE,
+      category         TEXT    NOT NULL DEFAULT '',
+      author           TEXT    NOT NULL DEFAULT '',
+      image_file       TEXT,
+      is_specific      INTEGER NOT NULL DEFAULT 0,
+      note             TEXT,
+      source_url       TEXT,
+      level_opt_counts TEXT    NOT NULL DEFAULT '{}',
+      is_active        INTEGER NOT NULL DEFAULT 1,
+      created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_badges_category ON badges(category)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_badges_slug ON badges(slug)`);
+
+  // v55: badge required steps per level (pre-stripped, flattened during import)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS badge_level_requirements (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      badge_id   INTEGER NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
+      level      TEXT    NOT NULL,
+      sort_order INTEGER NOT NULL,
+      text       TEXT    NOT NULL
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_blr_badge ON badge_level_requirements(badge_id, level)`);
+
+  // v56: badge optional requirements — shared pool per badge, kid picks N of them
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS badge_optional_requirements (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      badge_id   INTEGER NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
+      req_number INTEGER NOT NULL,
+      text       TEXT    NOT NULL
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_bor_badge ON badge_optional_requirements(badge_id)`);
+
+  // v57: per-user badge settings
+  try { db.exec(`ALTER TABLE users ADD COLUMN badge_level TEXT DEFAULT NULL`); } catch (_) {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN max_active_badges INTEGER NOT NULL DEFAULT 3`); } catch (_) {}
+
+  // v58: link task_sets to their source badge (NULL for non-badge sets)
+  try { db.exec(`ALTER TABLE task_sets ADD COLUMN badge_id INTEGER REFERENCES badges(id) ON DELETE SET NULL`); } catch (_) {}
+  try { db.exec(`ALTER TABLE task_sets ADD COLUMN badge_level TEXT`); } catch (_) {}
+
+  // v59: mark optional steps and link them to their source optional requirement
+  try { db.exec(`ALTER TABLE task_steps ADD COLUMN is_optional INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
+  try { db.exec(`ALTER TABLE task_steps ADD COLUMN badge_opt_req_id INTEGER REFERENCES badge_optional_requirements(id) ON DELETE SET NULL`); } catch (_) {}
+
+  // v60: family-level "Use Badges" toggle — hides badge UI when disabled
+  try { db.exec(`ALTER TABLE families ADD COLUMN use_badges INTEGER NOT NULL DEFAULT 1`); } catch (_) {}
+
+  // v61: per-badge description (AI-generated, surfaced in browser/preview UI)
+  try { db.exec(`ALTER TABLE badges ADD COLUMN description TEXT`); } catch (_) {}
+
+  // v62: per-badge fallback emoji for image-less badges (AI-generated)
+  try { db.exec(`ALTER TABLE badges ADD COLUMN emoji TEXT`); } catch (_) {}
 }
