@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMedal, faTag, faXmark, faTicket, faStar, faCheck } from '@fortawesome/free-solid-svg-icons';
+import { faMedal, faTag, faXmark, faTicket, faStar, faCheck, faShieldHalved } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import KidProfilePicker from '../components/shared/KidProfilePicker.jsx';
+import Modal from '../components/shared/Modal.jsx';
+import BadgeBrowser from '../components/badges/BadgeBrowser.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
 import { familyApi } from '../api/family.api.js';
@@ -15,7 +17,7 @@ export default function KidTasksPage() {
   const { userId } = useParams();
   const navigate   = useNavigate();
   const { user }   = useAuth();
-  const { useTickets } = useFamilySettings();
+  const { useTickets, useBadges } = useFamilySettings();
   const isParent   = user?.role === 'parent';
 
   const [taskSets,     setTaskSets]   = useState([]);
@@ -25,6 +27,7 @@ export default function KidTasksPage() {
   const [loading,      setLoading]    = useState(true);
   const [error,        setError]      = useState('');
   const [activeFilter, setActiveFilter] = useState(null); // "type:Award" etc.
+  const [badgesOpen,   setBadgesOpen]   = useState(false);
   const [flippedIds,   setFlippedIds]   = useState(() => new Set());
   const flipCard = (id) => setFlippedIds((prev) => {
     const next = new Set(prev);
@@ -435,6 +438,30 @@ export default function KidTasksPage() {
           )}
         </div>
       </div>
+
+      {useBadges && (
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={() => setBadgesOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:border-brand-300 dark:hover:border-brand-500/50 hover:text-brand-600 dark:hover:text-brand-400 shadow-sm transition-colors"
+          >
+            <FontAwesomeIcon icon={faShieldHalved} className="text-brand-500" />
+            Browse Badges
+          </button>
+        </div>
+      )}
+
+      <Modal open={badgesOpen} onClose={() => setBadgesOpen(false)} title="Browse Badges" size="xl">
+        <BadgeBrowser
+          userId={parseInt(userId, 10)}
+          compact
+          onEnrolled={(taskSetId) => {
+            setBadgesOpen(false);
+            navigate(`/tasks/${userId}/${taskSetId}`);
+          }}
+        />
+      </Modal>
 
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-4 py-3 mb-4 text-sm">

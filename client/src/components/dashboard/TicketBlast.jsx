@@ -33,6 +33,8 @@ if (typeof document !== 'undefined' && !document.getElementById(styleId)) {
 
 function KidCard({ member, delta, onIncrement, onDecrement }) {
   const ticketRef = useRef(null);
+  const [pressedSide, setPressedSide] = useState(null); // 'left' | 'right' | null
+  const pressTimerRef = useRef(null);
 
   const animate = (name) => {
     const el = ticketRef.current;
@@ -43,27 +45,60 @@ function KidCard({ member, delta, onIncrement, onDecrement }) {
     el.style.animation = `${name} 250ms ease-out`;
   };
 
+  const triggerRocker = (side) => {
+    clearTimeout(pressTimerRef.current);
+    setPressedSide(side);
+    pressTimerRef.current = setTimeout(() => setPressedSide(null), 220);
+  };
+
   const handleClick = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     if (x >= rect.width / 2) {
       onIncrement();
       animate('ticket-pop');
+      triggerRocker('right');
     } else {
       onDecrement();
       animate('ticket-shrink');
+      triggerRocker('left');
     }
   };
+
+  // Rocker tilt around the vertical centerline. In CSS, positive rotateY sends
+  // the right side away (smaller), so we use a negative angle when the LEFT is
+  // pressed (so left recedes) and a positive angle for the right.
+  const rockerRotate =
+    pressedSide === 'left'  ? -18
+    : pressedSide === 'right' ? 18
+    : 0;
 
   return (
     <div
       onClick={handleClick}
-      className="relative flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 transition-all select-none cursor-pointer active:scale-95"
+      style={{
+        transform: `perspective(600px) rotateY(${rockerRotate}deg)`,
+        transformStyle: 'preserve-3d',
+        transition: 'transform 180ms ease-out',
+      }}
+      className="relative flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 select-none cursor-pointer"
     >
-      {/* Tap zone hints */}
+      {/* Tap zone hints — pressed side darkens to reinforce the rocker feel */}
       <div className="absolute inset-0 flex pointer-events-none">
-        <div className="flex-1 flex items-center justify-center rounded-l-[10px] text-red-300 dark:text-red-700 text-lg font-bold opacity-40">−</div>
-        <div className="flex-1 flex items-center justify-center rounded-r-[10px] text-green-300 dark:text-green-700 text-lg font-bold opacity-40">+</div>
+        <div
+          className={`flex-1 flex items-center justify-center rounded-l-[10px] text-red-300 dark:text-red-700 text-lg font-bold transition-all ${
+            pressedSide === 'left' ? 'opacity-90 bg-red-50 dark:bg-red-900/30' : 'opacity-40'
+          }`}
+        >
+          −
+        </div>
+        <div
+          className={`flex-1 flex items-center justify-center rounded-r-[10px] text-green-300 dark:text-green-700 text-lg font-bold transition-all ${
+            pressedSide === 'right' ? 'opacity-90 bg-green-50 dark:bg-green-900/30' : 'opacity-40'
+          }`}
+        >
+          +
+        </div>
       </div>
 
       <Avatar name={member.name} color={member.avatarColor} emoji={member.avatarEmoji} size="sm" />

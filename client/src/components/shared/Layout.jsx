@@ -269,12 +269,6 @@ export default function Layout() {
                   Sets &amp; Steps
                 </NavLink>
               )}
-              {useBadges && (
-                <NavLink to={`/badges/${defaultMemberId}`} className={() => kidPathClass('/badges')} onClick={close}>
-                  <FontAwesomeIcon icon={faShieldHalved} className="w-4 shrink-0" />
-                  Badges
-                </NavLink>
-              )}
               <NavLink to={`/trophies/${defaultMemberId}`} className={() => kidPathClass('/trophies')} onClick={close}>
                 <FontAwesomeIcon icon={faTrophy} className="w-4 shrink-0" />
                 Trophies

@@ -1,5 +1,16 @@
 # Work Log
 
+## Session Start: 2026-05-21 (evening)
+
+### 2026-05-21 — Move "Badges" out of Individual Pages into a Sets & Steps button
+- Removed the "Badges" NavLink from the parent sidebar's Individual Pages section in `Layout.jsx`.
+- Added a "Browse Badges" button (gated on `useBadges`) near the top of `KidTasksPage`.
+- Extracted `BadgeBrowserPage` content into a reusable `BadgeBrowser` component (`client/src/components/badges/BadgeBrowser.jsx`) with a `compact` prop for modal usage. Page route is now a thin wrapper.
+- `Modal` gained a `size` prop (`md`/`lg`/`xl`). The "Browse Badges" button opens BadgeBrowser inside an `xl` modal; enrolling closes the modal and navigates to the new task set.
+
+### 2026-05-21 — TicketBlast cards tilt like a rocker switch on press
+- `KidCard` in `TicketBlast.jsx` now applies a 3D `perspective(600px) rotateY(±18deg)` tilt for ~220ms on click: pressing "−" tilts the left side back/smaller (right side larger); pressing "+" does the inverse. The pressed half also gains a colored background tint to reinforce the rocker feel.
+
 ## Session Start: 2026-05-20 (evening)
 
 ### 2026-05-20 (continued) — Badge polish, AI content, data fixes, KidTasksPage redesign
