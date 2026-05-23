@@ -394,7 +394,7 @@ router.delete('/users/:id/permanent', authenticate, requireRole('parent'), (req,
 
 router.get('/settings', authenticate, (req, res, next) => {
   try {
-    const family = db.prepare('SELECT use_banking, use_sets, use_tickets, use_badges, trmnl_webhook_url, chores_label FROM families WHERE id = ?').get(req.user.familyId);
+    const family = db.prepare('SELECT use_banking, use_sets, use_tickets, use_badges, trmnl_webhook_url, chores_label, sets_steps_label FROM families WHERE id = ?').get(req.user.familyId);
     if (!family) return res.status(404).json({ error: 'Family not found.' });
     const resp = {
       useBanking: family.use_banking === 1,
@@ -402,6 +402,7 @@ router.get('/settings', authenticate, (req, res, next) => {
       useTickets: family.use_tickets === 1,
       useBadges: family.use_badges === 1,
       choresLabel: family.chores_label || 'Chores',
+      setsStepsLabel: family.sets_steps_label || 'Sets & Steps',
     };
     if (req.user.role === 'parent') resp.trmnlWebhookUrl = family.trmnl_webhook_url || '';
     res.json(resp);
@@ -415,7 +416,7 @@ router.get('/settings', authenticate, (req, res, next) => {
 
 router.patch('/settings', authenticate, requireRole('parent'), (req, res, next) => {
   try {
-    const { use_banking, use_sets, use_tickets, use_badges, trmnl_webhook_url, chores_label } = req.body;
+    const { use_banking, use_sets, use_tickets, use_badges, trmnl_webhook_url, chores_label, sets_steps_label } = req.body;
     if (use_banking !== undefined) {
       db.prepare('UPDATE families SET use_banking = ? WHERE id = ?')
         .run(use_banking ? 1 : 0, req.user.familyId);
@@ -441,7 +442,12 @@ router.patch('/settings', authenticate, requireRole('parent'), (req, res, next) 
       db.prepare('UPDATE families SET chores_label = ? WHERE id = ?')
         .run(cleaned, req.user.familyId);
     }
-    const family = db.prepare('SELECT use_banking, use_sets, use_tickets, use_badges, trmnl_webhook_url, chores_label FROM families WHERE id = ?').get(req.user.familyId);
+    if (sets_steps_label !== undefined) {
+      const cleaned = String(sets_steps_label).trim().slice(0, 40) || 'Sets & Steps';
+      db.prepare('UPDATE families SET sets_steps_label = ? WHERE id = ?')
+        .run(cleaned, req.user.familyId);
+    }
+    const family = db.prepare('SELECT use_banking, use_sets, use_tickets, use_badges, trmnl_webhook_url, chores_label, sets_steps_label FROM families WHERE id = ?').get(req.user.familyId);
     res.json({
       useBanking: family.use_banking === 1,
       useSets: family.use_sets === 1,
@@ -449,6 +455,7 @@ router.patch('/settings', authenticate, requireRole('parent'), (req, res, next) 
       useBadges: family.use_badges === 1,
       trmnlWebhookUrl: family.trmnl_webhook_url || '',
       choresLabel: family.chores_label || 'Chores',
+      setsStepsLabel: family.sets_steps_label || 'Sets & Steps',
     });
   } catch (err) {
     next(err);

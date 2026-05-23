@@ -16,7 +16,7 @@ const EMPTY_FORM = { name: '', type: 'Project', emoji: '', description: '', cate
 const INPUT_CLS = 'w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
 export default function SettingsTasksPage() {
-  const { useTickets, choresLabelLower } = useFamilySettings();
+  const { useTickets, choresLabelLower, setsStepsLabel } = useFamilySettings();
   const navigate = useNavigate();
   const [taskSets,   setTaskSets]   = useState([]);
   const [loading,    setLoading]    = useState(true);
@@ -244,7 +244,7 @@ export default function SettingsTasksPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             <FontAwesomeIcon icon={faClipboardCheck} className="mr-2 text-brand-500" />
-            Sets &amp; Steps
+            {setsStepsLabel}
           </h1>
           <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
             Create and manage task sets for kids.

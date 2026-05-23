@@ -481,4 +481,7 @@ export function runMigrations(db) {
 
   // v62: per-badge fallback emoji for image-less badges (AI-generated)
   try { db.exec(`ALTER TABLE badges ADD COLUMN emoji TEXT`); } catch (_) {}
+
+  // v63: sets_steps_label — per-family display label for "Sets & Steps"
+  try { db.exec(`ALTER TABLE families ADD COLUMN sets_steps_label TEXT NOT NULL DEFAULT 'Sets & Steps'`); } catch (_) {}
 }

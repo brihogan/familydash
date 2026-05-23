@@ -42,9 +42,10 @@ if [ -n "$EXISTING_PID" ]; then
   fi
 fi
 
-# Find a free port starting from 5174, skipping occupied ones
+# Find a free port starting from 6010, skipping occupied ones
+# (Chrome blocks 6000 as an unsafe port — it's the X11 default)
 find_free_port() {
-  local port=${1:-5174}
+  local port=${1:-6010}
   local max=$((port + 100))
   while [ "$port" -lt "$max" ]; do
     if ! lsof -iTCP:"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
@@ -56,7 +57,7 @@ find_free_port() {
   echo "0"  # fallback: let Vite pick
 }
 
-PORT=$(find_free_port 5174)
+PORT=$(find_free_port 6010)
 echo "Starting FamilyDash client on port $PORT (API proxy → localhost:$VITE_API_PORT)"
 cd "$PROJECT_DIR"
 exec npx vite --host --port "$PORT"

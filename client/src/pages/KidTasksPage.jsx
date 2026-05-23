@@ -433,11 +433,14 @@ export default function KidTasksPage() {
               {ticketBalance}
             </span>
           )}
-          {isParent && kids.length > 1 && (
-            <KidProfilePicker kids={kids} currentId={userId} routePrefix="/tasks" className="flex items-center gap-1.5" />
-          )}
         </div>
       </div>
+
+      {isParent && kids.length > 1 && (
+        <div className="mb-5">
+          <KidProfilePicker kids={kids} currentId={userId} routePrefix="/tasks" className="flex items-center gap-2 p-1 overflow-x-auto scrollbar-hide min-w-0" />
+        </div>
+      )}
 
       {useBadges && (
         <div className="mb-4">

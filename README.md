@@ -115,7 +115,7 @@ cp .env.example .env         # optional in dev — random secrets are generated 
 npm install                  # installs concurrently
 npm run install:all          # installs server + client deps
 npm run dev                  # starts both server and client
-# Open http://localhost:5174  (proxies /api → :3001)
+# Open http://localhost:6010  (proxies /api → :4000)
 ```
 
 In dev mode, JWT secrets are auto-generated per run if not set (with a console warning). Sessions won't survive a server restart, but that's fine for development.

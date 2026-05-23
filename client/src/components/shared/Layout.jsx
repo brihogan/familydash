@@ -61,7 +61,7 @@ function MoonIcon() {
 export default function Layout() {
   const { user, logout, patchUser } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const { useBanking, useSets, useTickets, useBadges, choresLabel } = useFamilySettings();
+  const { useBanking, useSets, useTickets, useBadges, choresLabel, setsStepsLabel } = useFamilySettings();
   const navigate = useNavigate();
   const location = useLocation();
   const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
@@ -266,7 +266,7 @@ export default function Layout() {
               {useSets && (
                 <NavLink to={`/tasks/${defaultMemberId}`} className={() => kidPathClass('/tasks')} onClick={close}>
                   <FontAwesomeIcon icon={faMedal} className="w-4 shrink-0" />
-                  Sets &amp; Steps
+                  {setsStepsLabel}
                 </NavLink>
               )}
               <NavLink to={`/trophies/${defaultMemberId}`} className={() => kidPathClass('/trophies')} onClick={close}>

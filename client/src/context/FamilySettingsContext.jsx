@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext.jsx';
 import { familyApi } from '../api/family.api.js';
 
 const DEFAULT_LABEL = 'Chores';
+const DEFAULT_SETS_STEPS_LABEL = 'Sets & Steps';
 
 function deriveLabels(plural) {
   const cleaned = (plural || DEFAULT_LABEL).trim() || DEFAULT_LABEL;
@@ -26,6 +27,8 @@ const FamilySettingsContext = createContext({
   updateUseBadges: () => {},
   ...deriveLabels(DEFAULT_LABEL),
   updateChoresLabel: () => {},
+  setsStepsLabel: DEFAULT_SETS_STEPS_LABEL,
+  updateSetsStepsLabel: () => {},
 });
 
 export function FamilySettingsProvider({ children }) {
@@ -35,6 +38,7 @@ export function FamilySettingsProvider({ children }) {
   const [useTickets, setUseTickets] = useState(true);
   const [useBadges, setUseBadges] = useState(true);
   const [choresLabelRaw, setChoresLabelRaw] = useState(DEFAULT_LABEL);
+  const [setsStepsLabelRaw, setSetsStepsLabelRaw] = useState(DEFAULT_SETS_STEPS_LABEL);
 
   useEffect(() => {
     if (!user) return;
@@ -45,6 +49,7 @@ export function FamilySettingsProvider({ children }) {
         setUseTickets(data.useTickets ?? true);
         setUseBadges(data.useBadges ?? true);
         setChoresLabelRaw(data.choresLabel || DEFAULT_LABEL);
+        setSetsStepsLabelRaw(data.setsStepsLabel || DEFAULT_SETS_STEPS_LABEL);
       })
       .catch(() => {}); // default true on error
   }, [user?.familyId]);
@@ -96,6 +101,17 @@ export function FamilySettingsProvider({ children }) {
     }
   };
 
+  const updateSetsStepsLabel = async (val) => {
+    const prev = setsStepsLabelRaw;
+    const next = (val || '').trim() || DEFAULT_SETS_STEPS_LABEL;
+    setSetsStepsLabelRaw(next); // optimistic
+    try {
+      await familyApi.updateSettings({ sets_steps_label: next });
+    } catch {
+      setSetsStepsLabelRaw(prev); // revert on error
+    }
+  };
+
   const labels = deriveLabels(choresLabelRaw);
 
   return (
@@ -106,6 +122,8 @@ export function FamilySettingsProvider({ children }) {
       useBadges, updateUseBadges,
       ...labels,
       updateChoresLabel,
+      setsStepsLabel: setsStepsLabelRaw,
+      updateSetsStepsLabel,
     }}>
       {children}
     </FamilySettingsContext.Provider>

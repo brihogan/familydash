@@ -24,9 +24,9 @@ if [ -n "$EXISTING_PID" ]; then
   fi
 fi
 
-# Find a free port starting from 3001, skipping occupied ones
+# Find a free port starting from 4000, skipping occupied ones
 find_free_port() {
-  local port=${1:-3001}
+  local port=${1:-4000}
   local max=$((port + 100))
   while [ "$port" -lt "$max" ]; do
     if ! lsof -iTCP:"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
@@ -38,7 +38,7 @@ find_free_port() {
   echo "0"
 }
 
-PORT=$(find_free_port 3001)
+PORT=$(find_free_port 4000)
 echo "Starting FamilyDash server on port $PORT"
 
 # Write port file so the client script can find us

@@ -60,6 +60,7 @@ export default function SettingsPage() {
     useBadges, updateUseBadges,
     useTickets, updateUseTickets,
     choresLabel, updateChoresLabel,
+    setsStepsLabel, updateSetsStepsLabel,
   } = useFamilySettings();
   const [trmnlUrl, setTrmnlUrl] = useState('');
   const [trmnlSaved, setTrmnlSaved] = useState(false);
@@ -70,6 +71,14 @@ export default function SettingsPage() {
     await updateChoresLabel(labelDraft);
     setLabelSaved(true);
     setTimeout(() => setLabelSaved(false), 2000);
+  };
+  const [setsStepsDraft, setSetsStepsDraft] = useState(setsStepsLabel);
+  const [setsStepsSaved, setSetsStepsSaved] = useState(false);
+  useEffect(() => { setSetsStepsDraft(setsStepsLabel); }, [setsStepsLabel]);
+  const saveSetsStepsLabel = async () => {
+    await updateSetsStepsLabel(setsStepsDraft);
+    setSetsStepsSaved(true);
+    setTimeout(() => setSetsStepsSaved(false), 2000);
   };
   const SETTINGS_CARDS = buildSettingsCards(choresLabel);
 
@@ -170,6 +179,31 @@ export default function SettingsPage() {
             </button>
           </div>
         </div>
+        {useSets && (
+          <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+            <p className="font-medium text-gray-900 dark:text-gray-100 mb-1">"{setsStepsLabel}" label</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+              What do you call the Sets &amp; Steps page? Try "Projects", "Awards", "Goals" — it'll show in the kid nav and the settings page.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={setsStepsDraft}
+                onChange={(e) => setSetsStepsDraft(e.target.value)}
+                placeholder="Sets & Steps"
+                maxLength={40}
+                className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-400"
+              />
+              <button
+                onClick={saveSetsStepsLabel}
+                disabled={!setsStepsDraft.trim() || setsStepsDraft.trim() === setsStepsLabel}
+                className="px-4 py-1.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm rounded-lg font-medium transition-colors shrink-0"
+              >
+                {setsStepsSaved ? 'Saved!' : 'Save'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Integrations ── */}
