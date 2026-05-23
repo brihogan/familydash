@@ -25,11 +25,22 @@ export default function ProgressRing({ pct, done = false, size = 32, light = fal
       title={title}
       onClick={onClick}
     >
-      <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
-        {/* Background fill circle — avoids CSS border-radius anti-aliasing artifacts */}
-        {bgColor && (
+      {/* Background fill circle (behind the children) — separate SVG so the
+          children/image sit on top of the bg but still below the ring strokes. */}
+      {bgColor && (
+        <svg width={size} height={size} className="absolute inset-0 pointer-events-none">
           <circle cx={size / 2} cy={size / 2} r={size / 2} fill={bgColor} />
-        )}
+        </svg>
+      )}
+      {/* Centre icon — inset so badge images sit inside the ring stroke */}
+      <div
+        className="absolute flex items-center justify-center leading-none pointer-events-none overflow-hidden rounded-full"
+        style={{ fontSize: Math.round(size * 0.32), inset: Math.max(3, Math.round(size * 0.12)) }}
+      >
+        {children}
+      </div>
+      {/* Ring strokes (on top of children so the progress arc is always visible) */}
+      <svg width={size} height={size} className="absolute inset-0 z-10 pointer-events-none" style={{ transform: 'rotate(-90deg)' }}>
         {/* Track */}
         <circle
           cx={size / 2} cy={size / 2} r={r}
@@ -52,13 +63,6 @@ export default function ProgressRing({ pct, done = false, size = 32, light = fal
           />
         )}
       </svg>
-      {/* Centre icon */}
-      <div
-        className="absolute inset-0 flex items-center justify-center leading-none pointer-events-none"
-        style={{ fontSize: Math.round(size * 0.32) }}
-      >
-        {children}
-      </div>
     </div>
   );
 }

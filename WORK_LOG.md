@@ -2,6 +2,9 @@
 
 ## Session Start: 2026-05-23 (evening)
 
+### 2026-05-23 — Badge images no longer cover ProgressRing progress arc
+- On the dashboard + `/kid/:id` overview, CuriosityUntamed badge images sat at the full ring diameter and rendered on top of the SVG, hiding the progress stroke. Inset the children container ~12% so images sit inside the stroke, then split ProgressRing's SVG in two: the `bgColor` fill stays behind the children (so images aren't covered), and the track/progress strokes render on top with `z-10`.
+
 ### 2026-05-23 — Move KidTasksPage profile picker below the title
 - On `/tasks/:userId` the parent's KidProfilePicker was inline with the ticket counter in the header row. Moved it to its own row beneath the header, matching the layout used by KidChoresPage/KidBankPage. Ticket pill stays top-right.
 
