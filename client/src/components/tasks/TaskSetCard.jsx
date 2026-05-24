@@ -126,7 +126,14 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
           };
           const [topText, bottomText] = splitTitle();
           const topPathD    = `M ${cx - textR},${cy} A ${textR},${textR} 0 0 1 ${cx + textR},${cy}`;
-          const bottomPathD = `M ${cx - textR},${cy} A ${textR},${textR} 0 0 0 ${cx + textR},${cy}`;
+          // Bottom arc: with side="right" the textPath is traversed in
+          // reverse and letters end up on the opposite side of the path,
+          // which for an SVG-y-down bottom arc places them inward (toward
+          // the cream's bottom edge). Bumped to a slightly larger radius
+          // than the top so the letter band lands ~2px above the cream
+          // bottom edge, mirroring the top arc's position.
+          const bottomR = textR + 4;
+          const bottomPathD = `M ${cx - bottomR},${cy} A ${bottomR},${bottomR} 0 0 0 ${cx + bottomR},${cy}`;
           const topPathId    = `task-arc-top-${ts.id}`;
           const bottomPathId = `task-arc-bot-${ts.id}`;
           const textStyle = { fontSize: 7, fontWeight: 700, letterSpacing: '0.2px', textTransform: 'uppercase' };
@@ -143,8 +150,9 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
               </text>
               {bottomText && (
                 <text fill="#374151" style={textStyle}>
-                  {/* side="right" flips letters to the inside of the arc so
-                      they stay right-side-up at the bottom of the medallion
+                  {/* side="right" flips text to the opposite side of the
+                      arc AND reverses path direction, so letters stay
+                      readable left-to-right at the bottom of the medallion
                       (SVG 2; Chrome 91+, Firefox 79+, Safari 16.4+). */}
                   <textPath href={`#${bottomPathId}`} startOffset="50%" textAnchor="middle" side="right">
                     {bottomText}
