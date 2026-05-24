@@ -382,19 +382,19 @@ export default function KidTasksPage() {
       ) : (
         // One grid for folders + other cards so they auto-align to the same row height.
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5 auto-rows-fr">
-          {badgeSets.length > 0 && renderGroupCard({
-            key: 'badges',
-            label: 'Badges',
-            icon: faFolder,
-            sets: badgeSets,
-            color: '#A855F7', // purple-500
-          })}
           {awardSets.length > 0 && renderGroupCard({
             key: 'awards',
             label: 'Awards',
             icon: faFolder,
             sets: awardSets,
             color: '#F97316', // orange-500
+          })}
+          {badgeSets.length > 0 && renderGroupCard({
+            key: 'badges',
+            label: 'Badges',
+            icon: faFolder,
+            sets: badgeSets,
+            color: '#A855F7', // purple-500
           })}
           {sortedSets.map(renderCard)}
         </div>
