@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS task_sets (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   family_id     INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
   name          TEXT    NOT NULL,
-  type          TEXT    NOT NULL DEFAULT 'Project' CHECK (type IN ('Award', 'Project', 'Countdown')),
+  type          TEXT    NOT NULL DEFAULT 'Project' CHECK (type IN ('One-Off', 'Project', 'Countdown')),
   emoji         TEXT,
   description   TEXT    NOT NULL DEFAULT '',
   tags          TEXT    NOT NULL DEFAULT '[]',

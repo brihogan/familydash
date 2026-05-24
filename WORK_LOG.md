@@ -2,6 +2,11 @@
 
 ## Session Start: 2026-05-24 (morning)
 
+### 2026-05-24 — Awards data polish + rename task_set type Award→One-Off
+- Fixed three mismatched badge names in award configs: `Pocketknife Safety` → `Pocket Knife Safety`, `Faithfulness` → `Faith/Faithfulness` (Fruit of the Spirit), and `Biographies` (non-existent badge) → an activity row in STEAM.
+- Added explicit "Complete all [prior level] requirements." activity at the top of each level (1–5) in the Outdoors Award, mirroring how CU lists per-level requirements.
+- Migration v66 renames the `task_sets.type` value `'Award'` → `'One-Off'` (table rebuild, same pattern as v28 for the CHECK constraint). Updated all server + client references. CU-award enrollments now use `category='Curiosity'` and `tags=['Award']` (matching the badge convention) so the settings/tasks filter has a single "Award" tag chip instead of duplicates from type + tag.
+
 ### 2026-05-24 — CuriosityUntamed Awards (Phases 1–4)
 - **Phase 1 – Scrape + DB**: Migration v64 adds `is_award`, `award_type`, `award_config` to badges; v65 adds `award_state` to task_sets. New `server/scripts/importAwards.js` upserts all 15 CU awards (Discovery, Wow, Liberty, Fruit of the Spirit, Servant's Heart, Make a Difference, Leadership, Outdoors, STEAM, Life Skills, Elizabeth Vicory, Gem, Career Exploration, Cassi Jensen, Major) with images downloaded from the source pages. Each award has an `award_type` (specific_badges / area_coverage / count_at_level / composite / task_list / manual) and a per-type config blob.
 - **Phase 2 – Browser UI**: `GET /api/badges` gains a `type` param (badge default / award / all) and a `names` param for bulk lookup. `BadgeBrowser` gets a 3-way pill toggle, hides the Area filter when viewing Awards, and renders an "AWARD" tag on award cards. `BadgePreviewModal` swaps to award-flavored copy ("🏆 Start tracking this award!" + a "How to earn it" summary per award_type).

@@ -138,7 +138,7 @@ router.get('/', authenticate, (req, res, next) => {
           WHERE ta.user_id IN (${ph}) AND ta.is_active = 1 AND ts.is_active = 1
         ) WHERE NOT (
           step_count > 0 AND completed_count = step_count
-          AND type = 'Award'
+          AND type = 'One-Off'
           AND date(earned_at, 'localtime') < ?
         )
         ORDER BY user_id, CASE type WHEN 'Project' THEN 0 ELSE 1 END, name
@@ -167,7 +167,7 @@ router.get('/', authenticate, (req, res, next) => {
         FROM task_assignments ta
         JOIN task_sets ts ON ts.id = ta.task_set_id
         WHERE ta.user_id IN (${ph})
-          AND ts.type = 'Award'
+          AND ts.type = 'One-Off'
           AND ts.is_active = 1
           AND ta.is_active = 1
           AND COALESCE(ta.completion_status, 'approved') != 'pending'

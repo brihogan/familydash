@@ -96,7 +96,7 @@ export default function Layout() {
           (ts) => !(ts.step_count > 0 && ts.completed_count === ts.step_count)
         ).length,
         completedTaskSetsCount: taskData.taskSets.filter(
-          (ts) => ts.type === 'Award' && ts.step_count > 0 && ts.completed_count === ts.step_count
+          (ts) => ts.type === 'One-Off' && ts.step_count > 0 && ts.completed_count === ts.step_count
             && ts.completion_status !== 'pending' && !(ts.pending_step_count > 0)
         ).length + (taskData.hasKingOfCrowns ? 1 : 0),
         pendingDepositCount:    (pdData.pending_deposits || []).length,

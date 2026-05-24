@@ -76,7 +76,7 @@ function buildDashboardPayload(familyId) {
       FROM task_assignments ta
       JOIN task_sets ts ON ts.id = ta.task_set_id
       WHERE ta.user_id IN (${ph})
-        AND ts.type = 'Award'
+        AND ts.type = 'One-Off'
         AND ts.is_active = 1
         AND ta.is_active = 1
         AND COALESCE(ta.completion_status, 'approved') != 'pending'

@@ -14,7 +14,7 @@ import { taskSetsApi } from '../api/taskSets.api.js';
 import { familyApi } from '../api/family.api.js';
 import { relativeTime } from '../utils/relativeTime.js';
 
-const TYPE_OPTIONS = ['Project', 'Award'];
+const TYPE_OPTIONS = ['Project', 'One-Off'];
 const INPUT_CLS = 'w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
 const EMPTY_SET_FORM  = { name: '', type: 'Project', emoji: '', description: '', category: '', ticket_reward: 0, display_mode: 'list' };

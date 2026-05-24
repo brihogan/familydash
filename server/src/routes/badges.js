@@ -243,17 +243,17 @@ router.post('/users/:userId/badges/enroll', authenticate, (req, res, next) => {
     // Create task_set + steps + assignment in a transaction
     const enroll = db.transaction(() => {
       // Curiosity badges: category = "Curiosity"; tags = ["Badge", <Area of Discovery>]
-      // CuriosityUntamed Awards: category = "Award"; no auto-tags (the "Award"
-      //   type pill + dedicated award detail UI carry the meaning already).
+      // CuriosityUntamed Awards: category = "Curiosity"; tags = ["Award"]
+      //   so the settings/tasks tag filter has a single "Award" chip (the
+      //   task_set type is "One-Off" for both — same as user-created one-offs).
       const isAward  = badge.is_award === 1;
       const tagsJson = isAward
-        ? JSON.stringify([])
+        ? JSON.stringify(['Award'])
         : JSON.stringify(['Badge', badge.category].filter(Boolean));
-      const tsCategory = isAward ? 'Award' : 'Curiosity';
       const setResult = db.prepare(`
         INSERT INTO task_sets (family_id, name, type, emoji, description, category, tags, ticket_reward, display_mode, notify_mode, badge_id, badge_level)
-        VALUES (?, ?, 'Award', ?, ?, ?, ?, 0, 'list', 'off', ?, ?)
-      `).run(targetUser.family_id, badge.name, badge.emoji || null, badge.description || '', tsCategory, tagsJson, badge.id, userLevel);
+        VALUES (?, ?, 'One-Off', ?, ?, 'Curiosity', ?, 0, 'list', 'off', ?, ?)
+      `).run(targetUser.family_id, badge.name, badge.emoji || null, badge.description || '', tagsJson, badge.id, userLevel);
 
       const taskSetId = setResult.lastInsertRowid;
 

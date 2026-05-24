@@ -9,7 +9,7 @@ import useOfflineFamily from '../offline/hooks/useOfflineFamily.js';
 import { formatDate } from '../utils/formatDate.js';
 import TrophyDetailModal from '../components/badges/TrophyDetailModal.jsx';
 
-const TYPE_OPTIONS = ['Project', 'Award'];
+const TYPE_OPTIONS = ['Project', 'One-Off'];
 
 // Preserves pre-sorted order (no alpha sort within groups)
 function makeGroups(taskSets) {

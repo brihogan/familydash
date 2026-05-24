@@ -9,7 +9,7 @@ import { taskSetsApi } from '../api/taskSets.api.js';
 import { familyApi } from '../api/family.api.js';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 
-const TYPE_OPTIONS = ['Project', 'Award'];
+const TYPE_OPTIONS = ['Project', 'One-Off'];
 
 const EMPTY_FORM = { name: '', type: 'Project', emoji: '', description: '', category: '', ticket_reward: 0, display_mode: 'list', notify_mode: 'off' };
 

@@ -500,4 +500,56 @@ export function runMigrations(db) {
   //   (e.g. which assigned badge satisfies each area in Discovery Award when
   //   multiple are enrolled). JSON blob, schema varies by award_type.
   try { db.exec(`ALTER TABLE task_sets ADD COLUMN award_state TEXT`); } catch (_) {}
+
+  // v66: rename the 'Award' type to 'One-Off' so "Award" is free as a tag/category
+  //   for CuriosityUntamed awards. Existing user-created Award-type task sets
+  //   were always one-offs (single-shot, no daily reset); the new name is
+  //   clearer for the parent-facing settings UI.
+  //   SQLite doesn't support ALTER for CHECK constraints, so we rebuild the
+  //   table (same pattern as v28). Also migrates badge/award enrollments that
+  //   used category='Award' / tags=[] to the new convention.
+  const taskSetsSqlV66 = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='task_sets'").get()?.sql || '';
+  if (!taskSetsSqlV66.includes("'One-Off'")) {
+    db.pragma('foreign_keys = OFF');
+    db.exec(`
+      CREATE TABLE task_sets_v66 (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        family_id     INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+        name          TEXT    NOT NULL,
+        type          TEXT    NOT NULL DEFAULT 'Project' CHECK (type IN ('One-Off', 'Project', 'Countdown')),
+        emoji         TEXT,
+        description   TEXT    NOT NULL DEFAULT '',
+        tags          TEXT    NOT NULL DEFAULT '[]',
+        category      TEXT    NOT NULL DEFAULT '',
+        ticket_reward INTEGER NOT NULL DEFAULT 0 CHECK (ticket_reward >= 0),
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+        display_mode  TEXT    NOT NULL DEFAULT 'list',
+        notify_mode   TEXT    NOT NULL DEFAULT 'off',
+        badge_id      INTEGER REFERENCES badges(id) ON DELETE SET NULL,
+        badge_level   TEXT,
+        award_state   TEXT
+      );
+      INSERT INTO task_sets_v66
+        SELECT id, family_id, name,
+               CASE WHEN type = 'Award' THEN 'One-Off' ELSE type END,
+               emoji, description, tags, category, ticket_reward,
+               is_active, created_at, display_mode, notify_mode, badge_id,
+               badge_level, award_state
+        FROM task_sets;
+      DROP TABLE task_sets;
+      ALTER TABLE task_sets_v66 RENAME TO task_sets;
+      CREATE INDEX IF NOT EXISTS idx_task_sets_family ON task_sets(family_id);
+    `);
+    db.pragma('foreign_keys = ON');
+
+    // Backfill: any task_sets that were enrolled CU awards (category='Award',
+    // empty tags) now follow the badge convention: category='Curiosity',
+    // tags=['Award']. This matches the new enrollment path in routes/badges.js.
+    db.exec(`
+      UPDATE task_sets
+      SET category = 'Curiosity', tags = '["Award"]'
+      WHERE category = 'Award' AND tags IN ('[]', '');
+    `);
+  }
 }

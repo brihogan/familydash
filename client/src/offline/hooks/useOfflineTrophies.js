@@ -27,7 +27,7 @@ export default function useOfflineTrophies(userId) {
 
   // Filter to completed awards (trophy-worthy)
   const trophies = taskSets
-    .filter((ts) => ts.type === 'Award' && ts.step_count > 0 && ts.completed_count === ts.step_count
+    .filter((ts) => ts.type === 'One-Off' && ts.step_count > 0 && ts.completed_count === ts.step_count
       && ts.completion_status !== 'pending' && !(ts.pending_step_count > 0))
     .sort((a, b) => {
       if (!a.earned_at && !b.earned_at) return 0;

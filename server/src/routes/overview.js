@@ -100,7 +100,7 @@ router.get('/:id/overview', authenticate, requireOwnOrParent, (req, res, next) =
         WHERE ta.user_id = ? AND ta.is_active = 1 AND ts.is_active = 1
       ) WHERE NOT (
         step_count > 0 AND completed_count = step_count
-        AND type = 'Award'
+        AND type = 'One-Off'
         AND date(earned_at, 'localtime') < ?
       )
       ORDER BY CASE type WHEN 'Project' THEN 0 ELSE 1 END, name
@@ -111,7 +111,7 @@ router.get('/:id/overview', authenticate, requireOwnOrParent, (req, res, next) =
       SELECT ts.category
       FROM task_assignments ta
       JOIN task_sets ts ON ts.id = ta.task_set_id
-      WHERE ta.user_id = ? AND ts.type = 'Award' AND ts.is_active = 1 AND ta.is_active = 1
+      WHERE ta.user_id = ? AND ts.type = 'One-Off' AND ts.is_active = 1 AND ta.is_active = 1
         AND COALESCE(ta.completion_status, 'approved') != 'pending'
         AND (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1) > 0
         AND (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ta.user_id)

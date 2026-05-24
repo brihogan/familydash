@@ -968,7 +968,7 @@ export default function UserTaskDetailPage() {
           setPendingApproval(isPending);
           setShowFireworks(true);
           playVictory();
-          if (taskSet?.type === 'Award')   setShowAwardModal(true);
+          if (taskSet?.type === 'One-Off')   setShowAwardModal(true);
           if (taskSet?.type === 'Project' || taskSet?.type === 'Countdown') setShowProjectModal(true);
         }
       }

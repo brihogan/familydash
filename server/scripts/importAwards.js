@@ -87,7 +87,7 @@ const AWARDS = [
     description: 'Earn all nine character badges from the Quest Club code of conduct: Love, Joy, Peace, Patience, Kindness, Faithfulness, Gentleness, Goodness, and Self Control. Can be re-earned at each level.',
     award_type: 'specific_badges',
     award_config: {
-      badge_names: ['Love', 'Joy', 'Peace', 'Patience', 'Kindness', 'Faithfulness', 'Gentleness', 'Goodness', 'Self Control'],
+      badge_names: ['Love', 'Joy', 'Peace', 'Patience', 'Kindness', 'Faith/Faithfulness', 'Gentleness', 'Goodness', 'Self Control'],
     },
   },
   {
@@ -150,12 +150,14 @@ const AWARDS = [
           { type: 'activity', text: 'Go on a nature walk and notice 5 things you have not noticed before.' },
         ],
         level1: [
-          { type: 'badge', name: 'Pocketknife Safety' },
+          { type: 'activity', text: 'Complete all Preschool requirements.' },
+          { type: 'badge', name: 'Pocket Knife Safety' },
           { type: 'activity', text: 'Identify 3 cloud formations and what weather they predict.' },
           { type: 'activity', text: 'Take a 1-mile hike.' },
           { type: 'activity', text: 'Learn what to do if you get lost in the woods and how to use a whistle to signal for help.' },
         ],
         level2: [
+          { type: 'activity', text: 'Complete all Level 1 requirements.' },
           { type: 'badge', name: 'Fire Building' },
           { type: 'badge', name: 'Outdoor Cooking' },
           { type: 'activity', text: 'Tie 5 useful knots and describe what each is used for.' },
@@ -165,6 +167,7 @@ const AWARDS = [
           { type: 'activity', text: 'Waterproof a pair of shoes or boots.' },
         ],
         level3: [
+          { type: 'activity', text: 'Complete all Level 2 requirements.' },
           { type: 'activity', text: 'Start a fire without matches.' },
           { type: 'activity', text: 'Sharpen a knife.' },
           { type: 'activity', text: 'Prepare a backpack meal.' },
@@ -176,10 +179,12 @@ const AWARDS = [
           { type: 'activity', text: 'Learn and demonstrate 3 emergency signaling methods.' },
         ],
         level4: [
+          { type: 'activity', text: 'Complete all Level 3 requirements.' },
           { type: 'activity', text: 'Sanitize water using 2 different methods.' },
           { type: 'activity', text: 'Describe step-by-step what to do for an injured hiker until help arrives.' },
         ],
         level5: [
+          { type: 'activity', text: 'Complete all Level 4 requirements.' },
           { type: 'activity', text: 'Teach at least 6 outdoor skills to others (e.g. first aid, knot-tying, fire building, navigation).' },
         ],
       },
@@ -202,7 +207,7 @@ const AWARDS = [
           { type: 'activity', text: 'Earn 2 Man Made Wonders badges.' },
           { type: 'activity', text: 'Earn 1 outdoor science badge.' },
           { type: 'activity', text: 'Earn 2 Art-area badges.' },
-          { type: 'badge', name: 'Biographies' },
+          { type: 'activity', text: 'Earn a Biography-type badge about a scientist, engineer, mathematician, or artist.' },
           { type: 'activity', text: 'Create a list of types of engineers and what they do.' },
           { type: 'activity', text: 'Create a list of types of scientists and what they do.' },
           { type: 'activity', text: 'Design a piece of technology that uses art to make it appealing.' },

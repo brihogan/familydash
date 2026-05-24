@@ -30,7 +30,7 @@ const router = Router();
 
 const TaskSetSchema = z.object({
   name:          z.string().min(1).max(200),
-  type:          z.enum(['Award', 'Project']),
+  type:          z.enum(['One-Off', 'Project']),
   emoji:         z.string().max(10).nullable().optional(),
   description:   z.string().max(1000).default(''),
   category:      z.string().max(100).default('').transform((s) => s.trim()),
