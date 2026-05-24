@@ -14,6 +14,7 @@
 import { mkdirSync, existsSync, writeFileSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { spawnSync, execSync } from 'child_process';
 import Database from 'better-sqlite3';
 import { runMigrations } from '../src/db/migrations.js';
 
@@ -488,6 +489,38 @@ async function downloadImage(url, destPath) {
   return true;
 }
 
+// Source images from CU often have a lot of whitespace padding which makes the
+// award icon look tiny in our circular thumbnails. Auto-trim it and pad back
+// to a square so the whole icon fits inside the circle crop without losing
+// edges. Requires ImageMagick (`magick` on PATH); skipped silently if missing
+// or the file is already small.
+let magickAvailable = null;
+function hasMagick() {
+  if (magickAvailable !== null) return magickAvailable;
+  try { execSync('which magick', { stdio: 'ignore' }); magickAvailable = true; }
+  catch { magickAvailable = false; }
+  return magickAvailable;
+}
+function trimAndSquare(path) {
+  if (!hasMagick()) return;
+  try {
+    const dims = execSync(`magick identify -format "%w %h" "${path}"`, { encoding: 'utf8' }).trim().split(/\s+/);
+    const w = parseInt(dims[0], 10);
+    const h = parseInt(dims[1], 10);
+    if (Math.min(w, h) <= 200) return; // small images don't have noticeable padding
+    const bg = path.toLowerCase().endsWith('.png') ? 'none' : 'white';
+    spawnSync('magick', [path, '-fuzz', '8%', '-trim', '+repage', '-background', bg, '-gravity', 'center',
+      '-extent', `${Math.max(w, h)}x${Math.max(w, h)}`, // initial extent picks a square based on bigger dim
+      path]);
+    // Re-run extent based on the trimmed dims so the square wraps the actual content.
+    const trimmedDims = execSync(`magick identify -format "%w %h" "${path}"`, { encoding: 'utf8' }).trim().split(/\s+/);
+    const tw = parseInt(trimmedDims[0], 10);
+    const th = parseInt(trimmedDims[1], 10);
+    const side = Math.max(tw, th);
+    spawnSync('magick', [path, '-background', bg, '-gravity', 'center', '-extent', `${side}x${side}`, path]);
+  } catch (_) { /* best-effort */ }
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 console.log(`Importing ${AWARDS.length} awards…`);
@@ -529,8 +562,11 @@ for (const a of AWARDS) {
     const destPath = join(IMAGES_DEST, imageFile);
     try {
       const downloaded = await downloadImage(a.image_url, destPath);
-      if (downloaded) { imgDownloaded++; console.log(`  ↓ ${imageFile}`); }
-      else { imgSkipped++; }
+      if (downloaded) {
+        trimAndSquare(destPath);
+        imgDownloaded++;
+        console.log(`  ↓ ${imageFile}`);
+      } else { imgSkipped++; }
     } catch (err) {
       console.warn(`  ! Image fetch failed for ${a.slug}: ${err.message}`);
       imageFile = null;
