@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faShieldHalved, faTrophy, faCheck } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faShieldHalved, faTrophy } from '@fortawesome/free-solid-svg-icons';
 import { taskSetsApi } from '../api/taskSets.api.js';
 import { familyApi } from '../api/family.api.js';
+import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import Modal from '../components/shared/Modal.jsx';
 import BadgeBrowser from '../components/badges/BadgeBrowser.jsx';
-import ProgressRing from '../components/dashboard/ProgressRing.jsx';
-import { BADGE_LEVELS } from '../constants/badgeLevels.js';
+import TaskSetCard from '../components/tasks/TaskSetCard.jsx';
 
 const AREAS = [
   'Discover Agriculture',
@@ -47,6 +47,7 @@ const STATUS_OPTIONS = [
 export default function KidGroupPage() {
   const { userId, groupKey } = useParams();
   const navigate = useNavigate();
+  const { useTickets } = useFamilySettings();
 
   const [taskSets, setTaskSets] = useState([]);
   const [member,   setMember]   = useState(null);
@@ -55,6 +56,12 @@ export default function KidGroupPage() {
   const [status,   setStatus]   = useState('all');
   const [area,     setArea]     = useState('');
   const [browserOpen, setBrowserOpen] = useState(false);
+  const [flippedIds, setFlippedIds] = useState(() => new Set());
+  const flipCard = (id) => setFlippedIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   const isBadges = groupKey === 'badges';
   const isAwards = groupKey === 'awards';
@@ -99,55 +106,17 @@ export default function KidGroupPage() {
     return c;
   }, [groupSets]);
 
-  const kidLevelCfg = member?.badge_level && BADGE_LEVELS[member.badge_level];
-
-  const renderCard = (ts) => {
-    const pct  = ts.step_count > 0 ? Math.round((ts.completed_count / ts.step_count) * 100) : 0;
-    const done = ts.step_count > 0 && ts.completed_count >= ts.step_count;
-    return (
-      <button
-        key={ts.id}
-        type="button"
-        onClick={() => navigate(`/tasks/${userId}/${ts.id}`)}
-        className={`relative flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border rounded-xl text-left shadow-sm hover:shadow-md transition-all ${
-          done
-            ? 'border-green-300/70 dark:border-green-700/60'
-            : 'border-gray-200 dark:border-gray-700 hover:border-brand-300/70 dark:hover:border-brand-500/40'
-        }`}
-      >
-        <ProgressRing
-          pct={pct}
-          done={done}
-          size={52}
-          trackColor={kidLevelCfg ? `${kidLevelCfg.color}55` : undefined}
-          progressColor={done ? '#22C55E' : (kidLevelCfg?.borderColor || undefined)}
-        >
-          {done ? (
-            <FontAwesomeIcon icon={faCheck} className="text-green-500" />
-          ) : ts.badge_image_file ? (
-            <img
-              src={`/api/uploads/badges/${ts.badge_image_file}`}
-              alt=""
-              className="w-full h-full rounded-full object-cover"
-              onError={(e) => { e.target.style.display = 'none'; }}
-            />
-          ) : (
-            <span className="text-lg leading-none">{ts.emoji || (isAwards ? '🏆' : '🏅')}</span>
-          )}
-        </ProgressRing>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{ts.name}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-            {ts.step_count > 0 ? `${ts.completed_count}/${ts.step_count} steps` : 'No steps'}
-            {isBadges && Array.isArray(ts.tags) && (() => {
-              const a = ts.tags.find((t) => t.startsWith('Discover'));
-              return a ? ` · ${shortArea(a)}` : '';
-            })()}
-          </p>
-        </div>
-      </button>
-    );
-  };
+  const renderCard = (ts) => (
+    <TaskSetCard
+      key={ts.id}
+      taskSet={ts}
+      userId={userId}
+      member={member}
+      isFlipped={flippedIds.has(ts.id)}
+      onFlip={flipCard}
+      useTickets={useTickets}
+    />
+  );
 
   return (
     <div>
@@ -240,7 +209,7 @@ export default function KidGroupPage() {
             : 'No matches for these filters.'}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5 auto-rows-fr">
           {filtered.map(renderCard)}
         </div>
       )}
