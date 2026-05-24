@@ -251,7 +251,7 @@ const AWARDS = [
     name: "Servant's Heart Award",
     slug: 'servants-heart',
     source_url: 'https://curiosityuntamed.com/servants-hearts/',
-    image_url: 'https://curiosityuntamed.com/wp-content/uploads/2026/03/servants-heart-line.jpg',
+    image_url: 'https://curiosityuntamed.com/wp-content/uploads/2020/08/servants-heart-red.jpg',
     description: 'Earned by completing volunteer service hours at your level. A recognition of giving back to community and family.',
     award_type: 'manual',
     award_config: { hint: 'Parent confirms when the kid has met the required service hours at their level.' },
