@@ -146,17 +146,13 @@ export default function KidTasksPage() {
     };
   };
 
-  // Folder card mimics the dimensions/inner structure of a regular TaskSetCard
-  // (icon-in-ring + name + bottom counts) so it slots into the same grid
-  // without visual jitter when sitting next to per-task cards.
+  // Minimal "circle only" folder card: just the progress ring + icon, no chrome.
   const renderGroupCard = ({ key, label, icon, sets, color }) => {
     const c = groupCardCounts(sets);
-    const size = 112;
+    const size = 96;
     const sw = 8;
     const r = (size - sw * 2) / 2;
     const circ = 2 * Math.PI * r;
-    // Progress = aggregate step completion across every (non-archived) set in
-    // the folder, so a single half-done badge nudges the ring forward.
     const overallPct = c.totalSteps > 0 ? Math.round((c.doneSteps / c.totalSteps) * 100) : 0;
     const allDone = c.totalSteps > 0 && c.doneSteps >= c.totalSteps;
     return (
@@ -164,58 +160,24 @@ export default function KidTasksPage() {
         key={key}
         type="button"
         onClick={() => navigate(`/tasks/${userId}/group/${key}`)}
-        className="relative h-full flex flex-col items-center p-4 pt-12 bg-gradient-to-b from-gray-50 to-white dark:from-gray-700/40 dark:to-gray-800 border border-gray-200/70 dark:border-gray-700/60 rounded-2xl shadow-md hover:shadow-lg hover:border-brand-300/70 dark:hover:border-brand-500/40 cursor-pointer transition-all text-center"
+        className="relative flex items-center justify-center rounded-full border-[3px] border-white shadow-md hover:opacity-80 hover:shadow-lg transition-all"
+        style={{ width: size, height: size, boxSizing: 'content-box' }}
+        title={`${label} · ${c.total} (${overallPct}% done)`}
       >
+        <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={sw} className="text-gray-100 dark:text-gray-700" />
+          {overallPct > 0 && (
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={sw}
+              strokeDasharray={circ} strokeDashoffset={circ - (overallPct / 100) * circ} strokeLinecap="round"
+              className={allDone ? 'text-green-500' : 'text-brand-500'} />
+          )}
+        </svg>
         <span
-          className="absolute top-2 left-2 text-[10px] font-medium px-2 py-0.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 flex items-center gap-1.5"
-          title="Folder"
+          className="w-16 h-16 rounded-full flex items-center justify-center text-2xl"
+          style={{ backgroundColor: `${color}1A`, color }}
         >
-          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-          Folder
+          <FontAwesomeIcon icon={icon} />
         </span>
-        <FontAwesomeIcon icon={faChevronRight} className="absolute top-3 right-3 text-gray-300 dark:text-gray-600 text-xs" />
-
-        <div className="relative mb-3 flex-shrink-0" style={{ width: size, height: size }}>
-          <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
-            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={sw} className="text-gray-100 dark:text-gray-700" />
-            {overallPct > 0 && (
-              <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={sw}
-                strokeDasharray={circ} strokeDashoffset={circ - (overallPct / 100) * circ} strokeLinecap="round"
-                className={allDone ? 'text-green-500' : 'text-brand-500'} />
-            )}
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span
-              className="w-20 h-20 rounded-full flex items-center justify-center text-3xl"
-              style={{ backgroundColor: `${color}1A`, color }}
-            >
-              <FontAwesomeIcon icon={icon} />
-            </span>
-          </div>
-        </div>
-
-        <p className="font-medium text-sm text-gray-900 dark:text-gray-100 leading-snug">
-          {label}
-          <span className="ml-1 text-gray-400 dark:text-gray-500 font-medium">· {c.total}</span>
-        </p>
-
-        <div className="mt-auto pt-2 flex flex-wrap justify-center gap-1 text-[10px]">
-          {c.done > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-semibold">
-              {c.done} done
-            </span>
-          )}
-          {c.inProgress > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-semibold">
-              {c.inProgress} in progress
-            </span>
-          )}
-          {c.notStarted > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-semibold">
-              {c.notStarted} new
-            </span>
-          )}
-        </div>
       </button>
     );
   };
@@ -265,6 +227,7 @@ export default function KidTasksPage() {
       onFlip={flipCard}
       onPillFilter={togglePillFilter}
       useTickets={useTickets}
+      minimal
     />
   );
 
@@ -391,8 +354,8 @@ export default function KidTasksPage() {
           {activeFilter ? 'No tasks match this filter.' : 'No tasks assigned yet.'}
         </div>
       ) : (
-        // One grid for folders + other cards so they auto-align to the same row height.
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5 auto-rows-fr">
+        // Flex-wrap layout: circles flow naturally and pack tighter than a grid.
+        <div className="flex flex-wrap gap-4 sm:gap-5">
           {awardSets.length > 0 && renderGroupCard({
             key: 'awards',
             label: 'Awards',

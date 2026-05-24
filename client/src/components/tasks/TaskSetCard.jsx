@@ -58,14 +58,61 @@ function filterDotColor(value) {
  *   onPillFilter  - optional (value) => void; if absent the pills are inert
  *   useTickets    - whether to show the ticket reward chip on the bottom
  */
-export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, onFlip, onPillFilter, useTickets }) {
+export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, onFlip, onPillFilter, useTickets, minimal = false }) {
   const navigate = useNavigate();
   const pct  = ts.step_count > 0 ? Math.round((ts.completed_count / ts.step_count) * 100) : 0;
   const done = ts.step_count > 0 && ts.completed_count === ts.step_count;
-  const size = 112;
+  const size = minimal ? 96 : 112;
   const sw   = 8;
   const r    = (size - sw * 2) / 2;
   const circ = 2 * Math.PI * r;
+
+  // ── Minimal "circle only" variant: just the progress ring + badge image,
+  // clickable to the task detail page. No card chrome / name / pills.
+  if (minimal) {
+    return (
+      <button
+        type="button"
+        onClick={() => navigate(`/tasks/${userId}/${ts.id}`)}
+        className="relative flex items-center justify-center rounded-full border-[3px] border-white shadow-md hover:opacity-80 hover:shadow-lg transition-all"
+        style={{ width: size, height: size, boxSizing: 'content-box' }}
+        title={`${ts.name}${ts.step_count ? ` · ${ts.completed_count}/${ts.step_count}` : ''}`}
+      >
+        <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={sw} className="text-gray-100 dark:text-gray-700" />
+          {ts.step_count > 0 && (
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={sw}
+              strokeDasharray={circ} strokeDashoffset={circ - (pct / 100) * circ} strokeLinecap="round"
+              className={done ? 'text-green-500' : 'text-brand-500'} />
+          )}
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center text-3xl leading-none">
+          {ts.badge_image_file ? (
+            <img
+              src={`/api/uploads/badges/${ts.badge_image_file}`}
+              alt={ts.name}
+              className="w-16 h-16 rounded-full object-cover"
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+          ) : ts.badge_id ? (
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center"
+              style={{ background: 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)' }}
+            >
+              <IconDisplay value={ts.emoji} fallback="🏅" />
+            </div>
+          ) : (
+            <IconDisplay value={ts.emoji} fallback="📋" />
+          )}
+        </div>
+        {done && ts.completion_status !== 'pending' && !(ts.pending_step_count > 0) && (
+          <span className="absolute top-0 right-0 w-5 h-5 rounded-full bg-green-500 text-white flex items-center justify-center text-[10px] shadow ring-2 ring-white dark:ring-gray-800">
+            <FontAwesomeIcon icon={faCheck} />
+          </span>
+        )}
+      </button>
+    );
+  }
 
   const borderClass = done
     ? 'border-green-300/70 dark:border-green-700/60'
