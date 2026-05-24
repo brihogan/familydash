@@ -95,6 +95,33 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
               strokeDasharray={circ} strokeDashoffset={circ - (pct / 100) * circ} strokeLinecap="round" />
           )}
         </svg>
+        {/* Curved title along the top arc — only when there's no badge image
+            (the badge artwork usually contains the name itself; emoji-only
+            badges and plain task sets benefit from the wraparound label). */}
+        {!ts.badge_image_file && ts.name && (() => {
+          const textR = r - sw / 2 - 4;
+          const cx = size / 2;
+          const cy = size / 2;
+          // Counter-clockwise arc from left to right over the top → text reads
+          // left-to-right with letters fanning around the curve.
+          const pathD = `M ${cx - textR},${cy} A ${textR},${textR} 0 0 1 ${cx + textR},${cy}`;
+          const pathId = `task-arc-${ts.id}`;
+          return (
+            <svg width={size} height={size} className="absolute inset-0 pointer-events-none">
+              <defs>
+                <path id={pathId} d={pathD} fill="none" />
+              </defs>
+              <text
+                fill={progressColor}
+                style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.4px', textTransform: 'uppercase' }}
+              >
+                <textPath href={`#${pathId}`} startOffset="50%" textAnchor="middle">
+                  {ts.name}
+                </textPath>
+              </text>
+            </svg>
+          );
+        })()}
         <div className="absolute inset-0 flex items-center justify-center text-3xl leading-none">
           {ts.badge_image_file ? (
             <img
