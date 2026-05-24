@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMedal, faTag, faXmark, faTicket, faStar, faCheck, faShieldHalved, faTrophy, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { faMedal, faTag, faXmark, faTicket, faStar, faCheck, faShieldHalved, faTrophy, faChevronRight, faFolder } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import KidProfilePicker from '../components/shared/KidProfilePicker.jsx';
 import Modal from '../components/shared/Modal.jsx';
@@ -385,16 +385,16 @@ export default function KidTasksPage() {
           {badgeSets.length > 0 && renderGroupCard({
             key: 'badges',
             label: 'Badges',
-            icon: faShieldHalved,
+            icon: faFolder,
             sets: badgeSets,
-            color: '#A855F7',
+            color: '#A855F7', // purple-500
           })}
           {awardSets.length > 0 && renderGroupCard({
             key: 'awards',
             label: 'Awards',
-            icon: faTrophy,
+            icon: faFolder,
             sets: awardSets,
-            color: '#F59E0B',
+            color: '#F97316', // orange-500
           })}
           {sortedSets.map(renderCard)}
         </div>
