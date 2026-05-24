@@ -612,7 +612,7 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
           2. Specific badge not assigned → plain ringed thumb; click → preview modal.
           3. Area step with no assignment in that area → "Find ↗" pill; click →
              BadgeBrowser modal pre-filtered to the area. */}
-      {!step.image && step.linked_task_set_id && step.linked_badge_image && (
+      {!step.image && step.linked_task_set_id && (
         <Link
           to={`/tasks/${userId || ''}/${step.linked_task_set_id}`}
           onClick={(e) => e.stopPropagation()}
@@ -629,16 +629,20 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
             done={step.linked_step_count > 0 && step.linked_completed_count >= step.linked_step_count}
             size={40}
           >
-            <img
-              src={`/api/uploads/badges/${step.linked_badge_image}`}
-              alt={step.linked_badge_name || ''}
-              className="w-full h-full rounded-full object-cover"
-              onError={(e) => { e.target.style.display = 'none'; }}
-            />
+            {step.linked_badge_image ? (
+              <img
+                src={`/api/uploads/badges/${step.linked_badge_image}`}
+                alt={step.linked_badge_name || ''}
+                className="w-full h-full rounded-full object-cover"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            ) : (
+              <span className="text-base leading-none">{step.linked_badge_emoji || '🏅'}</span>
+            )}
           </ProgressRing>
         </Link>
       )}
-      {!step.image && !step.linked_task_set_id && step.linked_badge_id && step.linked_badge_image && (
+      {!step.image && !step.linked_task_set_id && step.linked_badge_id && (
         <button
           type="button"
           onClick={(e) => {
@@ -647,19 +651,24 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
               id:         step.linked_badge_id,
               name:       step.linked_badge_name,
               image_file: step.linked_badge_image,
+              emoji:      step.linked_badge_emoji,
               category:   '',
               is_award:   0,
             });
           }}
-          className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-dashed ring-brand-200 dark:ring-brand-500/40 hover:opacity-80 transition-opacity"
+          className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-dashed ring-brand-200 dark:ring-brand-500/40 bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center hover:opacity-80 transition-opacity"
           title={`Start the ${step.linked_badge_name} badge`}
         >
-          <img
-            src={`/api/uploads/badges/${step.linked_badge_image}`}
-            alt={step.linked_badge_name || ''}
-            className="w-full h-full object-cover"
-            onError={(e) => { e.target.style.display = 'none'; }}
-          />
+          {step.linked_badge_image ? (
+            <img
+              src={`/api/uploads/badges/${step.linked_badge_image}`}
+              alt={step.linked_badge_name || ''}
+              className="w-full h-full object-cover"
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+          ) : (
+            <span className="text-base leading-none">{step.linked_badge_emoji || '🏅'}</span>
+          )}
         </button>
       )}
       {!step.image && !step.linked_task_set_id && !step.linked_badge_id && step.linked_badge_category && (
