@@ -69,14 +69,21 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
 
   // ── Minimal "circle only" variant: just the progress ring + badge image,
   // clickable to the task detail page. No card chrome / name / pills.
+  // Border color = the set's badge level (when set), else white — so a
+  // Curiosity badge or award reads its level at a glance.
   if (minimal) {
+    const levelCfg = ts.badge_level && BADGE_LEVELS[ts.badge_level];
+    const borderColor = levelCfg?.borderColor || '#ffffff';
     return (
       <button
         type="button"
         onClick={() => navigate(`/tasks/${userId}/${ts.id}`)}
-        className="relative flex items-center justify-center rounded-full border-[3px] border-white shadow-md hover:opacity-80 hover:shadow-lg transition-all"
-        style={{ width: size, height: size, boxSizing: 'content-box' }}
-        title={`${ts.name}${ts.step_count ? ` · ${ts.completed_count}/${ts.step_count}` : ''}`}
+        className="relative flex items-center justify-center rounded-full shadow-md hover:opacity-80 hover:shadow-lg transition-all"
+        style={{
+          width: size, height: size, boxSizing: 'content-box',
+          border: `3px solid ${borderColor}`,
+        }}
+        title={`${ts.name}${levelCfg ? ` · ${levelCfg.label}` : ''}${ts.step_count ? ` · ${ts.completed_count}/${ts.step_count}` : ''}`}
       >
         <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={sw} className="text-gray-100 dark:text-gray-700" />
