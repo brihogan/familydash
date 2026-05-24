@@ -160,8 +160,11 @@ export default function KidTasksPage() {
         key={key}
         type="button"
         onClick={() => navigate(`/tasks/${userId}/group/${key}`)}
-        className="relative flex items-center justify-center rounded-full border-[3px] border-white shadow-md hover:opacity-80 hover:shadow-lg transition-all"
-        style={{ width: size, height: size, boxSizing: 'content-box' }}
+        className="relative flex items-center justify-center rounded-full shadow-md hover:opacity-80 hover:shadow-lg transition-all"
+        style={{
+          width: size, height: size, boxSizing: 'content-box',
+          border: '6px solid #ffffff',
+        }}
         title={`${label} · ${c.total} (${overallPct}% done)`}
       >
         <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>

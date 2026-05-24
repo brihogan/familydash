@@ -73,7 +73,9 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
   // Curiosity badge or award reads its level at a glance.
   if (minimal) {
     const levelCfg = ts.badge_level && BADGE_LEVELS[ts.badge_level];
-    const borderColor = levelCfg?.borderColor || '#ffffff';
+    // Use the level's lighter fill color (not borderColor) so the 6px ring
+    // reads as a soft tint of the level rather than a hard outline.
+    const borderColor = levelCfg?.color || '#ffffff';
     return (
       <button
         type="button"
@@ -81,7 +83,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
         className="relative flex items-center justify-center rounded-full shadow-md hover:opacity-80 hover:shadow-lg transition-all"
         style={{
           width: size, height: size, boxSizing: 'content-box',
-          border: `3px solid ${borderColor}`,
+          border: `6px solid ${borderColor}`,
         }}
         title={`${ts.name}${levelCfg ? ` · ${levelCfg.label}` : ''}${ts.step_count ? ` · ${ts.completed_count}/${ts.step_count}` : ''}`}
       >
