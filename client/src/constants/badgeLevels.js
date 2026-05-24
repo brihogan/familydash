@@ -14,7 +14,7 @@ export const BADGE_LEVELS = {
   level2:    { label: 'Level 2 · Dolphin',     ageRange: 'Ages 8-11',   color: '#60A5FA', textColor: '#1E40AF', borderColor: '#3B82F6', trackColor: '#BFDBFE' /* blue-200   */ },
   level3:    { label: 'Level 3 · Butterfly',   ageRange: 'Ages 11-14',  color: '#86EFAC', textColor: '#14532D', borderColor: '#22C55E', trackColor: '#86EFAC' /* green-300  */ },
   level4:    { label: 'Level 4 · Eagle',       ageRange: 'Ages 14-18',  color: '#D1D5DB', textColor: '#1F2937', borderColor: '#6B7280', trackColor: '#D1D5DB' /* gray-300   */ },
-  level5:    { label: 'Level 5 · Owl',         ageRange: 'Adults 18+',  color: '#374151', textColor: '#FFFFFF', borderColor: '#111827', trackColor: '#E5E7EB' /* gray-200   */ },
+  level5:    { label: 'Level 5 · Owl',         ageRange: 'Adults 18+',  color: '#374151', textColor: '#FFFFFF', borderColor: '#111827', trackColor: '#D1D5DB' /* gray-300   */ },
 };
 
 export const BADGE_LEVEL_ORDER = ['preschool', 'level1', 'level2', 'level3', 'level4', 'level5'];

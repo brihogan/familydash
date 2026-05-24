@@ -1328,28 +1328,34 @@ export default function UserTaskDetailPage() {
             <FontAwesomeIcon icon={faChevronLeft} />
           </button>
 
-          {/* Large badge icon with circular progress ring */}
+          {/* Large badge icon with circular progress ring — mirrors the minimal
+              card style: completed arc = saturated level color, incomplete
+              track = the lighter level trackColor. Non-badge sets keep the
+              old gray track + brand arc. */}
           {(() => {
             const size = 120;
             const sw   = 5;
-            const r    = (size - sw * 2) / 2;
+            // Push the stroke flush to the wrapper edge so the ring sits right
+            // around the badge image with no halo gap.
+            const r    = (size - sw) / 2;
             const circ = 2 * Math.PI * r;
+            const detailLevelCfg = taskSet.badge_level && BADGE_LEVELS[taskSet.badge_level];
+            const trackColor    = detailLevelCfg?.trackColor  || detailLevelCfg?.color || '#E5E7EB';
+            const progressColor = detailLevelCfg?.borderColor || (allDone ? '#22C55E' : '#6366F1');
             return (
               <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
                 <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
                   <circle
                     cx={size / 2} cy={size / 2} r={r}
-                    fill="none" stroke="currentColor" strokeWidth={sw}
-                    className="text-gray-200 dark:text-gray-600"
+                    fill="none" stroke={trackColor} strokeWidth={sw}
                   />
                   {totalCount > 0 && (
                     <circle
                       cx={size / 2} cy={size / 2} r={r}
-                      fill="none" stroke="currentColor" strokeWidth={sw}
+                      fill="none" stroke={progressColor} strokeWidth={sw}
                       strokeDasharray={circ}
                       strokeDashoffset={circ - (pct / 100) * circ}
                       strokeLinecap="round"
-                      className={allDone ? 'text-green-500' : 'text-brand-500'}
                     />
                   )}
                 </svg>
