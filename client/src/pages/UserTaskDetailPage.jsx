@@ -1334,7 +1334,7 @@ export default function UserTaskDetailPage() {
               old gray track + brand arc. */}
           {(() => {
             const size = 120;
-            const sw   = 5;
+            const sw   = 8; // match the minimal task-set card stroke width
             // Push the stroke flush to the wrapper edge so the ring sits right
             // around the badge image with no halo gap.
             const r    = (size - sw) / 2;
