@@ -562,6 +562,9 @@ export function runMigrations(db) {
   //   any existing award enrollments that don't have them yet.
   try { db.exec(`ALTER TABLE task_steps ADD COLUMN linked_badge_id INTEGER REFERENCES badges(id) ON DELETE SET NULL`); } catch (_) {}
   try { db.exec(`ALTER TABLE task_steps ADD COLUMN linked_badge_category TEXT`); } catch (_) {}
+  // v69 schema (added here so v67/v68 backfill+regen can populate it):
+  //   per-step source level for cumulative award task-lists ('preschool', 'level1', …).
+  try { db.exec(`ALTER TABLE task_steps ADD COLUMN level TEXT`); } catch (_) {}
 
   // Backfill: generate task_steps for every active award task_set that has 0
   // active steps. Idempotent — skips task_sets that already have any steps.
@@ -576,8 +579,8 @@ export function runMigrations(db) {
     const insertStep = db.prepare(`
       INSERT INTO task_steps (task_set_id, name, description, sort_order, is_optional,
                               badge_opt_req_id, require_input, input_prompt,
-                              linked_badge_id, linked_badge_category)
-      VALUES (?, ?, '', ?, 0, NULL, 0, '', ?, ?)
+                              linked_badge_id, linked_badge_category, level)
+      VALUES (?, ?, '', ?, 0, NULL, 0, '', ?, ?, ?)
     `);
     db.transaction(() => {
       for (const row of awardEnrollmentsNeedingSteps) {
@@ -586,7 +589,7 @@ export function runMigrations(db) {
         const steps = generateAwardSteps(db, row.award_type, cfg, row.badge_level);
         let order = 0;
         for (const step of steps) {
-          insertStep.run(row.task_set_id, step.name, order++, step.linked_badge_id, step.linked_badge_category);
+          insertStep.run(row.task_set_id, step.name, order++, step.linked_badge_id, step.linked_badge_category, step.level);
         }
       }
     })();
@@ -610,22 +613,37 @@ export function runMigrations(db) {
     const insertStep = db.prepare(`
       INSERT INTO task_steps (task_set_id, name, description, sort_order, is_optional,
                               badge_opt_req_id, require_input, input_prompt,
-                              linked_badge_id, linked_badge_category)
-      VALUES (?, ?, '', ?, 0, NULL, 0, '', ?, ?)
+                              linked_badge_id, linked_badge_category, level)
+      VALUES (?, ?, '', ?, 0, NULL, 0, '', ?, ?, ?)
     `);
-    const deleteSteps = db.prepare(`DELETE FROM task_steps WHERE task_set_id = ?`);
+    const deleteSteps  = db.prepare(`DELETE FROM task_steps WHERE task_set_id = ?`);
+    const fetchExisting = db.prepare(`
+      SELECT name, sort_order, linked_badge_id, linked_badge_category, level
+      FROM task_steps WHERE task_set_id = ? AND is_active = 1 ORDER BY sort_order ASC, id ASC
+    `);
     db.transaction(() => {
       for (const row of awardSetsToRegen) {
         let cfg = {};
         try { cfg = JSON.parse(row.award_config || '{}'); } catch (_) {}
         const newSteps = generateAwardSteps(db, row.award_type, cfg, row.badge_level);
-        if (newSteps.length === row.step_count) continue; // already matches new logic
+        // Idempotency: skip if existing steps already match (name + level +
+        // linkage). Avoids needless delete+reinsert noise on every server start.
+        const existing = fetchExisting.all(row.task_set_id);
+        const matches = existing.length === newSteps.length &&
+          existing.every((e, i) =>
+            e.name === newSteps[i].name &&
+            (e.level || null) === (newSteps[i].level || null) &&
+            (e.linked_badge_id || null) === (newSteps[i].linked_badge_id || null) &&
+            (e.linked_badge_category || null) === (newSteps[i].linked_badge_category || null)
+          );
+        if (matches) continue;
         deleteSteps.run(row.task_set_id);
         let order = 0;
         for (const step of newSteps) {
-          insertStep.run(row.task_set_id, step.name, order++, step.linked_badge_id, step.linked_badge_category);
+          insertStep.run(row.task_set_id, step.name, order++, step.linked_badge_id, step.linked_badge_category, step.level);
         }
       }
     })();
   }
+
 }

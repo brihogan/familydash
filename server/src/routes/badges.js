@@ -272,14 +272,14 @@ router.post('/users/:userId/badges/enroll', authenticate, (req, res, next) => {
         const insertAwardStep = db.prepare(`
           INSERT INTO task_steps (task_set_id, name, description, sort_order, is_optional,
                                   badge_opt_req_id, require_input, input_prompt,
-                                  linked_badge_id, linked_badge_category)
-          VALUES (?, ?, '', ?, 0, NULL, 0, '', ?, ?)
+                                  linked_badge_id, linked_badge_category, level)
+          VALUES (?, ?, '', ?, 0, NULL, 0, '', ?, ?, ?)
         `);
         let awardCfg = {};
         try { awardCfg = JSON.parse(badge.award_config || '{}'); } catch (_) {}
         const awardSteps = generateAwardSteps(db, badge.award_type, awardCfg, userLevel);
         for (const s of awardSteps) {
-          insertAwardStep.run(taskSetId, s.name, order++, s.linked_badge_id, s.linked_badge_category);
+          insertAwardStep.run(taskSetId, s.name, order++, s.linked_badge_id, s.linked_badge_category, s.level);
         }
       } else {
         for (const step of requiredSteps) {

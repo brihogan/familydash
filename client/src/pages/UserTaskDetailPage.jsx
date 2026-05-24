@@ -402,6 +402,29 @@ function AwardCompletionModal({ taskSet, userId, assignedAt, completedAt, pendin
 }
 
 // ── Burst particle config (mirrors ChoreItem) ─────────────────────────────────
+const AWARD_LEVEL_LABELS = {
+  preschool: 'Preschool · Penguin',
+  level1:    'Level 1 · Otter',
+  level2:    'Level 2 · Frog',
+  level3:    'Level 3 · Hawk',
+  level4:    'Level 4 · Fox',
+  level5:    'Level 5 · Owl',
+  all:       'All Levels',
+};
+
+// Walk a step array and bucket consecutive steps under the same `level` so the
+// renderer can drop in a section header per level for award task_lists. Steps
+// without a `level` value share a single trailing group with no header.
+function groupStepsByLevel(rows) {
+  const out = [];
+  for (const row of rows) {
+    const key = row.level || null;
+    if (!out.length || out[out.length - 1].level !== key) out.push({ level: key, rows: [] });
+    out[out.length - 1].rows.push(row);
+  }
+  return out;
+}
+
 const BURST = [
   { angle: 0,   color: '#10b981' },
   { angle: 60,  color: '#6366f1' },
@@ -424,6 +447,9 @@ function StepItem({ step, onToggle, disabled }) {
   const inputRef = useRef(null);
 
   const needsInput = !!step.require_input;
+  // Steps that point at a specific badge auto-complete when that badge is
+  // finished. Kids can't toggle them manually — show them as inert / awaiting.
+  const isAutoLinked = !!step.linked_badge_id;
 
   const handleClick = () => {
     if (disabled || step._limitedToday || phase !== 'idle') return;
@@ -478,7 +504,7 @@ function StepItem({ step, onToggle, disabled }) {
     return {};
   })();
 
-  const canClick = !disabled && !isAnimating && !step._limitedToday;
+  const canClick = !disabled && !isAnimating && !step._limitedToday && !isAutoLinked;
 
   return (
     <div
@@ -490,12 +516,15 @@ function StepItem({ step, onToggle, disabled }) {
       <div className="relative shrink-0">
         <button
           onClick={(e) => { e.stopPropagation(); handleClick(); }}
-          disabled={disabled || isAnimating || step._limitedToday}
-          aria-label={showDone ? 'Mark incomplete' : 'Mark complete'}
+          disabled={disabled || isAnimating || step._limitedToday || isAutoLinked}
+          aria-label={isAutoLinked ? 'Auto-completes when linked badge is finished' : (showDone ? 'Mark incomplete' : 'Mark complete')}
+          title={isAutoLinked ? 'Auto-completes when the linked badge is finished' : undefined}
           className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors disabled:cursor-not-allowed ${
             showDone
               ? 'border-green-500 bg-green-500'
-              : 'border-gray-300 dark:border-gray-600 hover:border-brand-400'
+              : isAutoLinked
+                ? 'border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/30 cursor-not-allowed'
+                : 'border-gray-300 dark:border-gray-600 hover:border-brand-400'
           }`}
           style={phase === 'pop' ? { animation: 'chore-checkbox-pop 480ms cubic-bezier(0.36,0.07,0.19,0.97) both' } : undefined}
         >
@@ -1333,8 +1362,26 @@ export default function UserTaskDetailPage() {
           {/* ── Todo steps (badge: split into required + optional) ── */}
           {taskSet.badge_id ? (
             <>
-              {/* Required steps */}
-              {expanded.todoRequired.length > 0 && (
+              {/* Required steps — awards with per-step level metadata get grouped
+                  by level so it's clear which steps come from which level. */}
+              {expanded.todoRequired.length > 0 && taskSet.is_award && expanded.todoRequired.some((s) => s.level) ? (
+                <div className="space-y-4">
+                  {groupStepsByLevel(expanded.todoRequired).map((group, gi) => (
+                    <div key={`${group.level || 'none'}-${gi}`}>
+                      {group.level && (
+                        <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-1">
+                          {AWARD_LEVEL_LABELS[group.level] || group.level}
+                        </h3>
+                      )}
+                      <div className="space-y-2">
+                        {group.rows.map((step) => (
+                          <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : expanded.todoRequired.length > 0 && (
                 <div>
                   <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Required</h3>
                   <div className="space-y-2">

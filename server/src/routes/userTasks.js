@@ -6,8 +6,12 @@ import { insertNotification } from '../services/notificationService.js';
 import { getKingOfCrowns } from '../services/streakService.js';
 import { assertSameFamily as assertUserInFamily } from '../utils/assertions.js';
 import { localDateISO } from '../utils/dateHelpers.js';
+import { syncLinkedAwardSteps as syncLinkedAwardStepsShared } from '../services/awardSync.js';
 
 const router = Router();
+
+// Local thin wrapper so call sites stay clean (db is module-scoped here).
+const syncLinkedAwardSteps = (userId, taskSetId) => syncLinkedAwardStepsShared(db, userId, taskSetId);
 
 function parseRow(row) {
   if (!row) return row;
@@ -305,9 +309,17 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
     if (!assignment) return res.status(404).json({ error: 'Task set not assigned to this user.' });
 
     const step = db.prepare(
-      'SELECT id, name, repeat_count, limit_one_per_day, require_input, input_prompt FROM task_steps WHERE id = ? AND task_set_id = ? AND is_active = 1'
+      'SELECT id, name, repeat_count, limit_one_per_day, require_input, input_prompt, linked_badge_id FROM task_steps WHERE id = ? AND task_set_id = ? AND is_active = 1'
     ).get(stepId, taskSetId);
     if (!step) return res.status(404).json({ error: 'Step not found.' });
+
+    // Linked-badge steps are auto-managed (sync runs after any toggle on the
+    // linked badge's task_set). Reject manual toggles to keep state coherent.
+    if (step.linked_badge_id) {
+      return res.status(400).json({
+        error: 'This step auto-completes when the linked badge is finished.',
+      });
+    }
 
     const taskSet = db.prepare('SELECT id, name, ticket_reward, notify_mode FROM task_sets WHERE id = ? AND is_active = 1').get(taskSetId);
     if (!taskSet) return res.status(404).json({ error: 'Task set not found.' });
@@ -389,6 +401,7 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
       const todayCount = db.prepare(
         "SELECT COUNT(*) AS cnt FROM task_step_completions WHERE task_step_id = ? AND user_id = ? AND date(completed_at, 'localtime') = ?"
       ).get(stepId, userId, toggleToday).cnt;
+      syncLinkedAwardSteps(userId, taskSetId);
       res.json({ completed_count: newCount, completed_today: todayCount });
     } else {
       // Complete next instance
@@ -503,6 +516,7 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
       const todayCount = db.prepare(
         "SELECT COUNT(*) AS cnt FROM task_step_completions WHERE task_step_id = ? AND user_id = ? AND date(completed_at, 'localtime') = ?"
       ).get(stepId, userId, toggleToday).cnt;
+      syncLinkedAwardSteps(userId, taskSetId);
       res.json({ completed_count: nextInstance, completed_today: todayCount });
     }
   } catch (err) { next(err); }

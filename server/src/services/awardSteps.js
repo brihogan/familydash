@@ -30,40 +30,48 @@ export function generateAwardSteps(db, awardType, awardConfig, awardLevel) {
     `SELECT id FROM badges WHERE name = ? COLLATE NOCASE AND is_award = 0 AND is_active = 1 LIMIT 1`
   ).get(name);
 
-  const pushBadgeStep = (name) => {
+  const pushBadgeStep = (name, level) => {
     const b = lookupBadge(name);
     out.push({
       name: `Earn the ${name} badge`,
       linked_badge_id: b?.id || null,
       linked_badge_category: null,
+      level: level || null,
     });
   };
 
-  const pushActivityStep = (text) => {
-    out.push({ name: text, linked_badge_id: null, linked_badge_category: null });
+  const pushActivityStep = (text, level) => {
+    out.push({ name: text, linked_badge_id: null, linked_badge_category: null, level: level || null });
   };
 
   if (awardType === 'task_list') {
-    // Show only the kid's exact level — earlier levels are covered by the
-    // "Complete all [prior level] requirements." step at the top of each level.
-    // (Plus the `all` bucket for awards whose steps apply at every level, e.g. STEAM.)
+    // Cumulative: include every level up through the kid's awardLevel, then
+    // the `all` bucket for awards whose steps apply at every level (STEAM).
+    // Each step carries its source level so the renderer can group them.
     const per = cfg.per_level || {};
-    for (const step of per[awardLevel] || []) {
-      if (step.type === 'badge') pushBadgeStep(step.name);
-      else                       pushActivityStep(step.text);
+    const maxIdx = LEVEL_ORDER.indexOf(awardLevel);
+    if (maxIdx >= 0) {
+      for (let i = 0; i <= maxIdx; i++) {
+        const lv = LEVEL_ORDER[i];
+        for (const step of per[lv] || []) {
+          if (step.type === 'badge') pushBadgeStep(step.name, lv);
+          else                       pushActivityStep(step.text, lv);
+        }
+      }
     }
     for (const step of per.all || []) {
-      if (step.type === 'badge') pushBadgeStep(step.name);
-      else                       pushActivityStep(step.text);
+      if (step.type === 'badge') pushBadgeStep(step.name, 'all');
+      else                       pushActivityStep(step.text, 'all');
     }
   } else if (awardType === 'specific_badges') {
-    for (const name of cfg.badge_names || []) pushBadgeStep(name);
+    for (const name of cfg.badge_names || []) pushBadgeStep(name, null);
   } else if (awardType === 'area_coverage') {
     for (const area of AREAS) {
       out.push({
         name: `Earn a badge in ${shortArea(area)}`,
         linked_badge_id: null,
         linked_badge_category: area,
+        level: null,
       });
     }
   }
