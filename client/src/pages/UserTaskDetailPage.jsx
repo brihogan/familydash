@@ -637,7 +637,12 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
             ) : (
-              <span className="text-base leading-none">{step.linked_badge_emoji || '🏅'}</span>
+              <span
+                className="w-full h-full rounded-full flex items-center justify-center text-base leading-none"
+                style={{ background: 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)' }}
+              >
+                {step.linked_badge_emoji || '🏅'}
+              </span>
             )}
           </ProgressRing>
         </Link>
@@ -656,8 +661,9 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
               is_award:   0,
             });
           }}
-          className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-dashed ring-brand-200 dark:ring-brand-500/40 bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center hover:opacity-80 transition-opacity"
+          className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-dashed ring-brand-200 dark:ring-brand-500/40 flex items-center justify-center hover:opacity-80 transition-opacity"
           title={`Start the ${step.linked_badge_name} badge`}
+          style={!step.linked_badge_image ? { background: 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)' } : undefined}
         >
           {step.linked_badge_image ? (
             <img
