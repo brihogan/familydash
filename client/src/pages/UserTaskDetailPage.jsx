@@ -10,7 +10,9 @@ import { taskSetsApi } from '../api/taskSets.api.js';
 import { badgesApi } from '../api/badges.api.js';
 import { BADGE_LEVELS } from '../constants/badgeLevels.js';
 import BadgeImageLightbox from '../components/badges/BadgeImageLightbox.jsx';
+import BadgePreviewModal from '../components/badges/BadgePreviewModal.jsx';
 import AwardDetail from '../components/awards/AwardDetail.jsx';
+import ProgressRing from '../components/dashboard/ProgressRing.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { playChoreCheck, playVictory } from '../utils/sounds.js';
 import useScrollLock from '../hooks/useScrollLock.js';
@@ -437,7 +439,7 @@ const RAD  = Math.PI / 180;
 const DIST = 26;
 
 // ── Step item with chore-style animation ──────────────────────────────────────
-function StepItem({ step, onToggle, disabled }) {
+function StepItem({ step, onToggle, disabled, onPreviewBadge }) {
   const { userId } = useParams();
   const done = false; // todo items are never done
   const [phase, setPhase] = useState('idle');
@@ -602,21 +604,61 @@ function StepItem({ step, onToggle, disabled }) {
           onClick={(e) => { e.stopPropagation(); setLightbox(true); }}
         />
       )}
-      {/* Linked-badge thumbnail (award-step pointing at a specific badge) */}
+      {/* Linked-badge thumbnail (award-step pointing at a specific badge):
+          - Assigned to this user → ProgressRing wrapping the badge image, link
+            navigates to that badge's task page.
+          - Not assigned → plain ringed thumb; click opens BadgePreviewModal so
+            the kid can start the badge from here. */}
       {!step.image && step.linked_badge_id && step.linked_badge_image && (
-        <Link
-          to={`/badges/${userId || ''}?type=badge&search=${encodeURIComponent(step.linked_badge_name || '')}`}
-          onClick={(e) => e.stopPropagation()}
-          className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-brand-200 dark:ring-brand-500/40 hover:opacity-80 transition-opacity"
-          title={`Find the ${step.linked_badge_name} badge`}
-        >
-          <img
-            src={`/api/uploads/badges/${step.linked_badge_image}`}
-            alt={step.linked_badge_name || ''}
-            className="w-full h-full object-cover"
-            onError={(e) => { e.target.style.display = 'none'; }}
-          />
-        </Link>
+        step.linked_task_set_id ? (
+          <Link
+            to={`/tasks/${userId || ''}/${step.linked_task_set_id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-1.5 flex-shrink-0 hover:opacity-80 transition-opacity"
+            title={`${step.linked_completed_count}/${step.linked_step_count} steps — open ${step.linked_badge_name}`}
+          >
+            {step.linked_step_count > 0 && (
+              <span className="text-[10px] font-semibold tabular-nums text-gray-500 dark:text-gray-400">
+                {step.linked_completed_count}/{step.linked_step_count}
+              </span>
+            )}
+            <ProgressRing
+              pct={step.linked_step_count > 0 ? Math.round((step.linked_completed_count / step.linked_step_count) * 100) : 0}
+              done={step.linked_step_count > 0 && step.linked_completed_count >= step.linked_step_count}
+              size={40}
+            >
+              <img
+                src={`/api/uploads/badges/${step.linked_badge_image}`}
+                alt={step.linked_badge_name || ''}
+                className="w-full h-full rounded-full object-cover"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            </ProgressRing>
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPreviewBadge?.({
+                id:         step.linked_badge_id,
+                name:       step.linked_badge_name,
+                image_file: step.linked_badge_image,
+                category:   '',
+                is_award:   0,
+              });
+            }}
+            className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-dashed ring-brand-200 dark:ring-brand-500/40 hover:opacity-80 transition-opacity"
+            title={`Start the ${step.linked_badge_name} badge`}
+          >
+            <img
+              src={`/api/uploads/badges/${step.linked_badge_image}`}
+              alt={step.linked_badge_name || ''}
+              className="w-full h-full object-cover"
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+          </button>
+        )
       )}
       {/* Linked-area pill (award-step pointing at an Area of Discovery) */}
       {!step.image && !step.linked_badge_id && step.linked_badge_category && (
@@ -904,6 +946,8 @@ export default function UserTaskDetailPage() {
   const [swapError,        setSwapError]        = useState('');
   const [imageLightbox,    setImageLightbox]    = useState(false);
   const [descExpanded,     setDescExpanded]     = useState(false);
+  // Opens BadgePreviewModal when a kid clicks a linked-badge step they haven't enrolled in yet.
+  const [previewBadge,     setPreviewBadge]     = useState(null);
   const [descOverflowing,  setDescOverflowing]  = useState(false);
   const descRef = useRef(null);
 
@@ -1121,6 +1165,16 @@ export default function UserTaskDetailPage() {
           imageFile={taskSet.badge_image_file}
           alt={taskSet.name}
           onClose={() => setImageLightbox(false)}
+        />
+      )}
+      {previewBadge && (
+        <BadgePreviewModal
+          badge={previewBadge}
+          userId={parseInt(userId, 10)}
+          userLevel={taskSet?.badge_level}
+          canEnroll={true}
+          onClose={() => setPreviewBadge(null)}
+          onEnrolled={(taskSetId) => { setPreviewBadge(null); navigate(`/tasks/${userId}/${taskSetId}`); }}
         />
       )}
       {showAwardModal && taskSet && (
@@ -1375,7 +1429,7 @@ export default function UserTaskDetailPage() {
                       )}
                       <div className="space-y-2">
                         {group.rows.map((step) => (
-                          <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} />
+                          <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} />
                         ))}
                       </div>
                     </div>
@@ -1386,7 +1440,7 @@ export default function UserTaskDetailPage() {
                   <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Required</h3>
                   <div className="space-y-2">
                     {expanded.todoRequired.map((step) => (
-                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} />
+                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} />
                     ))}
                   </div>
                 </div>
@@ -1430,7 +1484,7 @@ export default function UserTaskDetailPage() {
                   </h3>
                   <div className="space-y-2">
                     {expanded.todoOptional.map((step) => (
-                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} />
+                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} />
                     ))}
                   </div>
 
@@ -1492,7 +1546,7 @@ export default function UserTaskDetailPage() {
             expanded.todo.length > 0 && (
               <div className="space-y-2">
                 {expanded.todo.map((step) => (
-                  <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} />
+                  <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} />
                 ))}
               </div>
             )

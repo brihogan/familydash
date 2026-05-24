@@ -277,6 +277,30 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
       ORDER BY ts.sort_order ASC, ts.id ASC
     `).all(userId, userId, todayDate, taskSetId);
 
+    // For each step that links to a specific badge, attach the user's
+    // assignment status (task_set_id + progress) so the renderer can show
+    // a progress ring + jump-to-badge link, or fall back to a "Start badge"
+    // modal trigger when not enrolled.
+    const linkedAssignmentStmt = db.prepare(`
+      SELECT linked_ts.id AS linked_task_set_id,
+        (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = linked_ts.id AND is_active = 1) AS linked_step_count,
+        (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = linked_ts.id AND user_id = ?) AS linked_completed_count
+      FROM task_sets linked_ts
+      JOIN task_assignments lta ON lta.task_set_id = linked_ts.id
+      WHERE linked_ts.badge_id = ? AND linked_ts.is_active = 1
+        AND lta.user_id = ? AND lta.is_active = 1
+      LIMIT 1
+    `);
+    for (const step of steps) {
+      if (!step.linked_badge_id) continue;
+      const info = linkedAssignmentStmt.get(userId, step.linked_badge_id, userId);
+      if (info) {
+        step.linked_task_set_id      = info.linked_task_set_id;
+        step.linked_step_count       = info.linked_step_count;
+        step.linked_completed_count  = info.linked_completed_count;
+      }
+    }
+
     // Fetch completions with input_response and approval_status for display
     const completions = db.prepare(`
       SELECT task_step_id, instance, input_response, approval_status

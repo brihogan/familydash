@@ -2,6 +2,13 @@
 
 ## Session Start: 2026-05-24 (morning)
 
+### 2026-05-24 — Linked-badge steps: progress ring + open-or-enroll
+- Server step query now enriches each `linked_badge_id` step with the user's enrollment info (`linked_task_set_id`, `linked_step_count`, `linked_completed_count`) for that badge — so the kid view can render progress without an extra round trip.
+- Right-side thumbnail on award steps now behaves smartly:
+  - **Assigned**: a `ProgressRing` wraps the badge image with the kid's `n/total` progress; click → `/tasks/:userId/:linkedTaskSetId` of the badge.
+  - **Not assigned**: plain ringed thumbnail; click pops `BadgePreviewModal` for that badge, and enrolling navigates straight to the new task page.
+- Preview modal lives on `UserTaskDetailPage`; an `onPreviewBadge` callback threads down to every `StepItem` so the same flow works for any award (Liberty, Fruit of the Spirit, Outdoors, STEAM, Life Skills).
+
 ### 2026-05-24 — Awards: cumulative levels grouped + badge auto-completion
 - **Cumulative steps grouped by level**: `generateAwardSteps` for task_list awards reverts to cumulative (Preschool … awardLevel + the `all` bucket). New `task_steps.level` column tags each step with its source level (`preschool`, `level1`, …, `all`). UserTaskDetailPage's badge/award rendering groups consecutive steps under section headers (Preschool · Penguin, Level 1 · Otter, etc.) for task_list awards. Migration v68's regen now compares full step content (name + level + linkage) instead of just step count, so stale rows from earlier generations get refreshed.
 - **Badge auto-completion**: New `server/src/services/awardSync.js` exports `syncLinkedAwardSteps(db, userId, taskSetId)`. After any task_step toggle (complete or undo), if the toggled step's task_set is a badge that's now 100% complete, every award step with `linked_badge_id` pointing at that badge gets an auto-completion row inserted; if the badge drops below 100%, those completions are removed. Called from both branches of the toggle endpoint in `userTasks.js`. Verified end-to-end on Liberty Award: completing the U.S. Constitution badge auto-checks Liberty's "Earn the U.S. Constitution badge" step (1/5), and uncompleting reverts it (0/5).
