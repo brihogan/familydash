@@ -64,7 +64,9 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
   const done = ts.step_count > 0 && ts.completed_count === ts.step_count;
   const size = minimal ? 96 : 112;
   const sw   = 8;
-  const r    = (size - sw * 2) / 2;
+  // Rich card keeps its old inset radius. Minimal pushes the stroke to the
+  // button edge so there's no whitespace between the ring and the shadow.
+  const r    = minimal ? (size - sw) / 2 : (size - sw * 2) / 2;
   const circ = 2 * Math.PI * r;
 
   // ── Minimal "circle only" variant: just the progress ring + badge image,
@@ -73,11 +75,11 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
   // Curiosity badge or award reads its level at a glance.
   if (minimal) {
     const levelCfg = ts.badge_level && BADGE_LEVELS[ts.badge_level];
-    // Progress arc = the badge's level color: saturated when complete, lighter
-    // when in-progress. Non-level sets fall back to brand-blue/green.
-    const progressColor = levelCfg
-      ? (done ? levelCfg.borderColor : levelCfg.color)
-      : (done ? '#22C55E' : '#6366F1');
+    // Ring colors: the "uncompleted" portion (track) is the lighter shade,
+    // the "completed" portion (arc) is the saturated level color. Non-level
+    // sets fall back to brand-blue track + brand-blue arc.
+    const trackColor    = levelCfg?.color       || '#E5E7EB'; // gray-200 fallback
+    const progressColor = levelCfg?.borderColor || '#6366F1'; // brand fallback
     return (
       <button
         type="button"
@@ -87,7 +89,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
         title={`${ts.name}${levelCfg ? ` · ${levelCfg.label}` : ''}${ts.step_count ? ` · ${ts.completed_count}/${ts.step_count}` : ''}`}
       >
         <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={sw} className="text-gray-100 dark:text-gray-700" />
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={trackColor} strokeWidth={sw} />
           {ts.step_count > 0 && (
             <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={progressColor} strokeWidth={sw}
               strokeDasharray={circ} strokeDashoffset={circ - (pct / 100) * circ} strokeLinecap="round" />

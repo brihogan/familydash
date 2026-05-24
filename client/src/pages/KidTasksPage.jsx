@@ -155,13 +155,11 @@ export default function KidTasksPage() {
     const c = groupCardCounts(sets);
     const size = 96;
     const sw = 8;
-    const r = (size - sw * 2) / 2;
+    const r = (size - sw) / 2; // stroke flush to button edge — no white halo
     const circ = 2 * Math.PI * r;
     const overallPct = c.totalSteps > 0 ? Math.round((c.doneSteps / c.totalSteps) * 100) : 0;
-    const allDone = c.totalSteps > 0 && c.doneSteps >= c.totalSteps;
-    const progressColor = kidLevelCfg
-      ? (allDone ? kidLevelCfg.borderColor : kidLevelCfg.color)
-      : (allDone ? '#22C55E' : '#6366F1');
+    const trackColor    = kidLevelCfg?.color       || '#E5E7EB';
+    const progressColor = kidLevelCfg?.borderColor || '#6366F1';
     return (
       <button
         key={key}
@@ -172,7 +170,7 @@ export default function KidTasksPage() {
         title={`${label} · ${c.total} (${overallPct}% done)`}
       >
         <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={sw} className="text-gray-100 dark:text-gray-700" />
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={trackColor} strokeWidth={sw} />
           {overallPct > 0 && (
             <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={progressColor} strokeWidth={sw}
               strokeDasharray={circ} strokeDashoffset={circ - (overallPct / 100) * circ} strokeLinecap="round" />
