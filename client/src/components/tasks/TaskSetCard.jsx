@@ -76,6 +76,12 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
     // Use the level's lighter fill color (not borderColor) so the 6px ring
     // reads as a soft tint of the level rather than a hard outline.
     const borderColor = levelCfg?.color || '#ffffff';
+    // Badges + awards use a light-gray progress arc to keep the focus on
+    // the badge image. Plain task sets keep the brand/green arc.
+    const isBadgeOrAward = !!ts.badge_id;
+    const progressClass = isBadgeOrAward
+      ? 'text-gray-300 dark:text-gray-500'
+      : (done ? 'text-green-500' : 'text-brand-500');
     return (
       <button
         type="button"
@@ -92,7 +98,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
           {ts.step_count > 0 && (
             <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={sw}
               strokeDasharray={circ} strokeDashoffset={circ - (pct / 100) * circ} strokeLinecap="round"
-              className={done ? 'text-green-500' : 'text-brand-500'} />
+              className={progressClass} />
           )}
         </svg>
         <div className="absolute inset-0 flex items-center justify-center text-3xl leading-none">
