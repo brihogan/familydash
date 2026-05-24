@@ -1231,7 +1231,9 @@ export default function UserTaskDetailPage() {
         </div>
       )}
 
-      {taskSet.is_award ? (
+      {steps.length === 0 && taskSet.is_award ? (
+        // Award types without a per-step structure (manual / count_at_level /
+        // composite) fall back to the generic "How to earn it" view.
         <AwardDetail
           userId={parseInt(userId, 10)}
           taskSet={taskSet}

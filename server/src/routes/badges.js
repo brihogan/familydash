@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import db from '../db/db.js';
 import { authenticate } from '../middleware/auth.js';
+import { generateAwardSteps } from '../services/awardSteps.js';
 
 const router = Router();
 
@@ -157,7 +158,8 @@ router.post('/users/:userId/badges/enroll', authenticate, (req, res, next) => {
 
     // Fetch badge
     const badge = db.prepare(
-      `SELECT id, name, category, description, emoji, level_opt_counts, is_award FROM badges WHERE id = ? AND is_active = 1`
+      `SELECT id, name, category, description, emoji, level_opt_counts, is_award, award_type, award_config
+       FROM badges WHERE id = ? AND is_active = 1`
     ).get(body.badgeId);
     if (!badge) return res.status(404).json({ error: 'Badge not found.' });
 
@@ -263,11 +265,29 @@ router.post('/users/:userId/badges/enroll', authenticate, (req, res, next) => {
       `);
 
       let order = 0;
-      for (const step of requiredSteps) {
-        insertStep.run(taskSetId, step.text, order++, 0, null);
-      }
-      for (const opt of selectedOpts) {
-        insertStep.run(taskSetId, opt.text, order++, 1, opt.id);
+      if (isAward) {
+        // Awards: generate steps from award_config. Mix of activities and
+        // badge/area references; the linked metadata lets the UI add badge
+        // image + progress + "Start badge" links on top of the standard row.
+        const insertAwardStep = db.prepare(`
+          INSERT INTO task_steps (task_set_id, name, description, sort_order, is_optional,
+                                  badge_opt_req_id, require_input, input_prompt,
+                                  linked_badge_id, linked_badge_category)
+          VALUES (?, ?, '', ?, 0, NULL, 0, '', ?, ?)
+        `);
+        let awardCfg = {};
+        try { awardCfg = JSON.parse(badge.award_config || '{}'); } catch (_) {}
+        const awardSteps = generateAwardSteps(db, badge.award_type, awardCfg, userLevel);
+        for (const s of awardSteps) {
+          insertAwardStep.run(taskSetId, s.name, order++, s.linked_badge_id, s.linked_badge_category);
+        }
+      } else {
+        for (const step of requiredSteps) {
+          insertStep.run(taskSetId, step.text, order++, 0, null);
+        }
+        for (const opt of selectedOpts) {
+          insertStep.run(taskSetId, opt.text, order++, 1, opt.id);
+        }
       }
 
       db.prepare(`

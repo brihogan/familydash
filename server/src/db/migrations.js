@@ -1,3 +1,5 @@
+import { generateAwardSteps } from '../services/awardSteps.js';
+
 /**
  * Idempotent migrations for the FamilyDash database.
  * Each migration uses try/catch or IF NOT EXISTS so it's safe to re-run.
@@ -551,5 +553,42 @@ export function runMigrations(db) {
       SET category = 'Curiosity', tags = '["Award"]'
       WHERE category = 'Award' AND tags IN ('[]', '');
     `);
+  }
+
+  // v67: link task_steps to badges and badge categories. Lets award enrollments
+  //   use the standard step infrastructure (instead of a custom JSON state
+  //   blob) so awards render exactly like badges everywhere (kid view, admin
+  //   /settings/tasks, completion history, etc.). Also backfills steps for
+  //   any existing award enrollments that don't have them yet.
+  try { db.exec(`ALTER TABLE task_steps ADD COLUMN linked_badge_id INTEGER REFERENCES badges(id) ON DELETE SET NULL`); } catch (_) {}
+  try { db.exec(`ALTER TABLE task_steps ADD COLUMN linked_badge_category TEXT`); } catch (_) {}
+
+  // Backfill: generate task_steps for every active award task_set that has 0
+  // active steps. Idempotent — skips task_sets that already have any steps.
+  const awardEnrollmentsNeedingSteps = db.prepare(`
+    SELECT ts.id AS task_set_id, ts.badge_level, b.award_type, b.award_config
+    FROM task_sets ts
+    JOIN badges b ON b.id = ts.badge_id
+    WHERE ts.is_active = 1 AND b.is_award = 1
+      AND NOT EXISTS (SELECT 1 FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)
+  `).all();
+  if (awardEnrollmentsNeedingSteps.length > 0) {
+    const insertStep = db.prepare(`
+      INSERT INTO task_steps (task_set_id, name, description, sort_order, is_optional,
+                              badge_opt_req_id, require_input, input_prompt,
+                              linked_badge_id, linked_badge_category)
+      VALUES (?, ?, '', ?, 0, NULL, 0, '', ?, ?)
+    `);
+    db.transaction(() => {
+      for (const row of awardEnrollmentsNeedingSteps) {
+        let cfg = {};
+        try { cfg = JSON.parse(row.award_config || '{}'); } catch (_) {}
+        const steps = generateAwardSteps(db, row.award_type, cfg, row.badge_level);
+        let order = 0;
+        for (const step of steps) {
+          insertStep.run(row.task_set_id, step.name, order++, step.linked_badge_id, step.linked_badge_category);
+        }
+      }
+    })();
   }
 }

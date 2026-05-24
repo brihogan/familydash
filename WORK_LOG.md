@@ -2,6 +2,11 @@
 
 ## Session Start: 2026-05-24 (morning)
 
+### 2026-05-24 — Unify awards onto standard task_steps
+- Awards now generate real `task_steps` on enrollment (just like badges) instead of a custom `award_state` JSON blob + per-type detail pages. The `/tasks/:userId/:taskSetId` page renders awards with the same step rows as badges; settings/tasks shows the step count and the standard edit flow works.
+- Migration v67 adds `linked_badge_id` + `linked_badge_category` to `task_steps` so a step can reference a specific badge (e.g. Liberty's "Earn the U.S. Constitution badge") or an area (Discovery's "Earn a badge in Agriculture"). Backfills steps for the 2 existing award enrollments. New shared service `server/src/services/awardSteps.js` generates the step list from any award's `award_type` + `award_config`; used by both the enroll endpoint and the migration backfill.
+- Dropped `DiscoveryAwardDetail`, `SpecificBadgesAwardDetail`, `TaskListAwardDetail`. The `AwardDetail` dispatcher now only fires when an award has zero steps (manual / count_at_level / composite), falling back to `GenericAwardDetail` with the description + hint.
+
 ### 2026-05-24 — Life Skills Award filled in (180 activities, 6 levels)
 - Added the full per-level Life Skills requirements (30 activities each for Preschool / Level 1-5, all sourced from the official CU sub-pages and pasted in by Brian since the pages are member-only). Each non-Preschool level starts with "Complete all [prior level] requirements" to mirror the printed checklist, same as Outdoors. A Level 5 kid sees all 180 steps grouped by level.
 
