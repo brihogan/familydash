@@ -141,7 +141,15 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
               <IconDisplay value={ts.emoji} fallback="🏅" />
             </div>
           ) : (
-            <IconDisplay value={ts.emoji} fallback="📋" />
+            // Non-Curiosity set: same disc treatment as a badge but grayscale,
+            // so the curved title has a clean background and the icon reads
+            // against a consistent inner circle.
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center"
+              style={{ background: 'radial-gradient(circle at center, #F9FAFB 0%, #D1D5DB 100%)' }}
+            >
+              <IconDisplay value={ts.emoji} fallback="📋" />
+            </div>
           )}
         </div>
         {done && ts.completion_status !== 'pending' && !(ts.pending_step_count > 0) && (
