@@ -36,6 +36,7 @@ import TurnDetailPage from './pages/TurnDetailPage.jsx';
 import ClaudeTerminalPage from './components/claude/ClaudeTerminal.jsx';
 import AppsPage from './pages/AppsPage.jsx';
 import BadgeBrowserPage from './pages/BadgeBrowserPage.jsx';
+import KidGroupPage from './pages/KidGroupPage.jsx';
 import SettingsBadgesPage from './pages/SettingsBadgesPage.jsx';
 
 export default function App() {
@@ -60,6 +61,7 @@ export default function App() {
               <Route path="/bank/:userId" element={<KidBankPage />} />
               <Route path="/tickets/:userId" element={<KidTicketsPage />} />
               <Route path="/tasks/:userId" element={<KidTasksPage />} />
+              <Route path="/tasks/:userId/group/:groupKey" element={<KidGroupPage />} />
               <Route path="/tasks/:userId/:taskSetId" element={<UserTaskDetailPage />} />
               <Route path="/badges/:userId" element={<BadgeBrowserPage />} />
               <Route path="/trophies/:userId" element={<KidTrophiesPage />} />

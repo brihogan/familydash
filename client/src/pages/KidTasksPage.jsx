@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMedal, faTag, faXmark, faTicket, faStar, faCheck, faShieldHalved } from '@fortawesome/free-solid-svg-icons';
+import { faMedal, faTag, faXmark, faTicket, faStar, faCheck, faShieldHalved, faTrophy, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import KidProfilePicker from '../components/shared/KidProfilePicker.jsx';
 import Modal from '../components/shared/Modal.jsx';
@@ -76,13 +76,25 @@ export default function KidTasksPage() {
       return isToday(ts.earned_at);
     });
 
-  // ── Filter pills derived from the visible task sets ──────────────────────
-  // Each option has a unique `value` like "type:Award" or "tag:Badge" plus
-  // a human label. Filter is single-select; clicking the active one clears it.
+  // Group Curiosity badges + awards into folder cards on the main page; the
+  // sub-pages at /tasks/:userId/group/badges and /awards list the individuals
+  // with status + area filters.
+  const isBadgeTs = (ts) => Array.isArray(ts.tags) && ts.tags.includes('Badge');
+  const isAwardTs = (ts) => Array.isArray(ts.tags) && ts.tags.includes('Award');
+  // Folder counts include the kid's complete collection (done + in-flight),
+  // matching what they see when they click into the group page.
+  const badgeSets = taskSets.filter(isBadgeTs);
+  const awardSets = taskSets.filter(isAwardTs);
+  const otherSets = visibleSets.filter((ts) => !isBadgeTs(ts) && !isAwardTs(ts));
+
+  // ── Filter pills derived from "other" sets only ──────────────────────────
+  // (Curiosity badges/awards live behind folder cards with their own filters.)
+  // Each option has a unique `value` like "type:Project" plus a human label.
+  // Filter is single-select; clicking the active one clears it.
   const filterOptions = (() => {
     const map = new Map(); // value → { value, label, sort }
     const add = (value, label, sort = 0) => { if (!map.has(value)) map.set(value, { value, label, sort }); };
-    for (const ts of visibleSets) {
+    for (const ts of otherSets) {
       if (ts.type)     add(`type:${ts.type}`,         ts.type,     1);
       if (ts.category) add(`category:${ts.category}`, ts.category, 2);
       if (Array.isArray(ts.tags)) {
@@ -108,13 +120,65 @@ export default function KidTasksPage() {
     }
   };
 
-  const sortedSets = visibleSets
+  const sortedSets = otherSets
     .filter((ts) => setMatchesFilter(ts, activeFilter))
     .sort((a, b) => {
       const typeOrder = (t) => (t === 'Project' ? 0 : 1);
       if (typeOrder(a.type) !== typeOrder(b.type)) return typeOrder(a.type) - typeOrder(b.type);
       return a.name.localeCompare(b.name);
     });
+
+  const groupCardCounts = (sets) => {
+    let done = 0, inProgress = 0;
+    for (const ts of sets) {
+      if (ts.step_count > 0 && ts.completed_count >= ts.step_count) done++;
+      else if (ts.completed_count > 0) inProgress++;
+    }
+    return { total: sets.length, done, inProgress, notStarted: sets.length - done - inProgress };
+  };
+
+  const renderGroupCard = ({ key, label, icon, sets, color }) => {
+    const c = groupCardCounts(sets);
+    return (
+      <button
+        key={key}
+        type="button"
+        onClick={() => navigate(`/tasks/${userId}/group/${key}`)}
+        className="relative flex flex-col items-start p-4 bg-white dark:bg-gray-800 border border-gray-200/70 dark:border-gray-700/60 rounded-2xl shadow-md hover:shadow-lg hover:border-brand-300/70 dark:hover:border-brand-500/40 transition-all text-left h-full"
+      >
+        <div className="flex items-center justify-between w-full mb-2">
+          <span
+            className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0"
+            style={{ backgroundColor: `${color}1A`, color }}
+          >
+            <FontAwesomeIcon icon={icon} />
+          </span>
+          <FontAwesomeIcon icon={faChevronRight} className="text-gray-300 dark:text-gray-600 text-sm" />
+        </div>
+        <p className="text-base font-bold text-gray-900 dark:text-gray-100">{label}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          {c.total} assigned
+        </p>
+        <div className="mt-3 flex flex-wrap gap-1.5 text-[10px]">
+          {c.done > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-semibold">
+              {c.done} done
+            </span>
+          )}
+          {c.inProgress > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-semibold">
+              {c.inProgress} in progress
+            </span>
+          )}
+          {c.notStarted > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-semibold">
+              {c.notStarted} new
+            </span>
+          )}
+        </div>
+      </button>
+    );
+  };
 
   const togglePillFilter = (value) => setActiveFilter((cur) => (cur === value ? null : value));
 
@@ -513,14 +577,41 @@ export default function KidTasksPage() {
 
       {loading ? (
         <LoadingSkeleton rows={3} />
-      ) : sortedSets.length === 0 ? (
-        <div className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
-          {activeFilter ? 'No tasks match this filter.' : 'No tasks assigned yet.'}
-        </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5 auto-rows-fr">
-          {sortedSets.map(renderCard)}
-        </div>
+        <>
+          {/* Folder cards for Curiosity badges + awards */}
+          {(badgeSets.length > 0 || awardSets.length > 0) && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5 mb-4 auto-rows-fr">
+              {badgeSets.length > 0 && renderGroupCard({
+                key: 'badges',
+                label: 'Badges',
+                icon: faShieldHalved,
+                sets: badgeSets,
+                color: '#A855F7',
+              })}
+              {awardSets.length > 0 && renderGroupCard({
+                key: 'awards',
+                label: 'Awards',
+                icon: faTrophy,
+                sets: awardSets,
+                color: '#F59E0B',
+              })}
+            </div>
+          )}
+
+          {/* Other task sets (non-Curiosity Projects + One-Offs) */}
+          {sortedSets.length === 0 ? (
+            badgeSets.length === 0 && awardSets.length === 0 && (
+              <div className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
+                {activeFilter ? 'No tasks match this filter.' : 'No tasks assigned yet.'}
+              </div>
+            )
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5 auto-rows-fr">
+              {sortedSets.map(renderCard)}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
