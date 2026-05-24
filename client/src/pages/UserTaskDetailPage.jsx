@@ -10,6 +10,7 @@ import { taskSetsApi } from '../api/taskSets.api.js';
 import { badgesApi } from '../api/badges.api.js';
 import { BADGE_LEVELS } from '../constants/badgeLevels.js';
 import BadgeImageLightbox from '../components/badges/BadgeImageLightbox.jsx';
+import AwardDetail from '../components/awards/AwardDetail.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { playChoreCheck, playVictory } from '../utils/sounds.js';
 import useScrollLock from '../hooks/useScrollLock.js';
@@ -1184,7 +1185,7 @@ export default function UserTaskDetailPage() {
               <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full whitespace-nowrap">
                 {taskSet.type}
               </span>
-              {taskSet.category && (
+              {taskSet.category && !taskSet.is_award && (
                 <span className="px-2 py-0.5 text-xs font-medium bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-100 border border-brand-200 dark:border-brand-500/30 rounded-full whitespace-nowrap">
                   {taskSet.category}
                 </span>
@@ -1230,7 +1231,13 @@ export default function UserTaskDetailPage() {
         </div>
       )}
 
-      {steps.length === 0 ? (
+      {taskSet.is_award ? (
+        <AwardDetail
+          userId={parseInt(userId, 10)}
+          taskSet={taskSet}
+          onAwardStateChanged={(newState) => setTaskSet((t) => t ? { ...t, award_state: newState } : t)}
+        />
+      ) : steps.length === 0 ? (
         <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">No steps in this task set yet.</p>
       ) : taskSet.display_mode === 'card' ? (
         /* ── Card view ── */

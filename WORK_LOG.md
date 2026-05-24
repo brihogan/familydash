@@ -1,5 +1,14 @@
 # Work Log
 
+## Session Start: 2026-05-24 (morning)
+
+### 2026-05-24 — CuriosityUntamed Awards (Phases 1–4)
+- **Phase 1 – Scrape + DB**: Migration v64 adds `is_award`, `award_type`, `award_config` to badges; v65 adds `award_state` to task_sets. New `server/scripts/importAwards.js` upserts all 15 CU awards (Discovery, Wow, Liberty, Fruit of the Spirit, Servant's Heart, Make a Difference, Leadership, Outdoors, STEAM, Life Skills, Elizabeth Vicory, Gem, Career Exploration, Cassi Jensen, Major) with images downloaded from the source pages. Each award has an `award_type` (specific_badges / area_coverage / count_at_level / composite / task_list / manual) and a per-type config blob.
+- **Phase 2 – Browser UI**: `GET /api/badges` gains a `type` param (badge default / award / all) and a `names` param for bulk lookup. `BadgeBrowser` gets a 3-way pill toggle, hides the Area filter when viewing Awards, and renders an "AWARD" tag on award cards. `BadgePreviewModal` swaps to award-flavored copy ("🏆 Start tracking this award!" + a "How to earn it" summary per award_type).
+- **Phase 3 – Discovery Award dashboard**: New `client/src/components/awards/DiscoveryAwardDetail.jsx` renders 9 Areas of Discovery as rows for the kid's enrolled badges at the award's level: 1 match → name + progress ring inline, multiple → dropdown defaulting to highest progress (selection persists via PATCH `/api/users/:userId/awards/:taskSetId/state` → `award_state.area_selection`), none → "Find a badge →" deep link to `/badges/:userId?type=badge&category=…` (BadgeBrowserPage now reads those URL params).
+- **Phase 4 – Specific-badges + task-list awards**: `SpecificBadgesAwardDetail` (Liberty, Fruit of the Spirit) and `TaskListAwardDetail` (STEAM, Outdoors) share a row layout: badge steps show a progress ring if enrolled / "Start badge" button (opens `BadgePreviewModal`) if not; activity steps are parent/kid-checkable text rows persisted to `award_state.activity_done[stepKey]`. Outdoors steps accumulate from preschool up to the award's level; STEAM uses an `all` bucket.
+- **Dispatcher**: `UserTaskDetailPage` now renders `<AwardDetail>` instead of the steps grid when `taskSet.is_award`. AwardDetail switches on `award_type`; unknown types fall through to a generic placeholder. Enrollment flow tweaks: award task_sets get `category='Award'` and empty tags so the header doesn't show duplicate "Award" pills.
+
 ## Session Start: 2026-05-23 (evening)
 
 ### 2026-05-23 — Badge images no longer cover ProgressRing progress arc

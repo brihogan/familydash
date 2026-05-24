@@ -484,4 +484,20 @@ export function runMigrations(db) {
 
   // v63: sets_steps_label — per-family display label for "Sets & Steps"
   try { db.exec(`ALTER TABLE families ADD COLUMN sets_steps_label TEXT NOT NULL DEFAULT 'Sets & Steps'`); } catch (_) {}
+
+  // v64: CuriosityUntamed Awards — stored in same badges table with is_award flag.
+  //   award_type   discriminates the completion rule (specific_badges, area_coverage,
+  //                count_at_level, composite, task_list, manual)
+  //   award_config JSON blob with type-specific config (badge name list, area list,
+  //                target counts, step definitions, etc.) — read by award-detail UI
+  //                and (later) by the auto-complete evaluator.
+  try { db.exec(`ALTER TABLE badges ADD COLUMN is_award INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
+  try { db.exec(`ALTER TABLE badges ADD COLUMN award_type TEXT`); } catch (_) {}
+  try { db.exec(`ALTER TABLE badges ADD COLUMN award_config TEXT`); } catch (_) {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_badges_is_award ON badges(is_award)`); } catch (_) {}
+
+  // v65: per-task_set award_state — stores kid's choices for an enrolled award
+  //   (e.g. which assigned badge satisfies each area in Discovery Award when
+  //   multiple are enrolled). JSON blob, schema varies by award_type.
+  try { db.exec(`ALTER TABLE task_sets ADD COLUMN award_state TEXT`); } catch (_) {}
 }

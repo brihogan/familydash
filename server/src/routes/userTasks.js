@@ -64,6 +64,8 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
     const rows = db.prepare(`
       SELECT ts.*, ta.completion_status,
         b.image_file AS badge_image_file,
+        b.category   AS badge_category,
+        b.is_award   AS badge_is_award,
         (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)   AS step_count,
         (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ?)                AS completed_count,
         (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ? AND approval_status = 'pending') AS pending_step_count,
@@ -238,12 +240,23 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
     const taskSet = db.prepare('SELECT * FROM task_sets WHERE id = ? AND is_active = 1').get(taskSetId);
     if (!taskSet) return res.status(404).json({ error: 'Task set not found.' });
 
-    // For badge task sets, fetch level_opt_counts so the kid view can show shortfall
+    // For badge task sets, fetch level_opt_counts so the kid view can show shortfall.
+    // For award task sets (is_award=1), also surface award_type + award_config so the
+    // detail page can dispatch to the right per-type UI (Discovery dashboard, etc).
     if (taskSet.badge_id) {
-      const badge = db.prepare('SELECT level_opt_counts, image_file FROM badges WHERE id = ?').get(taskSet.badge_id);
+      const badge = db.prepare(
+        'SELECT level_opt_counts, image_file, name, description, category, is_award, award_type, award_config FROM badges WHERE id = ?'
+      ).get(taskSet.badge_id);
       if (badge) {
         try { taskSet.level_opt_counts = JSON.parse(badge.level_opt_counts || '{}'); } catch { taskSet.level_opt_counts = {}; }
         taskSet.badge_image_file = badge.image_file || null;
+        taskSet.badge_name        = badge.name        || null;
+        taskSet.badge_description = badge.description || null;
+        taskSet.badge_category    = badge.category    || null;
+        taskSet.is_award          = badge.is_award === 1;
+        taskSet.award_type        = badge.award_type  || null;
+        try { taskSet.award_config = JSON.parse(badge.award_config || '{}'); } catch { taskSet.award_config = {}; }
+        try { taskSet.award_state  = JSON.parse(taskSet.award_state || '{}'); } catch { taskSet.award_state  = {}; }
       }
     }
 
@@ -489,6 +502,38 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
       ).get(stepId, userId, toggleToday).cnt;
       res.json({ completed_count: nextInstance, completed_today: todayCount });
     }
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/users/:userId/awards/:taskSetId/state
+// Persist an award-detail page's per-kid selections (e.g. Discovery Award's
+// "which enrolled badge counts for each Area"). Body shape is opaque JSON
+// merged into task_sets.award_state; schema is per-award-type.
+router.patch('/:userId/awards/:taskSetId/state', authenticate, (req, res, next) => {
+  try {
+    const userId    = parseInt(req.params.userId,    10);
+    const taskSetId = parseInt(req.params.taskSetId, 10);
+    assertUserInFamily(userId, req.user.familyId);
+
+    // Only the assigned kid (or a parent in the same family) can update it.
+    if (req.user.id !== userId && req.user.role !== 'parent') {
+      return res.status(403).json({ error: 'Not allowed.' });
+    }
+
+    const assignment = db.prepare(
+      'SELECT id FROM task_assignments WHERE task_set_id = ? AND user_id = ? AND is_active = 1'
+    ).get(taskSetId, userId);
+    if (!assignment) return res.status(404).json({ error: 'Award not assigned to this user.' });
+
+    const taskSet = db.prepare('SELECT id, award_state FROM task_sets WHERE id = ? AND is_active = 1').get(taskSetId);
+    if (!taskSet) return res.status(404).json({ error: 'Task set not found.' });
+
+    let prev = {};
+    try { prev = JSON.parse(taskSet.award_state || '{}'); } catch { prev = {}; }
+    const merged = { ...prev, ...(req.body || {}) };
+
+    db.prepare('UPDATE task_sets SET award_state = ? WHERE id = ?').run(JSON.stringify(merged), taskSetId);
+    res.json({ award_state: merged });
   } catch (err) { next(err); }
 });
 

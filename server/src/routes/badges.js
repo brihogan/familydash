@@ -13,15 +13,22 @@ router.get('/badges', authenticate, (req, res, next) => {
   try {
     const search   = (req.query.search   || '').trim();
     const category = (req.query.category || '').trim();
+    const names    = (req.query.names    || '').trim(); // comma-separated exact-match list
     const page     = Math.max(1, parseInt(req.query.page  || '1',  10));
     const limit    = Math.min(100, Math.max(1, parseInt(req.query.limit || '50', 10)));
     const offset   = (page - 1) * limit;
     // Parents only: switch to viewing ONLY soft-disabled badges (so they can find
     // ones with no required steps and decide whether to re-enable them).
     const onlyInactive = req.user.role === 'parent' && req.query.onlyInactive === 'true';
+    // Type filter: 'badge' (default, hides awards), 'award' (only awards), 'all'
+    const typeParam = (req.query.type || 'badge').toLowerCase();
 
     const conditions = [onlyInactive ? 'b.is_active = 0' : 'b.is_active = 1'];
     const params     = [];
+
+    if (typeParam === 'award')      conditions.push(`b.is_award = 1`);
+    else if (typeParam === 'badge') conditions.push(`b.is_award = 0`);
+    // 'all' adds no filter
 
     if (search) {
       conditions.push(`b.name LIKE ?`);
@@ -31,6 +38,14 @@ router.get('/badges', authenticate, (req, res, next) => {
       conditions.push(`b.category = ?`);
       params.push(category);
     }
+    if (names) {
+      const list = names.split(',').map(n => n.trim()).filter(Boolean).slice(0, 50);
+      if (list.length > 0) {
+        const placeholders = list.map(() => '?').join(', ');
+        conditions.push(`b.name IN (${placeholders}) COLLATE NOCASE`);
+        params.push(...list);
+      }
+    }
 
     const where = conditions.length > 0 ? conditions.join(' AND ') : '1=1';
 
@@ -38,15 +53,17 @@ router.get('/badges', authenticate, (req, res, next) => {
 
     const badges = db.prepare(`
       SELECT b.id, b.name, b.slug, b.category, b.author, b.image_file,
-             b.is_specific, b.note, b.description, b.emoji, b.is_active, b.level_opt_counts
+             b.is_specific, b.note, b.description, b.emoji, b.is_active, b.level_opt_counts,
+             b.is_award, b.award_type, b.award_config
       FROM badges b
       WHERE ${where}
       ORDER BY b.name ASC
       LIMIT ? OFFSET ?
     `).all(...params, limit, offset);
 
+    // Categories list excludes awards so the area-filter pills stay clean.
     const categories = db.prepare(
-      `SELECT DISTINCT category FROM badges WHERE is_active = 1 AND category != '' ORDER BY category ASC`
+      `SELECT DISTINCT category FROM badges WHERE is_active = 1 AND is_award = 0 AND category != '' ORDER BY category ASC`
     ).all().map(r => r.category);
 
     res.json({ badges, total, page, limit, categories });
@@ -61,7 +78,8 @@ router.get('/badges/:id', authenticate, (req, res, next) => {
   try {
     const badgeId = parseInt(req.params.id, 10);
     const badge = db.prepare(
-      `SELECT id, name, slug, category, author, image_file, is_specific, note, description, emoji, source_url, level_opt_counts
+      `SELECT id, name, slug, category, author, image_file, is_specific, note, description, emoji, source_url, level_opt_counts,
+              is_award, award_type, award_config
        FROM badges WHERE id = ? AND is_active = 1`
     ).get(badgeId);
     if (!badge) return res.status(404).json({ error: 'Badge not found.' });
@@ -139,7 +157,7 @@ router.post('/users/:userId/badges/enroll', authenticate, (req, res, next) => {
 
     // Fetch badge
     const badge = db.prepare(
-      `SELECT id, name, category, description, emoji, level_opt_counts FROM badges WHERE id = ? AND is_active = 1`
+      `SELECT id, name, category, description, emoji, level_opt_counts, is_award FROM badges WHERE id = ? AND is_active = 1`
     ).get(body.badgeId);
     if (!badge) return res.status(404).json({ error: 'Badge not found.' });
 
@@ -225,11 +243,17 @@ router.post('/users/:userId/badges/enroll', authenticate, (req, res, next) => {
     // Create task_set + steps + assignment in a transaction
     const enroll = db.transaction(() => {
       // Curiosity badges: category = "Curiosity"; tags = ["Badge", <Area of Discovery>]
-      const tagsJson = JSON.stringify(['Badge', badge.category].filter(Boolean));
+      // CuriosityUntamed Awards: category = "Award"; no auto-tags (the "Award"
+      //   type pill + dedicated award detail UI carry the meaning already).
+      const isAward  = badge.is_award === 1;
+      const tagsJson = isAward
+        ? JSON.stringify([])
+        : JSON.stringify(['Badge', badge.category].filter(Boolean));
+      const tsCategory = isAward ? 'Award' : 'Curiosity';
       const setResult = db.prepare(`
         INSERT INTO task_sets (family_id, name, type, emoji, description, category, tags, ticket_reward, display_mode, notify_mode, badge_id, badge_level)
-        VALUES (?, ?, 'Award', ?, ?, 'Curiosity', ?, 0, 'list', 'off', ?, ?)
-      `).run(targetUser.family_id, badge.name, badge.emoji || null, badge.description || '', tagsJson, badge.id, userLevel);
+        VALUES (?, ?, 'Award', ?, ?, ?, ?, 0, 'list', 'off', ?, ?)
+      `).run(targetUser.family_id, badge.name, badge.emoji || null, badge.description || '', tsCategory, tagsJson, badge.id, userLevel);
 
       const taskSetId = setResult.lastInsertRowid;
 

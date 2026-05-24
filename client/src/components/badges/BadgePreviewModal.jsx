@@ -55,6 +55,31 @@ export default function BadgePreviewModal({ badge, userId, userLevel, canEnroll,
   const requirements = detail?.requirements ?? [];
   const optionals    = detail?.optionals    ?? [];
   const levelCfg     = userLevel && BADGE_LEVELS[userLevel];
+  const isAward      = !!(detail?.is_award ?? badge.is_award);
+  const awardConfig  = (() => {
+    try { return JSON.parse(detail?.award_config || badge.award_config || '{}'); } catch { return {}; }
+  })();
+  const awardType    = detail?.award_type || badge.award_type;
+
+  function awardRequirementSummary() {
+    if (!isAward) return null;
+    switch (awardType) {
+      case 'specific_badges':
+        return `Earn these ${awardConfig.badge_names?.length || ''} badges at your level: ${(awardConfig.badge_names || []).join(', ')}.`;
+      case 'area_coverage':
+        return 'Earn at least one badge from each of the 9 Areas of Discovery, all at the same level.';
+      case 'count_at_level':
+        return `Earn ${awardConfig.min || '?'} badges at a single age level.`;
+      case 'composite':
+        return `Earn each of these other awards at your level: ${(awardConfig.award_slugs || []).join(', ')}.`;
+      case 'task_list':
+        return 'Complete a checklist of skills tailored to your level — a mix of specific badges and hands-on activities.';
+      case 'manual':
+        return awardConfig.hint || 'Awarded by a parent or leader when the requirements are met.';
+      default:
+        return null;
+    }
+  }
 
   const handleStart = async () => {
     setStarting(true);
@@ -117,7 +142,9 @@ export default function BadgePreviewModal({ badge, userId, userLevel, canEnroll,
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight">
                   {badge.name}
                 </h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{badge.category}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {isAward ? 'Award' : badge.category}
+                </p>
                 {levelCfg && (
                   <div className="mt-2">
                     <LevelPill level={userLevel} />
@@ -152,8 +179,10 @@ export default function BadgePreviewModal({ badge, userId, userLevel, canEnroll,
                     : !userLevel
                       ? 'Set a badge level first'
                       : !canEnroll
-                        ? 'Badge full — finish another first'
-                        : '🚀 I want to start this badge!'}
+                        ? `${isAward ? 'Award' : 'Badge'} list full — finish another first`
+                        : isAward
+                          ? '🏆 Start tracking this award!'
+                          : '🚀 I want to start this badge!'}
                 </button>
                 {pickCount > 0 && canEnroll && userLevel && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
@@ -176,7 +205,16 @@ export default function BadgePreviewModal({ badge, userId, userLevel, canEnroll,
               <p className="text-sm text-red-500 text-center py-4">{loadError}</p>
             )}
 
-            {!loading && !loadError && (
+            {!loading && !loadError && isAward && (
+              <div>
+                <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+                  How to earn it
+                </h3>
+                <p className="text-sm text-gray-700 dark:text-gray-300 leading-snug">{awardRequirementSummary()}</p>
+              </div>
+            )}
+
+            {!loading && !loadError && !isAward && (
               <>
                 {/* Required */}
                 <div>

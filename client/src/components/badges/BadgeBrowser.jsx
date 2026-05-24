@@ -72,7 +72,7 @@ function BadgeImage({ imageFile, emoji, name, size = 64 }) {
  *   - compact: hide the page-level header + kid picker (modal already frames them).
  *   - onEnrolled: callback after successful enrollment. Defaults to navigating to the new task set.
  */
-export default function BadgeBrowser({ userId, compact = false, onEnrolled }) {
+export default function BadgeBrowser({ userId, compact = false, onEnrolled, initialType = 'badge', initialCategory = '' }) {
   const { user }    = useAuth();
   const navigate    = useNavigate();
   const isParent    = user?.role === 'parent';
@@ -85,7 +85,8 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled }) {
   const badgeMembers = members.filter((m) => m.badge_level && m.is_active);
 
   const [search,   setSearch]   = useState('');
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState(initialCategory);
+  const [type,     setType]     = useState(initialType); // 'badge' | 'award' | 'all'
   const [page,     setPage]     = useState(1);
   const [badges,   setBadges]   = useState([]);
   const [total,    setTotal]    = useState(0);
@@ -99,11 +100,11 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled }) {
 
   const LIMIT = 48;
 
-  const fetchBadges = useCallback(async (s, cat, pg) => {
+  const fetchBadges = useCallback(async (s, cat, pg, t) => {
     setLoading(true);
     setError('');
     try {
-      const params = { limit: LIMIT, page: pg };
+      const params = { limit: LIMIT, page: pg, type: t };
       if (s)   params.search   = s;
       if (cat) params.category = cat;
       const data = await badgesApi.getBadges(params);
@@ -117,18 +118,25 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled }) {
   }, []);
 
   useEffect(() => {
-    fetchBadges(search, category, page);
-  }, [category, page, fetchBadges]); // search is debounced below
+    fetchBadges(search, category, page, type);
+  }, [category, page, type, fetchBadges]); // search is debounced below
 
   const handleSearch = (val) => {
     setSearch(val);
     setPage(1);
     clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(() => fetchBadges(val, category, 1), 350);
+    searchTimeout.current = setTimeout(() => fetchBadges(val, category, 1, type), 350);
   };
 
   const handleCategory = (cat) => {
     setCategory(cat === category ? '' : cat);
+    setPage(1);
+  };
+
+  const handleType = (t) => {
+    if (t === type) return;
+    setType(t);
+    setCategory(''); // category is badge-only; reset when crossing types
     setPage(1);
   };
 
@@ -182,48 +190,71 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled }) {
         </p>
       )}
 
+      {/* Type toggle: Badges / Awards / All */}
+      <div className="flex items-center gap-1 mb-4 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg w-fit">
+        {[
+          { key: 'badge', label: 'Badges' },
+          { key: 'award', label: 'Awards' },
+          { key: 'all',   label: 'All'    },
+        ].map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => handleType(key)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-colors ${
+              type === key
+                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* Search */}
       <div className="mb-4">
         <input
           type="search"
-          placeholder="Search badges…"
+          placeholder={type === 'award' ? 'Search awards…' : 'Search badges…'}
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
           className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-brand-400 focus:border-brand-400 outline-none text-sm"
         />
       </div>
 
-      {/* Category pills */}
-      <div className="flex flex-wrap gap-1.5 mb-5">
-        <button
-          onClick={() => handleCategory('')}
-          className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-            !category
-              ? 'bg-brand-500 text-white border-brand-500'
-              : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-brand-400'
-          }`}
-        >
-          All
-        </button>
-        {CATEGORIES.map((cat) => (
+      {/* Category pills (hidden when viewing Awards — awards have no Area filter) */}
+      {type !== 'award' && (
+        <div className="flex flex-wrap gap-1.5 mb-5">
           <button
-            key={cat}
-            onClick={() => handleCategory(cat)}
+            onClick={() => handleCategory('')}
             className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-              category === cat
+              !category
                 ? 'bg-brand-500 text-white border-brand-500'
                 : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-brand-400'
             }`}
           >
-            {cat.replace('Discover ', '').replace('the ', '')}
+            All
           </button>
-        ))}
-      </div>
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => handleCategory(cat)}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                category === cat
+                  ? 'bg-brand-500 text-white border-brand-500'
+                  : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-brand-400'
+              }`}
+            >
+              {cat.replace('Discover ', '').replace('the ', '')}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Results count */}
       {!loading && (
         <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
-          {total} badge{total === 1 ? '' : 's'}
+          {total} {type === 'award' ? 'award' : 'badge'}{total === 1 ? '' : 's'}
           {search ? ` matching "${search}"` : ''}
           {category ? ` in ${category}` : ''}
         </p>
@@ -254,9 +285,15 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled }) {
                 <p className="mt-2 text-xs font-semibold text-gray-800 dark:text-gray-100 text-center leading-snug line-clamp-2 min-h-[2.5rem] w-full">
                   {badge.name}
                 </p>
-                <p className="text-[10px] text-gray-400 dark:text-gray-500 text-center mb-2 w-full">
-                  {badge.category.replace('Discover ', '').replace('the ', '')}
-                </p>
+                {badge.is_award ? (
+                  <p className="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400 font-semibold text-center mb-2 w-full">
+                    Award
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 text-center mb-2 w-full">
+                    {badge.category.replace('Discover ', '').replace('the ', '')}
+                  </p>
+                )}
 
                 {isActive && (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
