@@ -131,11 +131,19 @@ export default function KidTasksPage() {
 
   const groupCardCounts = (sets) => {
     let done = 0, inProgress = 0;
+    let totalSteps = 0, doneSteps = 0;
     for (const ts of sets) {
+      totalSteps += ts.step_count || 0;
+      doneSteps  += Math.min(ts.completed_count || 0, ts.step_count || 0);
       if (ts.step_count > 0 && ts.completed_count >= ts.step_count) done++;
       else if (ts.completed_count > 0) inProgress++;
     }
-    return { total: sets.length, done, inProgress, notStarted: sets.length - done - inProgress };
+    return {
+      total: sets.length,
+      done, inProgress,
+      notStarted: sets.length - done - inProgress,
+      totalSteps, doneSteps,
+    };
   };
 
   // Folder card mimics the dimensions/inner structure of a regular TaskSetCard
@@ -147,7 +155,10 @@ export default function KidTasksPage() {
     const sw = 8;
     const r = (size - sw * 2) / 2;
     const circ = 2 * Math.PI * r;
-    const overallPct = c.total > 0 ? Math.round((c.done / c.total) * 100) : 0;
+    // Progress = aggregate step completion across every (non-archived) set in
+    // the folder, so a single half-done badge nudges the ring forward.
+    const overallPct = c.totalSteps > 0 ? Math.round((c.doneSteps / c.totalSteps) * 100) : 0;
+    const allDone = c.totalSteps > 0 && c.doneSteps >= c.totalSteps;
     return (
       <button
         key={key}
@@ -167,10 +178,10 @@ export default function KidTasksPage() {
         <div className="relative mb-3 flex-shrink-0" style={{ width: size, height: size }}>
           <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
             <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={sw} className="text-gray-100 dark:text-gray-700" />
-            {c.done > 0 && (
+            {overallPct > 0 && (
               <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={sw}
                 strokeDasharray={circ} strokeDashoffset={circ - (overallPct / 100) * circ} strokeLinecap="round"
-                className="text-green-500" />
+                className={allDone ? 'text-green-500' : 'text-brand-500'} />
             )}
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
