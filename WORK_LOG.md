@@ -2,6 +2,11 @@
 
 ## Session Start: 2026-05-24 (morning)
 
+### 2026-05-24 — Awards: per-level only + linked-badge polish (Phases B + C)
+- **Non-cumulative task lists**: `generateAwardSteps` for `task_list` awards now emits only the kid's exact level (plus the `all` bucket for STEAM). Each level's data already includes a "Complete all [prior level] requirements." step, so the prior cumulative behavior was redundant. Migration v68 regenerates steps for any award enrollment that hasn't been started yet — Outdoors at L5 went from 37 → 2 steps; Life Skills L5 went 180 → 30.
+- **Phase B — linked-badge thumbnails on step rows**: When a step has `linked_badge_id`, the right-side thumbnail shows the actual badge image as a brand-ringed circle, clickable to the badge browser pre-searched by name. When `linked_badge_category` is set (Discovery's area steps), a small "Find ↗" pill deep-links to `/badges/X?type=badge&category=…`. Server `getUserTaskSet` step query enriched with `linked_badge_name` + `linked_badge_image` via a LEFT JOIN.
+- **Phase C — admin step edit modal**: New `LinkedBadgePicker` (`client/src/components/awards/LinkedBadgePicker.jsx`) rendered inside the existing step edit modal in `TaskSetDetailPage`. Shows the current linked badge (with thumbnail) or area, with Clear / typeahead-search / area-dropdown controls. Server `StepSchema` gained `linked_badge_id` + `linked_badge_category` fields; create + update step endpoints persist them.
+
 ### 2026-05-24 — Unify awards onto standard task_steps
 - Awards now generate real `task_steps` on enrollment (just like badges) instead of a custom `award_state` JSON blob + per-type detail pages. The `/tasks/:userId/:taskSetId` page renders awards with the same step rows as badges; settings/tasks shows the step count and the standard edit flow works.
 - Migration v67 adds `linked_badge_id` + `linked_badge_category` to `task_steps` so a step can reference a specific badge (e.g. Liberty's "Earn the U.S. Constitution badge") or an area (Discovery's "Earn a badge in Agriculture"). Backfills steps for the 2 existing award enrollments. New shared service `server/src/services/awardSteps.js` generates the step list from any award's `award_type` + `award_config`; used by both the enroll endpoint and the migration backfill.

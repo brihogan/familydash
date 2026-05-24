@@ -8,6 +8,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import Modal from '../components/shared/Modal.jsx';
+import LinkedBadgePicker from '../components/awards/LinkedBadgePicker.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import IconPicker, { IconDisplay } from '../components/shared/IconPicker.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
@@ -18,7 +19,7 @@ const TYPE_OPTIONS = ['Project', 'One-Off'];
 const INPUT_CLS = 'w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
 const EMPTY_SET_FORM  = { name: '', type: 'Project', emoji: '', description: '', category: '', ticket_reward: 0, display_mode: 'list' };
-const EMPTY_STEP_FORM = { name: '', description: '', repeat_count: 1, limit_one_per_day: false, require_input: false, input_prompt: '', image: null, _imageFile: null, _removeImage: false };
+const EMPTY_STEP_FORM = { name: '', description: '', repeat_count: 1, limit_one_per_day: false, require_input: false, input_prompt: '', image: null, _imageFile: null, _removeImage: false, linked_badge_id: null, linked_badge_category: null, _linked_badge_name: null, _linked_badge_image: null };
 
 // ── Sortable step row ─────────────────────────────────────────────────────────
 function SortableStep({ step, index, onEdit, onDelete }) {
@@ -245,6 +246,10 @@ export default function TaskSetDetailPage() {
       image: step.image || null,
       _imageFile: null,
       _removeImage: false,
+      linked_badge_id:       step.linked_badge_id       ?? null,
+      linked_badge_category: step.linked_badge_category ?? null,
+      _linked_badge_name:    step.linked_badge_name     ?? null,
+      _linked_badge_image:   step.linked_badge_image    ?? null,
     });
     setStepError('');
     setStepModal(true);
@@ -263,6 +268,8 @@ export default function TaskSetDetailPage() {
         limit_one_per_day: !!stepForm.limit_one_per_day,
         require_input: !!stepForm.require_input,
         input_prompt: stepForm.input_prompt.trim(),
+        linked_badge_id:       stepForm.linked_badge_id       ?? null,
+        linked_badge_category: stepForm.linked_badge_category ?? null,
       };
       let savedStep;
       if (editStep) {
@@ -998,6 +1005,14 @@ export default function TaskSetDetailPage() {
               <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">This prompt will be shown to the user when they check off the step.</p>
             </div>
           )}
+
+          <LinkedBadgePicker
+            linkedBadgeId={stepForm.linked_badge_id}
+            linkedBadgeName={stepForm._linked_badge_name}
+            linkedBadgeImage={stepForm._linked_badge_image}
+            linkedBadgeCategory={stepForm.linked_badge_category}
+            onChange={(patch) => setStepForm((f) => ({ ...f, ...patch }))}
+          />
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

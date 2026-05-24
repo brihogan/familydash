@@ -591,4 +591,41 @@ export function runMigrations(db) {
       }
     })();
   }
+
+  // v68: re-generate award task_steps for any enrollment that hasn't been
+  //   started yet. The earlier v67 backfill used cumulative steps (all levels
+  //   up through the kid's level); the corrected logic shows only the kid's
+  //   own level since each level's data already includes a "Complete all
+  //   [prior level] requirements" step. Runs every migration cycle but is a
+  //   no-op once a kid has any completion against the task set.
+  const awardSetsToRegen = db.prepare(`
+    SELECT ts.id AS task_set_id, ts.badge_level, b.award_type, b.award_config,
+           (SELECT COUNT(*) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1) AS step_count
+    FROM task_sets ts
+    JOIN badges b ON b.id = ts.badge_id
+    WHERE ts.is_active = 1 AND b.is_award = 1
+      AND NOT EXISTS (SELECT 1 FROM task_step_completions WHERE task_set_id = ts.id)
+  `).all();
+  if (awardSetsToRegen.length > 0) {
+    const insertStep = db.prepare(`
+      INSERT INTO task_steps (task_set_id, name, description, sort_order, is_optional,
+                              badge_opt_req_id, require_input, input_prompt,
+                              linked_badge_id, linked_badge_category)
+      VALUES (?, ?, '', ?, 0, NULL, 0, '', ?, ?)
+    `);
+    const deleteSteps = db.prepare(`DELETE FROM task_steps WHERE task_set_id = ?`);
+    db.transaction(() => {
+      for (const row of awardSetsToRegen) {
+        let cfg = {};
+        try { cfg = JSON.parse(row.award_config || '{}'); } catch (_) {}
+        const newSteps = generateAwardSteps(db, row.award_type, cfg, row.badge_level);
+        if (newSteps.length === row.step_count) continue; // already matches new logic
+        deleteSteps.run(row.task_set_id);
+        let order = 0;
+        for (const step of newSteps) {
+          insertStep.run(row.task_set_id, step.name, order++, step.linked_badge_id, step.linked_badge_category);
+        }
+      }
+    })();
+  }
 }

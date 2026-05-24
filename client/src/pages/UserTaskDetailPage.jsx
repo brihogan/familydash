@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faStickyNote } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
@@ -415,6 +415,7 @@ const DIST = 26;
 
 // ── Step item with chore-style animation ──────────────────────────────────────
 function StepItem({ step, onToggle, disabled }) {
+  const { userId } = useParams();
   const done = false; // todo items are never done
   const [phase, setPhase] = useState('idle');
   const [inputValue, setInputValue] = useState('');
@@ -572,8 +573,35 @@ function StepItem({ step, onToggle, disabled }) {
           onClick={(e) => { e.stopPropagation(); setLightbox(true); }}
         />
       )}
+      {/* Linked-badge thumbnail (award-step pointing at a specific badge) */}
+      {!step.image && step.linked_badge_id && step.linked_badge_image && (
+        <Link
+          to={`/badges/${userId || ''}?type=badge&search=${encodeURIComponent(step.linked_badge_name || '')}`}
+          onClick={(e) => e.stopPropagation()}
+          className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-brand-200 dark:ring-brand-500/40 hover:opacity-80 transition-opacity"
+          title={`Find the ${step.linked_badge_name} badge`}
+        >
+          <img
+            src={`/api/uploads/badges/${step.linked_badge_image}`}
+            alt={step.linked_badge_name || ''}
+            className="w-full h-full object-cover"
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+        </Link>
+      )}
+      {/* Linked-area pill (award-step pointing at an Area of Discovery) */}
+      {!step.image && !step.linked_badge_id && step.linked_badge_category && (
+        <Link
+          to={`/badges/${userId || ''}?type=badge&category=${encodeURIComponent(step.linked_badge_category)}`}
+          onClick={(e) => e.stopPropagation()}
+          className="text-[10px] font-semibold px-2 py-1 rounded-full border border-brand-300 dark:border-brand-500/50 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors flex-shrink-0 whitespace-nowrap"
+          title={`Find a badge in ${step.linked_badge_category}`}
+        >
+          Find ↗
+        </Link>
+      )}
       {/* Note icon for description (no-image steps in list view) */}
-      {!step.image && step.description && !showInput && (
+      {!step.image && !step.linked_badge_id && !step.linked_badge_category && step.description && !showInput && (
         <button
           onClick={(e) => { e.stopPropagation(); setLightbox(true); }}
           className="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex-shrink-0"

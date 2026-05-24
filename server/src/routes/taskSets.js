@@ -40,12 +40,15 @@ const TaskSetSchema = z.object({
 });
 
 const StepSchema = z.object({
-  name:              z.string().min(1).max(200),
-  description:       z.string().max(500).default(''),
-  repeat_count:      z.number().int().min(1).default(1),
-  limit_one_per_day: z.boolean().default(false),
-  require_input:     z.boolean().default(false),
-  input_prompt:      z.string().max(500).default(''),
+  name:                  z.string().min(1).max(200),
+  description:           z.string().max(500).default(''),
+  repeat_count:          z.number().int().min(1).default(1),
+  limit_one_per_day:     z.boolean().default(false),
+  require_input:         z.boolean().default(false),
+  input_prompt:          z.string().max(500).default(''),
+  // Optional award-step linkage. linked_badge_id wins when both are set.
+  linked_badge_id:       z.number().int().nullable().optional(),
+  linked_badge_category: z.string().max(100).nullable().optional(),
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -102,7 +105,11 @@ router.get('/task-sets/:id', authenticate, (req, res, next) => {
     if (!row) return res.status(404).json({ error: 'Task set not found.' });
 
     const steps = db.prepare(
-      'SELECT * FROM task_steps WHERE task_set_id = ? AND is_active = 1 ORDER BY sort_order ASC, id ASC'
+      `SELECT ts.*, lb.name AS linked_badge_name, lb.image_file AS linked_badge_image
+       FROM task_steps ts
+       LEFT JOIN badges lb ON lb.id = ts.linked_badge_id
+       WHERE ts.task_set_id = ? AND ts.is_active = 1
+       ORDER BY ts.sort_order ASC, ts.id ASC`
     ).all(id);
 
     res.json({ taskSet: parseRow(row), steps });
@@ -302,8 +309,15 @@ router.post('/task-sets/:id/steps', authenticate, requireRole('parent'), (req, r
     ).get(setId).m;
 
     const result = db.prepare(
-      'INSERT INTO task_steps (task_set_id, name, description, sort_order, repeat_count, limit_one_per_day, require_input, input_prompt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(setId, body.name, body.description, maxOrder + 1, body.repeat_count, body.limit_one_per_day ? 1 : 0, body.require_input ? 1 : 0, body.input_prompt);
+      `INSERT INTO task_steps (task_set_id, name, description, sort_order, repeat_count,
+                               limit_one_per_day, require_input, input_prompt,
+                               linked_badge_id, linked_badge_category)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      setId, body.name, body.description, maxOrder + 1, body.repeat_count,
+      body.limit_one_per_day ? 1 : 0, body.require_input ? 1 : 0, body.input_prompt,
+      body.linked_badge_id ?? null, body.linked_badge_category ?? null,
+    );
 
     res.status(201).json(db.prepare('SELECT * FROM task_steps WHERE id = ?').get(result.lastInsertRowid));
   } catch (err) { next(err); }
@@ -330,6 +344,8 @@ router.put('/task-sets/:id/steps/:sid', authenticate, requireRole('parent'), (re
     if (body.limit_one_per_day !== undefined) { updates.push('limit_one_per_day = ?'); values.push(body.limit_one_per_day ? 1 : 0); }
     if (body.require_input     !== undefined) { updates.push('require_input = ?');     values.push(body.require_input ? 1 : 0); }
     if (body.input_prompt      !== undefined) { updates.push('input_prompt = ?');      values.push(body.input_prompt); }
+    if (body.linked_badge_id       !== undefined) { updates.push('linked_badge_id = ?');       values.push(body.linked_badge_id); }
+    if (body.linked_badge_category !== undefined) { updates.push('linked_badge_category = ?'); values.push(body.linked_badge_category); }
     if (!updates.length) return res.status(400).json({ error: 'Nothing to update.' });
 
     values.push(stepId);

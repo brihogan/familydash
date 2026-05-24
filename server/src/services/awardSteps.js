@@ -44,16 +44,13 @@ export function generateAwardSteps(db, awardType, awardConfig, awardLevel) {
   };
 
   if (awardType === 'task_list') {
+    // Show only the kid's exact level — earlier levels are covered by the
+    // "Complete all [prior level] requirements." step at the top of each level.
+    // (Plus the `all` bucket for awards whose steps apply at every level, e.g. STEAM.)
     const per = cfg.per_level || {};
-    const maxIdx = LEVEL_ORDER.indexOf(awardLevel);
-    if (maxIdx >= 0) {
-      for (let i = 0; i <= maxIdx; i++) {
-        const lv = LEVEL_ORDER[i];
-        for (const step of per[lv] || []) {
-          if (step.type === 'badge') pushBadgeStep(step.name);
-          else                       pushActivityStep(step.text);
-        }
-      }
+    for (const step of per[awardLevel] || []) {
+      if (step.type === 'badge') pushBadgeStep(step.name);
+      else                       pushActivityStep(step.text);
     }
     for (const step of per.all || []) {
       if (step.type === 'badge') pushBadgeStep(step.name);

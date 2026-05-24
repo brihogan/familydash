@@ -264,8 +264,11 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
     const steps = db.prepare(`
       SELECT ts.*,
         (SELECT COUNT(*) FROM task_step_completions WHERE task_step_id = ts.id AND user_id = ?) AS completed_count,
-        (SELECT COUNT(*) FROM task_step_completions WHERE task_step_id = ts.id AND user_id = ? AND date(completed_at, 'localtime') = ?) AS completed_today
+        (SELECT COUNT(*) FROM task_step_completions WHERE task_step_id = ts.id AND user_id = ? AND date(completed_at, 'localtime') = ?) AS completed_today,
+        lb.name       AS linked_badge_name,
+        lb.image_file AS linked_badge_image
       FROM task_steps ts
+      LEFT JOIN badges lb ON lb.id = ts.linked_badge_id
       WHERE ts.task_set_id = ? AND ts.is_active = 1
       ORDER BY ts.sort_order ASC, ts.id ASC
     `).all(userId, userId, todayDate, taskSetId);
