@@ -158,7 +158,7 @@ export default function KidTasksPage() {
     const r = (size - sw) / 2; // stroke flush to button edge — no white halo
     const circ = 2 * Math.PI * r;
     const overallPct = c.totalSteps > 0 ? Math.round((c.doneSteps / c.totalSteps) * 100) : 0;
-    const trackColor    = kidLevelCfg?.color       || '#E5E7EB';
+    const trackColor    = kidLevelCfg?.trackColor  || kidLevelCfg?.color || '#E5E7EB';
     const progressColor = kidLevelCfg?.borderColor || '#6366F1';
     return (
       <button

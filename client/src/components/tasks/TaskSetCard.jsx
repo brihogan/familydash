@@ -78,8 +78,8 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
     // Ring colors: the "uncompleted" portion (track) is the lighter shade,
     // the "completed" portion (arc) is the saturated level color. Non-level
     // sets fall back to brand-blue track + brand-blue arc.
-    const trackColor    = levelCfg?.color       || '#E5E7EB'; // gray-200 fallback
-    const progressColor = levelCfg?.borderColor || '#6366F1'; // brand fallback
+    const trackColor    = levelCfg?.trackColor  || levelCfg?.color || '#E5E7EB'; // gray-200 fallback
+    const progressColor = levelCfg?.borderColor || '#6366F1';                    // brand fallback
     return (
       <button
         type="button"
