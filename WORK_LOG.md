@@ -2,6 +2,29 @@
 
 ## Session Start: 2026-05-24 (morning)
 
+### 2026-05-24 — Awards live in production
+- Pushed all 15 CU awards to prod (`dash.straychips.com` / miniserver). Migrations v64–v70 auto-applied on container restart; existing 751 badges untouched. Sync flow: `git pull` → `docker compose restart app` → `docker compose cp data/uploads/badges/. app:/data/uploads/badges/` → `docker compose exec app node server/scripts/importAwards.js`. Final counts: 766 total / 751 badges / 15 awards. Updated `reference_deployment.md` memory with the prod container details (service=`app`, DB at `/data/family.db`, WORKDIR `/app`, sqlite3 CLI not installed → use `node -e` with better-sqlite3 instead).
+
+### 2026-05-24 — KidTasksPage: collapse badges + awards into folder cards
+- Two folder cards (orange Awards, purple Badges, both filled folder icons) replace the per-badge clutter on the main page. Folder ring shows aggregate step progress across the (non-archived) sets, tinted with the kid's badge-level palette.
+- New `/tasks/:userId/group/(badges|awards)` sub-pages list the contents with status pills (All / Not started / In progress / Completed / Archived), Area of Discovery pills (badges only), and a Browse modal.
+- Awards render before Badges, then any non-Curiosity Project/One-Off sets in the same grid.
+- Extracted the rich flippable card into `TaskSetCard.jsx` so the main + sub-pages share one component; ~+379 / –345 lines.
+
+### 2026-05-24 — Minimal "circle only" task-set card variant
+- TaskSetCard gained a `minimal` prop used on `KidTasksPage` + the group sub-pages: just the progress ring + badge image/emoji, no card chrome. Folder cards adopt the same compact shape.
+- Track stroke uses the level's `trackColor` (per-level tuned in `BADGE_LEVELS` — Preschool/Level 1/2 softer than their `color`, Level 3 + 4 unchanged, Level 5 much lighter); completed arc uses `borderColor`. Stroke pushed flush to the wrapper edge (`r = (size - sw) / 2`) so there's no white halo before the shadow.
+- Detail page header ring inherits the same treatment + 8px stroke for consistency.
+
+### 2026-05-24 — Curved title on emoji + plain-set medallions
+- Image-less badges and plain sets now get a curved SVG `<textPath>` title curving along the top of the cream/grayscale inner disc, with long names overflowing onto a `side="right"` bottom arc so both halves read left-to-right. Non-Curiosity sets get a grayscale variant of the cream gradient so the title has a background to sit on.
+
+### 2026-05-24 — Archive task assignments
+- Migration v70 adds `task_assignments.archived_at`. New POST endpoints for archive / unarchive. UserTaskDetailPage gets a subtle "Archive" button top-right with a confirmation modal explaining the task leaves the active list but stays under the Archived filter. KidGroupPage gets a 5th Archived status pill that swaps the data source. Archived rows show a gray banner with an Unarchive button on their detail page.
+
+### 2026-05-24 — Award image polish
+- Trimmed + squared 5 oversize 1080×1080 award icons (Discovery, Liberty, Fruit of the Spirit, Major, WOW) that were tiny inside their thumbnails due to source-image padding. Baked the trim+square step into `importAwards.js` so fresh installs auto-process new downloads (requires ImageMagick; silently no-ops without it).
+
 ### 2026-05-24 — Area-coverage award steps: auto-match + in-page browser modal
 - Server now auto-picks the kid's highest-progress enrolled badge in each Area of Discovery (at the award's level) and attaches its `linked_task_set_id` + name + image + progress to area-linked award steps — so Discovery Award rows render with the matched badge's ProgressRing just like specific-badge steps.
 - When an area still has no match, the "Find ↗" pill now opens a `BadgeBrowser` modal pre-filtered to that area in the same page (no full-page navigation). Enrolling a badge from the modal navigates to its task page; closing returns to the award.
