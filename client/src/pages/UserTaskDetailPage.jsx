@@ -406,13 +406,16 @@ function AwardCompletionModal({ taskSet, userId, assignedAt, completedAt, pendin
 }
 
 // ── Burst particle config (mirrors ChoreItem) ─────────────────────────────────
+// Section headers for cumulative award task-lists. Reuses the canonical
+// Frontier Girls level names from BADGE_LEVELS (which already drives the
+// header pill on every badge/award page) so this stays in one place.
 const AWARD_LEVEL_LABELS = {
-  preschool: 'Preschool · Penguin',
-  level1:    'Level 1 · Otter',
-  level2:    'Level 2 · Frog',
-  level3:    'Level 3 · Hawk',
-  level4:    'Level 4 · Fox',
-  level5:    'Level 5 · Owl',
+  preschool: BADGE_LEVELS.preschool.label,
+  level1:    BADGE_LEVELS.level1.label,
+  level2:    BADGE_LEVELS.level2.label,
+  level3:    BADGE_LEVELS.level3.label,
+  level4:    BADGE_LEVELS.level4.label,
+  level5:    BADGE_LEVELS.level5.label,
   all:       'All Levels',
 };
 
