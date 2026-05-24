@@ -142,20 +142,21 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
     setPage(1);
   };
 
-  // Optimistic bookmark toggle: flip in place, sort bookmarked to the top of
-  // the local list (matches what the server returns on next fetch).
+  // Optimistic bookmark toggle. Flip in place first (so the icon visibly
+  // changes), but defer the re-sort by 2s so the card doesn't jump away
+  // immediately — gives the kid time to see what they bookmarked.
   const handleToggleBookmark = async (badge) => {
     if (!targetId) return;
     const nextBookmarked = !badge.is_bookmarked;
-    setBadges((list) => {
-      const updated = list.map((b) => b.id === badge.id ? { ...b, is_bookmarked: nextBookmarked } : b);
-      return [...updated].sort((a, b) => {
+    setBadges((list) => list.map((b) => b.id === badge.id ? { ...b, is_bookmarked: nextBookmarked } : b));
+    setTimeout(() => {
+      setBadges((list) => [...list].sort((a, b) => {
         const ab = a.is_bookmarked ? 1 : 0;
         const bb = b.is_bookmarked ? 1 : 0;
         if (ab !== bb) return bb - ab;
         return a.name.localeCompare(b.name);
-      });
-    });
+      }));
+    }, 2000);
     try {
       if (nextBookmarked) await badgesApi.bookmark(targetId, badge.id);
       else                await badgesApi.unbookmark(targetId, badge.id);
