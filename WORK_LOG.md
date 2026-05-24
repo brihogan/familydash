@@ -2,6 +2,9 @@
 
 ## Session Start: 2026-05-24 (morning)
 
+### 2026-05-24 — Life Skills Award filled in (180 activities, 6 levels)
+- Added the full per-level Life Skills requirements (30 activities each for Preschool / Level 1-5, all sourced from the official CU sub-pages and pasted in by Brian since the pages are member-only). Each non-Preschool level starts with "Complete all [prior level] requirements" to mirror the printed checklist, same as Outdoors. A Level 5 kid sees all 180 steps grouped by level.
+
 ### 2026-05-24 — Awards data polish + rename task_set type Award→One-Off
 - Fixed three mismatched badge names in award configs: `Pocketknife Safety` → `Pocket Knife Safety`, `Faithfulness` → `Faith/Faithfulness` (Fruit of the Spirit), and `Biographies` (non-existent badge) → an activity row in STEAM.
 - Added explicit "Complete all [prior level] requirements." activity at the top of each level (1–5) in the Outdoors Award, mirroring how CU lists per-level requirements.
