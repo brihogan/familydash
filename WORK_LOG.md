@@ -8,6 +8,9 @@
 ### 2026-05-23 — Move KidTasksPage profile picker below the title
 - On `/tasks/:userId` the parent's KidProfilePicker was inline with the ticket counter in the header row. Moved it to its own row beneath the header, matching the layout used by KidChoresPage/KidBankPage. Ticket pill stays top-right.
 
+### 2026-05-23 — Dev ports moved to 4000 / 6010
+- `scripts/dev-server.sh` now starts searching at 4000 (was 3001), `scripts/dev-client.sh` at 6010 (was 5174 — skips 6000 which Chrome blocks as the X11 unsafe port). Frees the 3xxx/5xxx ranges for Brian's other local apps. Updated `.claude/launch.json` preview proxy targets + README. Saved port reservations to memory.
+
 ### 2026-05-23 — Customizable "Sets & Steps" label
 - Mirrored the existing `chores_label` pattern for a new `sets_steps_label` (migration v63, default `'Sets & Steps'`). Threaded it through `GET`/`PATCH /api/family/settings`, `FamilySettingsContext` (`setsStepsLabel` + `updateSetsStepsLabel`), and a second Label row on `SettingsPage` (gated on `useSets`).
 - The two places that used the literal string — kid sidebar nav in `Layout.jsx` and the `SettingsTasksPage` `<h1>` — now render `setsStepsLabel`. Verified end-to-end: GET/PATCH return the new field, nav link + heading both flip to "Projects" when the label is changed.
