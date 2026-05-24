@@ -103,25 +103,54 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
         {!ts.badge_image_file && ts.name && (() => {
           const cx = size / 2;
           const cy = size / 2;
-          // Sit just inside the cream circle (radius 32) so letter tops land
-          // ~2px below the cream edge. Full 180° top arc gives long names
-          // room — short ones still center nicely thanks to textAnchor.
           const textR = 24;
-          const pathD = `M ${cx - textR},${cy} A ${textR},${textR} 0 0 1 ${cx + textR},${cy}`;
-          const pathId = `task-arc-${ts.id}`;
+          // Top arc length (radius * π) approximated against UPPERCASE width
+          // (~5px per char at 7px font + 0.2 letter-spacing). If the name
+          // overflows, find the most balanced word break and overflow the
+          // second half onto the bottom arc.
+          const topArcChars = Math.floor((Math.PI * textR) / 5);
+          const splitTitle = () => {
+            const name = ts.name.trim();
+            if (name.length <= topArcChars) return [name, ''];
+            const words = name.split(/\s+/);
+            if (words.length === 1) return [name, '']; // single long word — let it clip
+            let bestI = 1, bestDiff = Infinity;
+            for (let i = 1; i < words.length; i++) {
+              const top = words.slice(0, i).join(' ');
+              const bot = words.slice(i).join(' ');
+              if (top.length > topArcChars || bot.length > topArcChars) continue;
+              const d = Math.abs(top.length - bot.length);
+              if (d < bestDiff) { bestI = i; bestDiff = d; }
+            }
+            return [words.slice(0, bestI).join(' '), words.slice(bestI).join(' ')];
+          };
+          const [topText, bottomText] = splitTitle();
+          const topPathD    = `M ${cx - textR},${cy} A ${textR},${textR} 0 0 1 ${cx + textR},${cy}`;
+          const bottomPathD = `M ${cx - textR},${cy} A ${textR},${textR} 0 0 0 ${cx + textR},${cy}`;
+          const topPathId    = `task-arc-top-${ts.id}`;
+          const bottomPathId = `task-arc-bot-${ts.id}`;
+          const textStyle = { fontSize: 7, fontWeight: 700, letterSpacing: '0.2px', textTransform: 'uppercase' };
           return (
             <svg width={size} height={size} className="absolute inset-0 pointer-events-none z-10">
               <defs>
-                <path id={pathId} d={pathD} fill="none" />
+                <path id={topPathId}    d={topPathD}    fill="none" />
+                <path id={bottomPathId} d={bottomPathD} fill="none" />
               </defs>
-              <text
-                fill="#374151" /* gray-700 — reads on the cream gradient */
-                style={{ fontSize: 7, fontWeight: 700, letterSpacing: '0.2px', textTransform: 'uppercase' }}
-              >
-                <textPath href={`#${pathId}`} startOffset="50%" textAnchor="middle">
-                  {ts.name}
+              <text fill="#374151" style={textStyle}>
+                <textPath href={`#${topPathId}`} startOffset="50%" textAnchor="middle">
+                  {topText}
                 </textPath>
               </text>
+              {bottomText && (
+                <text fill="#374151" style={textStyle}>
+                  {/* side="right" flips letters to the inside of the arc so
+                      they stay right-side-up at the bottom of the medallion
+                      (SVG 2; Chrome 91+, Firefox 79+, Safari 16.4+). */}
+                  <textPath href={`#${bottomPathId}`} startOffset="50%" textAnchor="middle" side="right">
+                    {bottomText}
+                  </textPath>
+                </text>
+              )}
             </svg>
           );
         })()}
