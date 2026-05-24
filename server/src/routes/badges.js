@@ -52,15 +52,26 @@ router.get('/badges', authenticate, (req, res, next) => {
 
     const total = db.prepare(`SELECT COUNT(*) AS n FROM badges b WHERE ${where}`).get(...params).n;
 
+    // ?bookmarksFor=:userId — include the user's bookmark state per badge and
+    // sort bookmarked badges to the top of the result set.
+    const bookmarksForRaw = parseInt(req.query.bookmarksFor || '', 10);
+    const bookmarksFor = Number.isFinite(bookmarksForRaw) ? bookmarksForRaw : null;
+    const bookmarkSelect = bookmarksFor
+      ? `, EXISTS (SELECT 1 FROM badge_bookmarks bb WHERE bb.user_id = ? AND bb.badge_id = b.id) AS is_bookmarked`
+      : '';
+    const bookmarkOrder = bookmarksFor ? 'is_bookmarked DESC, ' : '';
+    const orderParams = bookmarksFor ? [bookmarksFor] : [];
+
     const badges = db.prepare(`
       SELECT b.id, b.name, b.slug, b.category, b.author, b.image_file,
              b.is_specific, b.note, b.description, b.emoji, b.is_active, b.level_opt_counts,
              b.is_award, b.award_type, b.award_config
+             ${bookmarkSelect}
       FROM badges b
       WHERE ${where}
-      ORDER BY b.name ASC
+      ORDER BY ${bookmarkOrder}b.name ASC
       LIMIT ? OFFSET ?
-    `).all(...params, limit, offset);
+    `).all(...orderParams, ...params, limit, offset);
 
     // Categories list excludes awards so the area-filter pills stay clean.
     const categories = db.prepare(
@@ -444,6 +455,47 @@ router.post('/users/:userId/task-assignments/:taskSetId/add-optional', authentic
   } catch (err) {
     next(err);
   }
+});
+
+// ─── Bookmarks: POST /api/users/:userId/badges/:badgeId/bookmark ──────────
+// Idempotent (INSERT OR IGNORE on the composite PK).
+router.post('/users/:userId/badges/:badgeId/bookmark', authenticate, (req, res, next) => {
+  try {
+    const userId  = parseInt(req.params.userId,  10);
+    const badgeId = parseInt(req.params.badgeId, 10);
+    const targetUser = db.prepare('SELECT family_id FROM users WHERE id = ?').get(userId);
+    if (!targetUser) return res.status(404).json({ error: 'User not found.' });
+    if (req.user.userId !== userId && req.user.role !== 'parent') {
+      return res.status(403).json({ error: 'Forbidden.' });
+    }
+    if (req.user.role === 'parent' && targetUser.family_id !== req.user.familyId) {
+      return res.status(403).json({ error: 'Forbidden.' });
+    }
+    db.prepare(
+      'INSERT OR IGNORE INTO badge_bookmarks (user_id, badge_id) VALUES (?, ?)'
+    ).run(userId, badgeId);
+    res.json({ bookmarked: true });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/users/:userId/badges/:badgeId/bookmark
+router.delete('/users/:userId/badges/:badgeId/bookmark', authenticate, (req, res, next) => {
+  try {
+    const userId  = parseInt(req.params.userId,  10);
+    const badgeId = parseInt(req.params.badgeId, 10);
+    const targetUser = db.prepare('SELECT family_id FROM users WHERE id = ?').get(userId);
+    if (!targetUser) return res.status(404).json({ error: 'User not found.' });
+    if (req.user.userId !== userId && req.user.role !== 'parent') {
+      return res.status(403).json({ error: 'Forbidden.' });
+    }
+    if (req.user.role === 'parent' && targetUser.family_id !== req.user.familyId) {
+      return res.status(403).json({ error: 'Forbidden.' });
+    }
+    db.prepare(
+      'DELETE FROM badge_bookmarks WHERE user_id = ? AND badge_id = ?'
+    ).run(userId, badgeId);
+    res.json({ bookmarked: false });
+  } catch (err) { next(err); }
 });
 
 export default router;

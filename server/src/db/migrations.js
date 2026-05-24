@@ -595,6 +595,19 @@ export function runMigrations(db) {
     })();
   }
 
+  // v71: per-user badge bookmarks — surface in the badge browser by sorting
+  //   bookmarked badges to the top of the list. Composite primary key
+  //   prevents duplicates; rows just hang around until the user un-bookmarks.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS badge_bookmarks (
+      user_id    INTEGER NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
+      badge_id   INTEGER NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
+      created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, badge_id)
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_badge_bookmarks_user ON badge_bookmarks(user_id)`);
+
   // v70: archive a task assignment without losing its data. Set the timestamp
   //   to hide the assignment from the kid's main list; clear to restore. The
   //   row's is_active stays 1; the existing soft-delete via is_active=0 is

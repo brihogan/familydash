@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faShieldHalved } from '@fortawesome/free-solid-svg-icons';
+import { faShieldHalved, faBookmark } from '@fortawesome/free-solid-svg-icons';
+import { faBookmark as faBookmarkOutline } from '@fortawesome/free-regular-svg-icons';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { badgesApi } from '../../api/badges.api.js';
 import { BADGE_LEVELS } from '../../constants/badgeLevels.js';
@@ -105,8 +106,9 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
     setError('');
     try {
       const params = { limit: LIMIT, page: pg, type: t };
-      if (s)   params.search   = s;
-      if (cat) params.category = cat;
+      if (s)        params.search        = s;
+      if (cat)      params.category      = cat;
+      if (targetId) params.bookmarksFor  = targetId;
       const data = await badgesApi.getBadges(params);
       setBadges(data.badges || []);
       setTotal(data.total  || 0);
@@ -115,7 +117,7 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [targetId]);
 
   useEffect(() => {
     fetchBadges(search, category, page, type);
@@ -138,6 +140,29 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
     setType(t);
     setCategory(''); // category is badge-only; reset when crossing types
     setPage(1);
+  };
+
+  // Optimistic bookmark toggle: flip in place, sort bookmarked to the top of
+  // the local list (matches what the server returns on next fetch).
+  const handleToggleBookmark = async (badge) => {
+    if (!targetId) return;
+    const nextBookmarked = !badge.is_bookmarked;
+    setBadges((list) => {
+      const updated = list.map((b) => b.id === badge.id ? { ...b, is_bookmarked: nextBookmarked } : b);
+      return [...updated].sort((a, b) => {
+        const ab = a.is_bookmarked ? 1 : 0;
+        const bb = b.is_bookmarked ? 1 : 0;
+        if (ab !== bb) return bb - ab;
+        return a.name.localeCompare(b.name);
+      });
+    });
+    try {
+      if (nextBookmarked) await badgesApi.bookmark(targetId, badge.id);
+      else                await badgesApi.unbookmark(targetId, badge.id);
+    } catch {
+      // Revert on failure
+      setBadges((list) => list.map((b) => b.id === badge.id ? { ...b, is_bookmarked: !nextBookmarked } : b));
+    }
   };
 
   const totalPages = Math.ceil(total / LIMIT);
@@ -279,8 +304,23 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
                 type="button"
                 key={badge.id}
                 onClick={() => setPreviewBadge(badge)}
-                className="flex flex-col items-center p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:shadow-md hover:border-brand-300 dark:hover:border-brand-500/50 hover:bg-brand-50/30 dark:hover:bg-brand-900/10 transition-all text-left cursor-pointer"
+                className="relative flex flex-col items-center p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:shadow-md hover:border-brand-300 dark:hover:border-brand-500/50 hover:bg-brand-50/30 dark:hover:bg-brand-900/10 transition-all text-left cursor-pointer"
               >
+                {/* Bookmark toggle — top-right of card; click bookmarks/unbookmarks
+                    without opening the preview, and re-sorts bookmarked to the top. */}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleToggleBookmark(badge); }}
+                  className={`absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-full transition-colors ${
+                    badge.is_bookmarked
+                      ? 'text-amber-500 hover:text-amber-600'
+                      : 'text-gray-300 dark:text-gray-600 hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                  }`}
+                  aria-label={badge.is_bookmarked ? 'Remove bookmark' : 'Bookmark'}
+                  title={badge.is_bookmarked ? 'Remove bookmark' : 'Bookmark'}
+                >
+                  <FontAwesomeIcon icon={badge.is_bookmarked ? faBookmark : faBookmarkOutline} className="text-sm" />
+                </button>
                 <BadgeImage imageFile={badge.image_file} emoji={badge.emoji} name={badge.name} size={56} />
                 <p className="mt-2 text-xs font-semibold text-gray-800 dark:text-gray-100 text-center leading-snug line-clamp-2 min-h-[2.5rem] w-full">
                   {badge.name}

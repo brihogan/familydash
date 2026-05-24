@@ -23,4 +23,9 @@ export const badgesApi = {
     client.post(`/users/${userId}/task-assignments/${taskSetId}/add-optional`, {
       addOptionalReqId,
     }).then((r) => r.data),
+
+  bookmark:          (userId, badgeId) =>
+    client.post(`/users/${userId}/badges/${badgeId}/bookmark`).then((r) => r.data),
+  unbookmark:        (userId, badgeId) =>
+    client.delete(`/users/${userId}/badges/${badgeId}/bookmark`).then((r) => r.data),
 };
