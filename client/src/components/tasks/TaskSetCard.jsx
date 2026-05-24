@@ -95,16 +95,21 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
               strokeDasharray={circ} strokeDashoffset={circ - (pct / 100) * circ} strokeLinecap="round" />
           )}
         </svg>
-        {/* Curved title along the top arc — only when there's no badge image
-            (the badge artwork usually contains the name itself; emoji-only
-            badges and plain task sets benefit from the wraparound label). */}
+        {/* Curved title — sits inside the cream/beige inner circle (radius ~27
+            from center, well inside the 32-radius cream disc) along a 120° top
+            arc so letters never wrap down past the badge image area. Only
+            shown for emoji-only badges and plain sets, since image-based
+            badges already have the name on the artwork. */}
         {!ts.badge_image_file && ts.name && (() => {
-          const textR = r - sw / 2 - 4;
           const cx = size / 2;
           const cy = size / 2;
-          // Counter-clockwise arc from left to right over the top → text reads
-          // left-to-right with letters fanning around the curve.
-          const pathD = `M ${cx - textR},${cy} A ${textR},${textR} 0 0 1 ${cx + textR},${cy}`;
+          const textR = 27;
+          // 120° arc centered on the top: from 210° to 330° (SVG coords).
+          // Start at angle 210° = (cx - r*cos(30°), cy - r*sin(30°)) — left.
+          // End at angle 330°  = (cx + r*cos(30°), cy - r*sin(30°)) — right.
+          const dx = textR * Math.cos(Math.PI / 6); // cos 30°
+          const dy = textR * Math.sin(Math.PI / 6); // sin 30°
+          const pathD = `M ${cx - dx},${cy - dy} A ${textR},${textR} 0 0 1 ${cx + dx},${cy - dy}`;
           const pathId = `task-arc-${ts.id}`;
           return (
             <svg width={size} height={size} className="absolute inset-0 pointer-events-none">
@@ -112,8 +117,8 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
                 <path id={pathId} d={pathD} fill="none" />
               </defs>
               <text
-                fill={progressColor}
-                style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.4px', textTransform: 'uppercase' }}
+                fill="#374151" /* gray-700 — reads on the cream gradient in both light + dark mode */
+                style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.3px', textTransform: 'uppercase' }}
               >
                 <textPath href={`#${pathId}`} startOffset="50%" textAnchor="middle">
                   {ts.name}
