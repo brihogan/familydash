@@ -144,18 +144,23 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
 
   // Optimistic bookmark toggle. Flip in place first (so the icon visibly
   // changes), but defer the re-sort by 2s so the card doesn't jump away
-  // immediately — gives the kid time to see what they bookmarked.
+  // immediately — gives the kid time to see what they bookmarked. Snapshots
+  // window scrollY before/after the sort and restores it so the page doesn't
+  // jerk when cards reorder above the viewport.
   const handleToggleBookmark = async (badge) => {
     if (!targetId) return;
     const nextBookmarked = !badge.is_bookmarked;
     setBadges((list) => list.map((b) => b.id === badge.id ? { ...b, is_bookmarked: nextBookmarked } : b));
     setTimeout(() => {
+      const scrollY = window.scrollY;
       setBadges((list) => [...list].sort((a, b) => {
         const ab = a.is_bookmarked ? 1 : 0;
         const bb = b.is_bookmarked ? 1 : 0;
         if (ab !== bb) return bb - ab;
         return a.name.localeCompare(b.name);
       }));
+      // Restore scroll on the next animation frame, after React re-renders.
+      requestAnimationFrame(() => window.scrollTo({ top: scrollY, left: 0, behavior: 'instant' }));
     }, 2000);
     try {
       if (nextBookmarked) await badgesApi.bookmark(targetId, badge.id);
