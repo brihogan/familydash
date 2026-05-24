@@ -291,13 +291,51 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
         AND lta.user_id = ? AND lta.is_active = 1
       LIMIT 1
     `);
+    // For each step that links to an Area of Discovery (Discovery Award rows),
+    // auto-pick the user's highest-progress enrolled badge in that area at the
+    // award's badge_level. Returns the same shape as the badge lookup above
+    // plus the badge name/image so the row renders identically. NULL when the
+    // kid has nothing enrolled in that area at this level → renderer falls
+    // back to a "Find a badge" button that opens the browser as a modal.
+    const linkedAreaStmt = db.prepare(`
+      SELECT linked_ts.id AS linked_task_set_id,
+        b.name       AS linked_badge_name,
+        b.image_file AS linked_badge_image,
+        (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = linked_ts.id AND is_active = 1) AS linked_step_count,
+        (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = linked_ts.id AND user_id = ?) AS linked_completed_count
+      FROM task_sets linked_ts
+      JOIN task_assignments lta ON lta.task_set_id = linked_ts.id
+      JOIN badges b ON b.id = linked_ts.badge_id
+      WHERE b.category = ? AND b.is_award = 0 AND b.is_active = 1
+        AND linked_ts.is_active = 1 AND linked_ts.badge_level = ?
+        AND lta.user_id = ? AND lta.is_active = 1
+      ORDER BY (
+        CASE WHEN (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = linked_ts.id AND is_active = 1) = 0
+          THEN 0
+          ELSE (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = linked_ts.id AND user_id = ?) * 100
+               / (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = linked_ts.id AND is_active = 1)
+        END
+      ) DESC
+      LIMIT 1
+    `);
+    const awardLevel = taskSet?.badge_level || null;
     for (const step of steps) {
-      if (!step.linked_badge_id) continue;
-      const info = linkedAssignmentStmt.get(userId, step.linked_badge_id, userId);
-      if (info) {
-        step.linked_task_set_id      = info.linked_task_set_id;
-        step.linked_step_count       = info.linked_step_count;
-        step.linked_completed_count  = info.linked_completed_count;
+      if (step.linked_badge_id) {
+        const info = linkedAssignmentStmt.get(userId, step.linked_badge_id, userId);
+        if (info) {
+          step.linked_task_set_id     = info.linked_task_set_id;
+          step.linked_step_count      = info.linked_step_count;
+          step.linked_completed_count = info.linked_completed_count;
+        }
+      } else if (step.linked_badge_category && awardLevel) {
+        const info = linkedAreaStmt.get(userId, step.linked_badge_category, awardLevel, userId, userId);
+        if (info) {
+          step.linked_task_set_id     = info.linked_task_set_id;
+          step.linked_badge_name      = info.linked_badge_name;
+          step.linked_badge_image     = info.linked_badge_image;
+          step.linked_step_count      = info.linked_step_count;
+          step.linked_completed_count = info.linked_completed_count;
+        }
       }
     }
 

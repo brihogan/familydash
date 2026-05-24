@@ -2,6 +2,10 @@
 
 ## Session Start: 2026-05-24 (morning)
 
+### 2026-05-24 — Area-coverage award steps: auto-match + in-page browser modal
+- Server now auto-picks the kid's highest-progress enrolled badge in each Area of Discovery (at the award's level) and attaches its `linked_task_set_id` + name + image + progress to area-linked award steps — so Discovery Award rows render with the matched badge's ProgressRing just like specific-badge steps.
+- When an area still has no match, the "Find ↗" pill now opens a `BadgeBrowser` modal pre-filtered to that area in the same page (no full-page navigation). Enrolling a badge from the modal navigates to its task page; closing returns to the award.
+
 ### 2026-05-24 — Linked-badge steps: progress ring + open-or-enroll
 - Server step query now enriches each `linked_badge_id` step with the user's enrollment info (`linked_task_set_id`, `linked_step_count`, `linked_completed_count`) for that badge — so the kid view can render progress without an extra round trip.
 - Right-side thumbnail on award steps now behaves smartly:
