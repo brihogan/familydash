@@ -22,7 +22,10 @@ export const taskSetsApi = {
   setAssignments:  (setId, userIds)            => client.put(`/family/task-sets/${setId}/assignments`, { userIds }).then((r) => r.data),
   getHistory:      (setId)                     => client.get(`/family/task-sets/${setId}/history`).then((r) => r.data),
 
-  getUserTaskSets: (userId)                    => client.get(`/users/${userId}/task-assignments`).then((r) => r.data),
+  getUserTaskSets: (userId, { archived } = {}) =>
+    client.get(`/users/${userId}/task-assignments`, { params: archived ? { archived } : {} }).then((r) => r.data),
+  archiveAssignment:   (userId, taskSetId) => client.post(`/users/${userId}/task-assignments/${taskSetId}/archive`).then((r) => r.data),
+  unarchiveAssignment: (userId, taskSetId) => client.post(`/users/${userId}/task-assignments/${taskSetId}/unarchive`).then((r) => r.data),
   getUserTaskSet:  (userId, taskSetId)         => client.get(`/users/${userId}/task-assignments/${taskSetId}`).then((r) => r.data),
   toggleStep:      (userId, taskSetId, stepId, undo = false, inputResponse = null) => client.post(`/users/${userId}/task-assignments/${taskSetId}/steps/${stepId}/toggle`, { ...(undo ? { undo: true } : {}), ...(inputResponse ? { input_response: inputResponse } : {}) }).then((r) => r.data),
   updateAwardState:(userId, taskSetId, state)  => client.patch(`/users/${userId}/awards/${taskSetId}/state`, state).then((r) => r.data),

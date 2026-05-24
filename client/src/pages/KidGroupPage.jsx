@@ -37,6 +37,7 @@ const STATUS_OPTIONS = [
   { key: 'not_started', label: 'Not started' },
   { key: 'in_progress', label: 'In progress' },
   { key: 'completed',   label: 'Completed' },
+  { key: 'archived',    label: 'Archived' },
 ];
 
 /**
@@ -49,13 +50,14 @@ export default function KidGroupPage() {
   const navigate = useNavigate();
   const { useTickets } = useFamilySettings();
 
-  const [taskSets, setTaskSets] = useState([]);
-  const [member,   setMember]   = useState(null);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState('');
-  const [status,   setStatus]   = useState('all');
-  const [area,     setArea]     = useState('');
-  const [browserOpen, setBrowserOpen] = useState(false);
+  const [taskSets,        setTaskSets]        = useState([]);
+  const [archivedSets,    setArchivedSets]    = useState([]);
+  const [member,          setMember]          = useState(null);
+  const [loading,         setLoading]         = useState(true);
+  const [error,           setError]           = useState('');
+  const [status,          setStatus]          = useState('all');
+  const [area,            setArea]            = useState('');
+  const [browserOpen,     setBrowserOpen]     = useState(false);
   const [flippedIds, setFlippedIds] = useState(() => new Set());
   const flipCard = (id) => setFlippedIds((prev) => {
     const next = new Set(prev);
@@ -72,11 +74,13 @@ export default function KidGroupPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [taskData, familyData] = await Promise.all([
+      const [taskData, archivedData, familyData] = await Promise.all([
         taskSetsApi.getUserTaskSets(userId),
+        taskSetsApi.getUserTaskSets(userId, { archived: 'true' }),
         familyApi.getFamily(),
       ]);
       setTaskSets(taskData.taskSets || []);
+      setArchivedSets(archivedData.taskSets || []);
       const m = (familyData.members || []).find((mm) => mm.id === parseInt(userId, 10));
       if (m) setMember(m);
     } catch {
@@ -92,19 +96,24 @@ export default function KidGroupPage() {
     return taskSets.filter((ts) => Array.isArray(ts.tags) && ts.tags.includes(groupTag));
   }, [taskSets, groupTag]);
 
+  const archivedGroupSets = useMemo(() => {
+    return archivedSets.filter((ts) => Array.isArray(ts.tags) && ts.tags.includes(groupTag));
+  }, [archivedSets, groupTag]);
+
   const filtered = useMemo(() => {
-    return groupSets.filter((ts) => {
-      if (status !== 'all' && statusFor(ts) !== status) return false;
+    const source = status === 'archived' ? archivedGroupSets : groupSets;
+    return source.filter((ts) => {
+      if (status !== 'all' && status !== 'archived' && statusFor(ts) !== status) return false;
       if (area && !(Array.isArray(ts.tags) && ts.tags.includes(area))) return false;
       return true;
     }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [groupSets, status, area]);
+  }, [groupSets, archivedGroupSets, status, area]);
 
   const statusCounts = useMemo(() => {
-    const c = { all: groupSets.length, not_started: 0, in_progress: 0, completed: 0 };
+    const c = { all: groupSets.length, not_started: 0, in_progress: 0, completed: 0, archived: archivedGroupSets.length };
     for (const ts of groupSets) c[statusFor(ts)]++;
     return c;
-  }, [groupSets]);
+  }, [groupSets, archivedGroupSets]);
 
   const renderCard = (ts) => (
     <TaskSetCard

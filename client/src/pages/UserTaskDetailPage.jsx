@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } fr
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faStickyNote } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faStickyNote, faBoxArchive, faBoxOpen } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import Fireworks from '../components/shared/Fireworks.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
@@ -955,6 +955,9 @@ export default function UserTaskDetailPage() {
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [assignedAt,       setAssignedAt]       = useState(null);
   const [completionStatus, setCompletionStatus] = useState(null);
+  const [archivedAt,       setArchivedAt]       = useState(null);
+  const [confirmArchive,   setConfirmArchive]   = useState(false);
+  const [archiveBusy,      setArchiveBusy]      = useState(false);
   const [pendingApproval,  setPendingApproval]  = useState(false);
   const completedAtRef = useRef(null);
 
@@ -982,6 +985,7 @@ export default function UserTaskDetailPage() {
       setCompletions(data.completions ?? []);
       setAssignedAt(data.assignedAt ?? null);
       setCompletionStatus(data.completionStatus ?? null);
+      setArchivedAt(data.archivedAt ?? null);
     } catch {
       setError('Failed to load task set.');
     } finally {
@@ -1043,6 +1047,32 @@ export default function UserTaskDetailPage() {
       setSwapError(e?.response?.data?.error || 'Could not add optional.');
     } finally {
       setSwapping(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    setArchiveBusy(true);
+    try {
+      await taskSetsApi.archiveAssignment(userId, taskSetId);
+      setConfirmArchive(false);
+      // Bounce back to the group page (badges or awards) when it's clear which
+      // group this belonged to; otherwise just back one step.
+      const tags = Array.isArray(taskSet?.tags) ? taskSet.tags : [];
+      if (tags.includes('Badge'))      navigate(`/tasks/${userId}/group/badges`);
+      else if (tags.includes('Award')) navigate(`/tasks/${userId}/group/awards`);
+      else                             navigate(`/tasks/${userId}`);
+    } catch {
+      setArchiveBusy(false);
+    }
+  };
+
+  const handleUnarchive = async () => {
+    setArchiveBusy(true);
+    try {
+      const result = await taskSetsApi.unarchiveAssignment(userId, taskSetId);
+      setArchivedAt(result.archived ? new Date().toISOString() : null);
+    } finally {
+      setArchiveBusy(false);
     }
   };
 
@@ -1234,6 +1264,59 @@ export default function UserTaskDetailPage() {
         />
       )}
 
+      {/* ── Archived banner ── */}
+      {archivedAt && (
+        <div className="mb-4 px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg flex items-center justify-between gap-3">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            <FontAwesomeIcon icon={faBoxArchive} className="mr-1.5" />
+            This is archived — it won't show in your active list.
+          </p>
+          <button
+            type="button"
+            onClick={handleUnarchive}
+            disabled={archiveBusy}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-brand-300 dark:border-brand-500/50 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors disabled:opacity-50 whitespace-nowrap"
+          >
+            <FontAwesomeIcon icon={faBoxOpen} className="mr-1.5 text-[10px]" />
+            Unarchive
+          </button>
+        </div>
+      )}
+
+      {/* ── Archive confirmation modal ── */}
+      {confirmArchive && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => !archiveBusy && setConfirmArchive(false)} />
+          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-2">
+              <FontAwesomeIcon icon={faBoxArchive} className="text-gray-500" />
+              Archive this {taskSet.is_award ? 'award' : (taskSet.badge_id ? 'badge' : 'task set')}?
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
+              "{taskSet.name}" won't show up in your active list anymore. You can find it later under the <strong>Archived</strong> filter on the {taskSet.is_award ? 'Awards' : 'Badges'} page, and unarchive it any time.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmArchive(false)}
+                disabled={archiveBusy}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleArchive}
+                disabled={archiveBusy}
+                className="px-4 py-2 text-sm font-semibold bg-gray-900 hover:bg-gray-800 text-white rounded-lg transition-colors disabled:opacity-50"
+              >
+                {archiveBusy ? 'Archiving…' : 'Archive'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Header ── */}
       <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-start gap-3">
@@ -1304,9 +1387,22 @@ export default function UserTaskDetailPage() {
 
           {/* Title + description + pills below */}
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight">
-              {taskSet.name}
-            </h1>
+            <div className="flex items-start justify-between gap-2">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight flex-1 min-w-0">
+                {taskSet.name}
+              </h1>
+              {!archivedAt && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmArchive(true)}
+                  className="shrink-0 text-xs font-medium px-2.5 py-1 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors flex items-center gap-1.5"
+                  title="Archive — hide from your active list"
+                >
+                  <FontAwesomeIcon icon={faBoxArchive} className="text-[11px]" />
+                  Archive
+                </button>
+              )}
+            </div>{/* /flex header */}
             {taskSet.description && (
               <>
                 <p

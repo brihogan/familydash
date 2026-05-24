@@ -595,6 +595,12 @@ export function runMigrations(db) {
     })();
   }
 
+  // v70: archive a task assignment without losing its data. Set the timestamp
+  //   to hide the assignment from the kid's main list; clear to restore. The
+  //   row's is_active stays 1; the existing soft-delete via is_active=0 is
+  //   kept for explicit "remove" actions.
+  try { db.exec(`ALTER TABLE task_assignments ADD COLUMN archived_at TEXT`); } catch (_) {}
+
   // v68: re-generate award task_steps for any enrollment that hasn't been
   //   started yet. The earlier v67 backfill used cumulative steps (all levels
   //   up through the kid's level); the corrected logic shows only the kid's

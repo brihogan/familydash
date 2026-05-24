@@ -65,8 +65,15 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
     }
     // ──────────────────────────────────────────────────────────────────────
 
+    // archived=true returns only archived assignments; archived=all returns both;
+    // any other value (default) returns only active (non-archived) assignments.
+    const archivedParam = (req.query.archived || '').toLowerCase();
+    let archivedFilter = 'AND ta.archived_at IS NULL';
+    if      (archivedParam === 'true') archivedFilter = 'AND ta.archived_at IS NOT NULL';
+    else if (archivedParam === 'all')  archivedFilter = '';
+
     const rows = db.prepare(`
-      SELECT ts.*, ta.completion_status,
+      SELECT ts.*, ta.completion_status, ta.archived_at,
         b.image_file AS badge_image_file,
         b.category   AS badge_category,
         b.is_award   AS badge_is_award,
@@ -78,6 +85,7 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
       JOIN task_assignments ta ON ta.task_set_id = ts.id
       LEFT JOIN badges b ON b.id = ts.badge_id
       WHERE ta.user_id = ? AND ta.is_active = 1 AND ts.is_active = 1
+        ${archivedFilter}
       ORDER BY ts.name ASC
     `).all(userId, userId, userId, userId);
 
@@ -237,7 +245,7 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
     assertUserInFamily(userId, req.user.familyId);
 
     const assignment = db.prepare(
-      'SELECT id, assigned_at, completion_status FROM task_assignments WHERE task_set_id = ? AND user_id = ? AND is_active = 1'
+      'SELECT id, assigned_at, completion_status, archived_at FROM task_assignments WHERE task_set_id = ? AND user_id = ? AND is_active = 1'
     ).get(taskSetId, userId);
     if (!assignment) return res.status(404).json({ error: 'Task set not assigned to this user.' });
 
@@ -352,7 +360,7 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
       ORDER BY task_step_id, instance
     `).all(taskSetId, userId);
 
-    res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at, completions, completionStatus: assignment.completion_status });
+    res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at, completions, completionStatus: assignment.completion_status, archivedAt: assignment.archived_at });
   } catch (err) { next(err); }
 });
 
@@ -618,6 +626,42 @@ router.patch('/:userId/awards/:taskSetId/state', authenticate, (req, res, next) 
 
     db.prepare('UPDATE task_sets SET award_state = ? WHERE id = ?').run(JSON.stringify(merged), taskSetId);
     res.json({ award_state: merged });
+  } catch (err) { next(err); }
+});
+
+// POST /api/users/:userId/task-assignments/:taskSetId/archive
+// Hide a task assignment from the kid's active list. The row stays so the
+// kid (or a parent) can unarchive it later via the Archived filter.
+router.post('/:userId/task-assignments/:taskSetId/archive', authenticate, (req, res, next) => {
+  try {
+    const userId    = parseInt(req.params.userId,    10);
+    const taskSetId = parseInt(req.params.taskSetId, 10);
+    assertUserInFamily(userId, req.user.familyId);
+    if (req.user.userId !== userId && req.user.role !== 'parent') {
+      return res.status(403).json({ error: 'Forbidden.' });
+    }
+    const result = db.prepare(
+      'UPDATE task_assignments SET archived_at = datetime(\'now\') WHERE task_set_id = ? AND user_id = ? AND is_active = 1 AND archived_at IS NULL'
+    ).run(taskSetId, userId);
+    if (result.changes === 0) return res.status(404).json({ error: 'Active assignment not found.' });
+    res.json({ archived: true });
+  } catch (err) { next(err); }
+});
+
+// POST /api/users/:userId/task-assignments/:taskSetId/unarchive
+router.post('/:userId/task-assignments/:taskSetId/unarchive', authenticate, (req, res, next) => {
+  try {
+    const userId    = parseInt(req.params.userId,    10);
+    const taskSetId = parseInt(req.params.taskSetId, 10);
+    assertUserInFamily(userId, req.user.familyId);
+    if (req.user.userId !== userId && req.user.role !== 'parent') {
+      return res.status(403).json({ error: 'Forbidden.' });
+    }
+    const result = db.prepare(
+      'UPDATE task_assignments SET archived_at = NULL WHERE task_set_id = ? AND user_id = ? AND is_active = 1'
+    ).run(taskSetId, userId);
+    if (result.changes === 0) return res.status(404).json({ error: 'Assignment not found.' });
+    res.json({ archived: false });
   } catch (err) { next(err); }
 });
 
