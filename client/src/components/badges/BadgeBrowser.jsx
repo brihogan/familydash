@@ -1,21 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-
-// Walks up the DOM from `el` to find the nearest scrollable ancestor (a
-// container whose overflow is auto/scroll). Falls back to the document's
-// scrolling element when no scrollable ancestor exists. Used to snapshot
-// scroll position across reorders so the page doesn't jerk.
-function findScrollContainer(el) {
-  let node = el?.parentElement;
-  while (node && node !== document.body) {
-    const style = window.getComputedStyle(node);
-    const overflowY = style.overflowY;
-    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
-      return node;
-    }
-    node = node.parentElement;
-  }
-  return document.scrollingElement || document.documentElement;
-}
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faShieldHalved, faBookmark } from '@fortawesome/free-solid-svg-icons';
@@ -102,10 +85,11 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
   const isSelf       = user?.id === targetId;
   const badgeMembers = members.filter((m) => m.badge_level && m.is_active);
 
-  const [search,   setSearch]   = useState('');
-  const [category, setCategory] = useState(initialCategory);
-  const [type,     setType]     = useState(initialType); // 'badge' | 'award' | 'all'
-  const [page,     setPage]     = useState(1);
+  const [search,         setSearch]         = useState('');
+  const [category,       setCategory]       = useState(initialCategory);
+  const [type,           setType]           = useState(initialType); // 'badge' | 'award' | 'all'
+  const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
+  const [page,           setPage]           = useState(1);
   const [badges,   setBadges]   = useState([]);
   const [total,    setTotal]    = useState(0);
   const [loading,  setLoading]  = useState(true);
@@ -118,7 +102,7 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
 
   const LIMIT = 48;
 
-  const fetchBadges = useCallback(async (s, cat, pg, t) => {
+  const fetchBadges = useCallback(async (s, cat, pg, t, bo) => {
     setLoading(true);
     setError('');
     try {
@@ -126,6 +110,7 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
       if (s)        params.search        = s;
       if (cat)      params.category      = cat;
       if (targetId) params.bookmarksFor  = targetId;
+      if (bo)       params.bookmarkedOnly = 'true';
       const data = await badgesApi.getBadges(params);
       setBadges(data.badges || []);
       setTotal(data.total  || 0);
@@ -137,14 +122,14 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
   }, [targetId]);
 
   useEffect(() => {
-    fetchBadges(search, category, page, type);
-  }, [category, page, type, fetchBadges]); // search is debounced below
+    fetchBadges(search, category, page, type, bookmarkedOnly);
+  }, [category, page, type, bookmarkedOnly, fetchBadges]); // search is debounced below
 
   const handleSearch = (val) => {
     setSearch(val);
     setPage(1);
     clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(() => fetchBadges(val, category, 1, type), 350);
+    searchTimeout.current = setTimeout(() => fetchBadges(val, category, 1, type, bookmarkedOnly), 350);
   };
 
   const handleCategory = (cat) => {
@@ -164,28 +149,13 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
   // immediately — gives the kid time to see what they bookmarked. Snapshots
   // window scrollY before/after the sort and restores it so the page doesn't
   // jerk when cards reorder above the viewport.
-  const handleToggleBookmark = async (badge, triggerEl) => {
+  // Optimistic bookmark toggle. Just flips the icon in place — no re-sort —
+  // so the kid can keep scanning the same area of the list. Discoverability
+  // comes from the dedicated "Bookmarked" filter button below.
+  const handleToggleBookmark = async (badge) => {
     if (!targetId) return;
     const nextBookmarked = !badge.is_bookmarked;
     setBadges((list) => list.map((b) => b.id === badge.id ? { ...b, is_bookmarked: nextBookmarked } : b));
-    // Walk up from the bookmark button to find the scrollable ancestor
-    // (works whether the browser is mounted on its own page or inside a
-    // Modal with its own internal scroll). Snapshot scrollTop now, restore
-    // after the re-sort lands.
-    const scrollEl = triggerEl ? findScrollContainer(triggerEl) : null;
-    setTimeout(() => {
-      const savedTop = scrollEl ? scrollEl.scrollTop : window.scrollY;
-      setBadges((list) => [...list].sort((a, b) => {
-        const ab = a.is_bookmarked ? 1 : 0;
-        const bb = b.is_bookmarked ? 1 : 0;
-        if (ab !== bb) return bb - ab;
-        return a.name.localeCompare(b.name);
-      }));
-      requestAnimationFrame(() => {
-        if (scrollEl) scrollEl.scrollTop = savedTop;
-        else          window.scrollTo({ top: savedTop, behavior: 'instant' });
-      });
-    }, 2000);
     try {
       if (nextBookmarked) await badgesApi.bookmark(targetId, badge.id);
       else                await badgesApi.unbookmark(targetId, badge.id);
@@ -244,25 +214,40 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
         </p>
       )}
 
-      {/* Type toggle: Badges / Awards / All */}
-      <div className="flex items-center gap-1 mb-4 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg w-fit">
-        {[
-          { key: 'badge', label: 'Badges' },
-          { key: 'award', label: 'Awards' },
-          { key: 'all',   label: 'All'    },
-        ].map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => handleType(key)}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-colors ${
-              type === key
-                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      {/* Type toggle + Bookmarked filter */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg w-fit">
+          {[
+            { key: 'badge', label: 'Badges' },
+            { key: 'award', label: 'Awards' },
+            { key: 'all',   label: 'All'    },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => handleType(key)}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-colors ${
+                type === key
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => { setBookmarkedOnly((v) => !v); setPage(1); }}
+          className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
+            bookmarkedOnly
+              ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+              : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-amber-300'
+          }`}
+          title={bookmarkedOnly ? 'Show all' : 'Show only bookmarked'}
+        >
+          <FontAwesomeIcon icon={bookmarkedOnly ? faBookmark : faBookmarkOutline} />
+          Bookmarked
+        </button>
       </div>
 
       {/* Search */}
@@ -339,7 +324,7 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
                     without opening the preview, and re-sorts bookmarked to the top. */}
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); handleToggleBookmark(badge, e.currentTarget); }}
+                  onClick={(e) => { e.stopPropagation(); handleToggleBookmark(badge); }}
                   className={`absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-full transition-colors ${
                     badge.is_bookmarked
                       ? 'text-amber-500 hover:text-amber-600'

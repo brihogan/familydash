@@ -50,17 +50,27 @@ router.get('/badges', authenticate, (req, res, next) => {
 
     const where = conditions.length > 0 ? conditions.join(' AND ') : '1=1';
 
-    const total = db.prepare(`SELECT COUNT(*) AS n FROM badges b WHERE ${where}`).get(...params).n;
+    // Compute total against the same where clause used for the rows query so
+    // pagination matches when bookmarkedOnly is on (bookmark filter is added
+    // a few lines below after we know whether to apply it).
 
-    // ?bookmarksFor=:userId — include the user's bookmark state per badge and
-    // sort bookmarked badges to the top of the result set.
+    // ?bookmarksFor=:userId — include the user's bookmark state per badge.
+    // ?bookmarkedOnly=true — limit results to badges this user has bookmarked
+    //   (requires bookmarksFor). Default ordering stays alphabetical so the
+    //   list doesn't reshuffle when a kid bookmarks/unbookmarks.
     const bookmarksForRaw = parseInt(req.query.bookmarksFor || '', 10);
     const bookmarksFor = Number.isFinite(bookmarksForRaw) ? bookmarksForRaw : null;
+    const bookmarkedOnly = bookmarksFor && req.query.bookmarkedOnly === 'true';
     const bookmarkSelect = bookmarksFor
       ? `, EXISTS (SELECT 1 FROM badge_bookmarks bb WHERE bb.user_id = ? AND bb.badge_id = b.id) AS is_bookmarked`
       : '';
-    const bookmarkOrder = bookmarksFor ? 'is_bookmarked DESC, ' : '';
-    const orderParams = bookmarksFor ? [bookmarksFor] : [];
+    const selectParams = bookmarksFor ? [bookmarksFor] : [];
+    const whereWithBookmark = bookmarkedOnly
+      ? `${where} AND EXISTS (SELECT 1 FROM badge_bookmarks bb WHERE bb.user_id = ? AND bb.badge_id = b.id)`
+      : where;
+    const whereExtraParams = bookmarkedOnly ? [bookmarksFor] : [];
+
+    const total = db.prepare(`SELECT COUNT(*) AS n FROM badges b WHERE ${whereWithBookmark}`).get(...params, ...whereExtraParams).n;
 
     const badges = db.prepare(`
       SELECT b.id, b.name, b.slug, b.category, b.author, b.image_file,
@@ -68,10 +78,10 @@ router.get('/badges', authenticate, (req, res, next) => {
              b.is_award, b.award_type, b.award_config
              ${bookmarkSelect}
       FROM badges b
-      WHERE ${where}
-      ORDER BY ${bookmarkOrder}b.name ASC
+      WHERE ${whereWithBookmark}
+      ORDER BY b.name ASC
       LIMIT ? OFFSET ?
-    `).all(...orderParams, ...params, limit, offset);
+    `).all(...selectParams, ...params, ...whereExtraParams, limit, offset);
 
     // Categories list excludes awards so the area-filter pills stay clean.
     const categories = db.prepare(
