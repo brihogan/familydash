@@ -73,32 +73,24 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
   // Curiosity badge or award reads its level at a glance.
   if (minimal) {
     const levelCfg = ts.badge_level && BADGE_LEVELS[ts.badge_level];
-    // Use the level's lighter fill color (not borderColor) so the 6px ring
-    // reads as a soft tint of the level rather than a hard outline.
-    const borderColor = levelCfg?.color || '#ffffff';
-    // Badges + awards use a light-gray progress arc to keep the focus on
-    // the badge image. Plain task sets keep the brand/green arc.
-    const isBadgeOrAward = !!ts.badge_id;
-    const progressClass = isBadgeOrAward
-      ? 'text-gray-300 dark:text-gray-500'
-      : (done ? 'text-green-500' : 'text-brand-500');
+    // Progress arc = the badge's level color: saturated when complete, lighter
+    // when in-progress. Non-level sets fall back to brand-blue/green.
+    const progressColor = levelCfg
+      ? (done ? levelCfg.borderColor : levelCfg.color)
+      : (done ? '#22C55E' : '#6366F1');
     return (
       <button
         type="button"
         onClick={() => navigate(`/tasks/${userId}/${ts.id}`)}
-        className="relative flex items-center justify-center rounded-full shadow-md hover:opacity-80 hover:shadow-lg transition-all"
-        style={{
-          width: size, height: size, boxSizing: 'content-box',
-          border: `6px solid ${borderColor}`,
-        }}
+        className="relative flex items-center justify-center rounded-full shadow-md hover:shadow-lg hover:opacity-90 transition-all"
+        style={{ width: size, height: size }}
         title={`${ts.name}${levelCfg ? ` · ${levelCfg.label}` : ''}${ts.step_count ? ` · ${ts.completed_count}/${ts.step_count}` : ''}`}
       >
         <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={sw} className="text-gray-100 dark:text-gray-700" />
           {ts.step_count > 0 && (
-            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={sw}
-              strokeDasharray={circ} strokeDashoffset={circ - (pct / 100) * circ} strokeLinecap="round"
-              className={progressClass} />
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={progressColor} strokeWidth={sw}
+              strokeDasharray={circ} strokeDashoffset={circ - (pct / 100) * circ} strokeLinecap="round" />
           )}
         </svg>
         <div className="absolute inset-0 flex items-center justify-center text-3xl leading-none">

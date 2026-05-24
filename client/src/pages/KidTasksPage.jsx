@@ -147,6 +147,10 @@ export default function KidTasksPage() {
   };
 
   // Minimal "circle only" folder card: just the progress ring + icon, no chrome.
+  // The arc color tracks the kid's badge level (since every badge/award in
+  // the folder is at their level): saturated when 100% done, lighter while
+  // in-progress, brand-blue if no level set yet.
+  const kidLevelCfg = member?.badge_level && BADGE_LEVELS[member.badge_level];
   const renderGroupCard = ({ key, label, icon, sets, color }) => {
     const c = groupCardCounts(sets);
     const size = 96;
@@ -155,24 +159,23 @@ export default function KidTasksPage() {
     const circ = 2 * Math.PI * r;
     const overallPct = c.totalSteps > 0 ? Math.round((c.doneSteps / c.totalSteps) * 100) : 0;
     const allDone = c.totalSteps > 0 && c.doneSteps >= c.totalSteps;
+    const progressColor = kidLevelCfg
+      ? (allDone ? kidLevelCfg.borderColor : kidLevelCfg.color)
+      : (allDone ? '#22C55E' : '#6366F1');
     return (
       <button
         key={key}
         type="button"
         onClick={() => navigate(`/tasks/${userId}/group/${key}`)}
-        className="relative flex items-center justify-center rounded-full shadow-md hover:opacity-80 hover:shadow-lg transition-all"
-        style={{
-          width: size, height: size, boxSizing: 'content-box',
-          border: '6px solid #ffffff',
-        }}
+        className="relative flex items-center justify-center rounded-full shadow-md hover:shadow-lg hover:opacity-90 transition-all"
+        style={{ width: size, height: size }}
         title={`${label} · ${c.total} (${overallPct}% done)`}
       >
         <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={sw} className="text-gray-100 dark:text-gray-700" />
           {overallPct > 0 && (
-            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={sw}
-              strokeDasharray={circ} strokeDashoffset={circ - (overallPct / 100) * circ} strokeLinecap="round"
-              className={allDone ? 'text-green-500' : 'text-brand-500'} />
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={progressColor} strokeWidth={sw}
+              strokeDasharray={circ} strokeDashoffset={circ - (overallPct / 100) * circ} strokeLinecap="round" />
           )}
         </svg>
         <span
