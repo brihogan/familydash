@@ -2,6 +2,10 @@
 
 ## Session Start: 2026-05-25 (evening)
 
+### 2026-05-25 — Prod deployment + slug-based award badge linking
+- Shipped today's library overhaul to prod via new `exportBadgeLibrary.js` / `importBadgeLibrary.js` flow (idempotent: upsert badges by id, clear+reinsert reqs/opts, never touches user data). Docker container gotchas documented in `PROD_DEPLOY.md` + memory.
+- STEAM's "Earn the Math badge" row converted from name-keyed (`'Math'`) to slug-keyed (`'mathematics-badge'`) so future enrollments link correctly regardless of name drift (CU's canonical name is "Mathematics"). `awardSteps.js` prefers slug, falls back to case-insensitive name match.
+
 ### 2026-05-25 — Massive badge-library + award progress overhaul (5+ hour session)
 
 **Library import + scrape (96 missing + 153 emoji backfill + 26 broken refresh)**
