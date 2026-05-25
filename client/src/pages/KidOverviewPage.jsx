@@ -10,6 +10,7 @@ import useOfflineFamily from '../offline/hooks/useOfflineFamily.js';
 import { accountsApi } from '../api/accounts.api.js';
 import dexieDb from '../offline/db.js';
 import { formatCents } from '../utils/formatCents.js';
+import { pickTopTaskSets } from '../utils/topTaskSets.js';
 import useScrollLock from '../hooks/useScrollLock.js';
 import ActivityRow, { GroupedActivityList } from '../components/shared/ActivityRow.jsx';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
@@ -556,13 +557,15 @@ export default function KidOverviewPage() {
             >
               <FontAwesomeIcon icon={choreDone ? faCrown : faBroom} className={choreDone ? 'text-yellow-400' : undefined} />
             </ProgressRing>
-            {/* Task set rings — 2 per column, fill vertically first */}
+            {/* Task set rings — 2 per column, fill vertically first.
+                Capped at 6 so a kid with 50 active badges doesn't blow out the row;
+                in-progress (highest % first) shown ahead of completed. */}
             {useSets && taskSets.length > 0 && (
               <div
                 className="grid gap-0.5"
                 style={{ gridTemplateRows: 'repeat(2, auto)', gridAutoFlow: 'column' }}
               >
-                {taskSets.map((ts) => {
+                {pickTopTaskSets(taskSets, 6).map((ts) => {
                   const pct = ts.stepCount > 0 ? Math.round((ts.completedCount / ts.stepCount) * 100) : 0;
                   return (
                     <ProgressRing

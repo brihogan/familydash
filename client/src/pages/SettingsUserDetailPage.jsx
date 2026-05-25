@@ -542,14 +542,14 @@ export default function SettingsUserDetailPage() {
               <input
                 type="number"
                 min={1}
-                max={10}
+                max={50}
                 value={member.max_active_badges ?? 3}
                 onChange={(e) => {
                   const v = parseInt(e.target.value, 10);
                   if (!isNaN(v)) setMember((prev) => ({ ...prev, max_active_badges: v }));
                 }}
                 onBlur={(e) => {
-                  const v = Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 3));
+                  const v = Math.max(1, Math.min(50, parseInt(e.target.value, 10) || 3));
                   handleToggle('max_active_badges', v);
                 }}
                 className="w-16 px-2 py-1.5 text-sm text-center rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"

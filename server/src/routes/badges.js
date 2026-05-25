@@ -70,18 +70,44 @@ router.get('/badges', authenticate, (req, res, next) => {
       : where;
     const whereExtraParams = bookmarkedOnly ? [bookmarksFor] : [];
 
-    const total = db.prepare(`SELECT COUNT(*) AS n FROM badges b WHERE ${whereWithBookmark}`).get(...params, ...whereExtraParams).n;
+    // ?newOnly=true — show only the latest scrape batch (badges whose
+    //   scraped_at matches MAX(scraped_at) across the matching `type` filter).
+    //   Filter is scoped to the current type ('badge' or 'award') so toggling
+    //   it on the badges tab doesn't get polluted by an award batch that was
+    //   scraped more recently. With type='all' we use the global MAX.
+    const newOnly = req.query.newOnly === 'true';
+    let newWhere = '';
+    const newWhereParams = [];
+    if (newOnly) {
+      const isAwardClause = typeParam === 'award' ? 'is_award = 1'
+                          : typeParam === 'badge' ? 'is_award = 0'
+                          : '1=1';
+      const maxScrape = db.prepare(
+        `SELECT MAX(scraped_at) AS m FROM badges WHERE ${isAwardClause}`
+      ).get()?.m;
+      if (maxScrape) {
+        newWhere = ' AND b.scraped_at = ?';
+        newWhereParams.push(maxScrape);
+      } else {
+        // No scraped_at anywhere → return nothing rather than everything
+        newWhere = ' AND 1=0';
+      }
+    }
+
+    const finalWhere = whereWithBookmark + newWhere;
+
+    const total = db.prepare(`SELECT COUNT(*) AS n FROM badges b WHERE ${finalWhere}`).get(...params, ...whereExtraParams, ...newWhereParams).n;
 
     const badges = db.prepare(`
       SELECT b.id, b.name, b.slug, b.category, b.author, b.image_file,
              b.is_specific, b.note, b.description, b.emoji, b.is_active, b.level_opt_counts,
-             b.is_award, b.award_type, b.award_config
+             b.is_award, b.award_type, b.award_config, b.scraped_at
              ${bookmarkSelect}
       FROM badges b
-      WHERE ${whereWithBookmark}
+      WHERE ${finalWhere}
       ORDER BY b.name ASC
       LIMIT ? OFFSET ?
-    `).all(...selectParams, ...params, ...whereExtraParams, limit, offset);
+    `).all(...selectParams, ...params, ...whereExtraParams, ...newWhereParams, limit, offset);
 
     // Categories list excludes awards so the area-filter pills stay clean.
     const categories = db.prepare(

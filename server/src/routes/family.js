@@ -228,7 +228,7 @@ const UpdateUserSchema = z.object({
   claude_time_limit: z.number().int().min(5).max(480).optional(),
   claude_model: z.enum(['sonnet', 'opus', 'haiku']).optional(),
   badge_level: z.enum(['preschool', 'level1', 'level2', 'level3', 'level4', 'level5']).nullable().optional(),
-  max_active_badges: z.number().int().min(1).max(20).optional(),
+  max_active_badges: z.number().int().min(1).max(50).optional(),
 }).strict();
 
 router.put('/users/:id', authenticate, requireRole('parent'), async (req, res, next) => {

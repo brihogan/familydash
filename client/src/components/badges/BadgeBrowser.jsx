@@ -89,6 +89,9 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
   const [category,       setCategory]       = useState(initialCategory);
   const [type,           setType]           = useState(initialType); // 'badge' | 'award' | 'all'
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
+  // "New" = badges whose scraped_at matches MAX(scraped_at) — i.e. the latest
+  // scrape batch. Server resolves the cutoff so the UI doesn't need to know.
+  const [newOnly,        setNewOnly]        = useState(false);
   const [page,           setPage]           = useState(1);
   const [badges,   setBadges]   = useState([]);
   const [total,    setTotal]    = useState(0);
@@ -102,7 +105,7 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
 
   const LIMIT = 48;
 
-  const fetchBadges = useCallback(async (s, cat, pg, t, bo) => {
+  const fetchBadges = useCallback(async (s, cat, pg, t, bo, no) => {
     setLoading(true);
     setError('');
     try {
@@ -111,6 +114,7 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
       if (cat)      params.category      = cat;
       if (targetId) params.bookmarksFor  = targetId;
       if (bo)       params.bookmarkedOnly = 'true';
+      if (no)       params.newOnly        = 'true';
       const data = await badgesApi.getBadges(params);
       setBadges(data.badges || []);
       setTotal(data.total  || 0);
@@ -122,14 +126,14 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
   }, [targetId]);
 
   useEffect(() => {
-    fetchBadges(search, category, page, type, bookmarkedOnly);
-  }, [category, page, type, bookmarkedOnly, fetchBadges]); // search is debounced below
+    fetchBadges(search, category, page, type, bookmarkedOnly, newOnly);
+  }, [category, page, type, bookmarkedOnly, newOnly, fetchBadges]); // search is debounced below
 
   const handleSearch = (val) => {
     setSearch(val);
     setPage(1);
     clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(() => fetchBadges(val, category, 1, type, bookmarkedOnly), 350);
+    searchTimeout.current = setTimeout(() => fetchBadges(val, category, 1, type, bookmarkedOnly, newOnly), 350);
   };
 
   const handleCategory = (cat) => {
@@ -247,6 +251,24 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
         >
           <FontAwesomeIcon icon={bookmarkedOnly ? faBookmark : faBookmarkOutline} />
           Bookmarked
+        </button>
+        {/* "New" = the latest scrape batch (server picks MAX(scraped_at) and
+            returns rows that match). A small pulsing green dot conveys
+            recency without competing with the bookmark icon. */}
+        <button
+          type="button"
+          onClick={() => { setNewOnly((v) => !v); setPage(1); }}
+          className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
+            newOnly
+              ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+              : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-emerald-300'
+          }`}
+          title={newOnly ? 'Show all' : 'Show only the latest scrape batch'}
+        >
+          <span className={`inline-block w-1.5 h-1.5 rounded-full ${
+            newOnly ? 'bg-emerald-500' : 'bg-emerald-400'
+          } ${newOnly ? '' : 'animate-pulse'}`} />
+          New
         </button>
       </div>
 

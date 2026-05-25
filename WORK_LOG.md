@@ -1,5 +1,15 @@
 # Work Log
 
+## Session Start: 2026-05-25 (evening)
+
+### 2026-05-25 — Max Active Badges raised to 50 + dashboard rings capped at 6
+- Client UI cap (`SettingsUserDetailPage`) raised from 10 → 50, server Zod schema (`family.js`) from 20 → 50. Existing server enrollment guard in `badges.js` already reads the per-user value, no change needed.
+- `DashboardTable` + `KidOverviewPage` now slice the task-set rings to the top 6 via new `client/src/utils/topTaskSets.js`: in-progress first (sorted by % desc, then by step count), then completed if there are leftover slots. Stops a kid with 50 active badges from blowing out the row.
+
+### 2026-05-25 — Badge library audit: 96 badges missing from CU library
+- New `server/scripts/auditBadgeSitemap.js` pulls the Yoast SEO `page-sitemap*.xml` from curiosityuntamed.com, extracts `/badges/{slug}/` URLs, and diffs against our local `CuriosityUntamed/badges.json` (the source of truth for our 751 imported badges). Read-only — prints two lists and exits.
+- First run: 841 slugs in sitemap, 751 in our JSON → **96 missing** (Shakespeare, Skating, Star Trek, Steampunk, Charcuterie, Native Americans, Web Development, …) and 6 obsolete-in-DB slugs (`art-in-nature` → `art-in-nature-2`, ligature-corrupt `college-specific`, etc.). The original badge-list page just doesn't index every published badge post; sitemap is the better source of truth.
+
 ## Session Start: 2026-05-24 (morning)
 
 ### 2026-05-24 — STEAM Award: one row per badge, unique auto-match per category

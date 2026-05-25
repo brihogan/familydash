@@ -76,9 +76,27 @@ runMigrations(db);
 
 const LEVELS = ['preschool', 'level1', 'level2', 'level3', 'level4', 'level5'];
 
+// `scraped_at` is the date the row was originally captured from CU. New rows
+// stamp `datetime('now')`; we INSERT OR IGNORE so re-runs leave existing rows
+// (and their original scraped_at) untouched. That's how the "New" filter in
+// the badge browser distinguishes the latest scrape batch from older ones.
 const insertBadge = db.prepare(`
-  INSERT OR IGNORE INTO badges (name, slug, category, author, image_file, is_specific, note, source_url, level_opt_counts)
-  VALUES (@name, @slug, @category, @author, @image_file, @is_specific, @note, @source_url, @level_opt_counts)
+  INSERT OR IGNORE INTO badges (
+    name, slug, category, author, image_file, is_specific, note, source_url,
+    level_opt_counts, scraped_at
+  )
+  VALUES (
+    @name, @slug, @category, @author, @image_file, @is_specific, @note, @source_url,
+    @level_opt_counts, datetime('now')
+  )
+`);
+// Bump scraped_at on existing rows whose image is being filled in from an
+// emoji-only baseline — this is what the "emoji backfill" pass does: it adds
+// imageFile to existing badges via JSON but no other content changes.
+const refreshScrapedAt = db.prepare(`
+  UPDATE badges SET image_file = COALESCE(@image_file, image_file),
+                    scraped_at = datetime('now')
+  WHERE slug = @slug AND (image_file IS NULL OR image_file = '') AND @image_file IS NOT NULL
 `);
 
 const insertReq = db.prepare(`
@@ -122,6 +140,9 @@ const doImport = db.transaction(() => {
       source_url:       badge.url || null,
       level_opt_counts: JSON.stringify(optCounts),
     });
+    // Backfill image_file for previously-emoji-only rows + stamp scraped_at
+    // so they show up under the "New" filter as part of this batch.
+    if (imageFile) refreshScrapedAt.run({ slug: badge.slug, image_file: imageFile });
 
     const row = getBadgeId.get(badge.slug);
     if (!row) { skipped++; continue; } // slug conflict shouldn't happen with OR IGNORE but just in case

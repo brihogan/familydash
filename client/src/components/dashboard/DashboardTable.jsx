@@ -12,6 +12,7 @@ import LastActivityCell from './LastActivityCell.jsx';
 import DashboardRow from './DashboardRow.jsx';
 import ProgressRing from './ProgressRing.jsx';
 import { formatCents } from '../../utils/formatCents.js';
+import { pickTopTaskSets } from '../../utils/topTaskSets.js';
 
 // Shift each RGB channel toward white by `amount` (0–255)
 function lightenHex(hex, amount = 40) {
@@ -168,13 +169,15 @@ function DashboardCard({ member, onRefresh, readOnly, maskPrivateData, mini }) {
               <FontAwesomeIcon icon={choreDone ? faCrown : faBroom} className={choreDone ? 'text-yellow-400' : undefined} />
             </ProgressRing>
           </div>
-          {/* Task set rings — half-size, 2 per column, fill vertically first */}
+          {/* Task set rings — half-size, 2 per column, fill vertically first.
+              Capped at 6 so a kid with 50 active badges doesn't blow out the row;
+              in-progress (highest % first) shown ahead of completed. */}
           {useSets && (member.taskSets || []).length > 0 && (
             <div
               className="grid gap-0.5"
               style={{ gridTemplateRows: 'repeat(2, auto)', gridAutoFlow: 'column' }}
             >
-              {(member.taskSets || []).map((ts) => {
+              {pickTopTaskSets(member.taskSets, 6).map((ts) => {
                 const pct = ts.stepCount > 0 ? Math.round((ts.completedCount / ts.stepCount) * 100) : 0;
                 return (
                   <ProgressRing

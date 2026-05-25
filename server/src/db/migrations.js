@@ -608,6 +608,18 @@ export function runMigrations(db) {
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_badge_bookmarks_user ON badge_bookmarks(user_id)`);
 
+  // v72: track when each badge was scraped so the "New" filter in the badge
+  //   browser can highlight the most recent batch. Backfilled to the original
+  //   scrape date (2026-03-04, from CuriosityUntamed/badges.json metadata) for
+  //   the 751 badges we imported pre-tracking. Future runs of importBadges.js
+  //   write `datetime('now')` on insert/update. The filter shows badges whose
+  //   `scraped_at` equals MAX(scraped_at) across the table — so it's always
+  //   "the latest batch," whatever that is.
+  try { db.exec(`ALTER TABLE badges ADD COLUMN scraped_at TEXT`); } catch (_) {}
+  db.exec(`UPDATE badges SET scraped_at = '2026-03-04' WHERE scraped_at IS NULL AND is_award = 0`);
+  // Awards were imported separately on 2026-05-24 via importAwards.js
+  db.exec(`UPDATE badges SET scraped_at = '2026-05-24' WHERE scraped_at IS NULL AND is_award = 1`);
+
   // v70: archive a task assignment without losing its data. Set the timestamp
   //   to hide the assignment from the kid's main list; clear to restore. The
   //   row's is_active stays 1; the existing soft-delete via is_active=0 is
