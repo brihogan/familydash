@@ -413,15 +413,25 @@ const AWARDS = [
     award_type: 'task_list',
     award_config: {
       // Steps apply at every level (complexity expectations scale with age).
+      // Multi-badge slots are split into one row per slot so the kid can pick
+      // (or auto-fill) a different enrolled badge for each. `badge_category`
+      // rows render with whatever `text` says but auto-match against the kid's
+      // enrolled badges in `category` (each row gets a different match).
       per_level: {
         all: [
           { type: 'badge', name: 'Math' },
-          { type: 'activity', text: 'Earn 2 Life Science badges (e.g. Biology, Botany, Human Body).' },
-          { type: 'activity', text: 'Earn 2 Physical Science badges (e.g. Physics, Electricity, Magnetism).' },
-          { type: 'activity', text: 'Earn 2 Man Made Wonders badges.' },
-          { type: 'activity', text: 'Earn 1 outdoor science badge.' },
-          { type: 'activity', text: 'Earn 2 Art-area badges.' },
-          { type: 'activity', text: 'Earn a Biography-type badge about a scientist, engineer, mathematician, or artist.' },
+          { type: 'badge_category', category: 'Discover Science & Technology', text: 'Earn a Life Science badge (e.g. Biology, Botany, Human Body)' },
+          { type: 'badge_category', category: 'Discover Science & Technology', text: 'Earn another Life Science badge' },
+          { type: 'badge_category', category: 'Discover Science & Technology', text: 'Earn a Physical Science badge (e.g. Physics, Electricity, Magnetism)' },
+          { type: 'badge_category', category: 'Discover Science & Technology', text: 'Earn another Physical Science badge' },
+          { type: 'badge_category', category: 'Discover Knowledge',            text: 'Earn a Man Made Wonders badge' },
+          { type: 'badge_category', category: 'Discover Knowledge',            text: 'Earn another Man Made Wonders badge' },
+          { type: 'badge_category', category: 'Discover the Outdoors',         text: 'Earn an outdoor science badge (e.g. Astronomy, Geology, Weather)' },
+          { type: 'badge_category', category: 'Discover Art',                  text: 'Earn an Art-area badge' },
+          { type: 'badge_category', category: 'Discover Art',                  text: 'Earn another Art-area badge' },
+          // CU mentions a "Biographies" badge but none exists in the library —
+          // kept as an activity the parent confirms.
+          { type: 'activity', text: 'Earn or create a Biography-type badge about a scientist, engineer, mathematician, or artist.' },
           { type: 'activity', text: 'Create a list of types of engineers and what they do.' },
           { type: 'activity', text: 'Create a list of types of scientists and what they do.' },
           { type: 'activity', text: 'Design a piece of technology that uses art to make it appealing.' },

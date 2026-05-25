@@ -2,6 +2,12 @@
 
 ## Session Start: 2026-05-24 (morning)
 
+### 2026-05-24 — STEAM Award: one row per badge, unique auto-match per category
+- STEAM's "Earn 2 Life Science badges" / "Earn 2 Physical Science badges" / "Earn 2 Man Made Wonders badges" / "Earn 2 Art-area badges" activity rows are now 8 individual `badge_category` step rows (plus the Math badge, an outdoor-science row, and the Biography + 4 activity rows) — 15 steps total.
+- New `badge_category` step type in `server/src/services/awardSteps.js` carries a category + custom display text. Renderer treats it like Discovery's area rows but with a friendlier name.
+- `server/src/routes/userTasks.js` enrichment now returns *all* candidate enrollments per category (ordered by progress desc) and assigns a unique badge per step row via an `assignedTaskSetIds` Set — so two Life Science rows resolve to two different enrolled Sci&Tech badges, not the same one twice.
+- Migration v68 backfill picks up the new step config; task_set 62 verified 15 steps with proper category links.
+
 ### 2026-05-24 — Awards live in production
 - Pushed all 15 CU awards to prod (`dash.straychips.com` / miniserver). Migrations v64–v70 auto-applied on container restart; existing 751 badges untouched. Sync flow: `git pull` → `docker compose restart app` → `docker compose cp data/uploads/badges/. app:/data/uploads/badges/` → `docker compose exec app node server/scripts/importAwards.js`. Final counts: 766 total / 751 badges / 15 awards. Updated `reference_deployment.md` memory with the prod container details (service=`app`, DB at `/data/family.db`, WORKDIR `/app`, sqlite3 CLI not installed → use `node -e` with better-sqlite3 instead).
 

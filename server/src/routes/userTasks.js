@@ -301,13 +301,14 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
         AND lta.user_id = ? AND lta.is_active = 1
       LIMIT 1
     `);
-    // For each step that links to an Area of Discovery (Discovery Award rows),
-    // auto-pick the user's highest-progress enrolled badge in that area at the
-    // award's badge_level. Returns the same shape as the badge lookup above
-    // plus the badge name/image so the row renders identically. NULL when the
-    // kid has nothing enrolled in that area at this level → renderer falls
-    // back to a "Find a badge" button that opens the browser as a modal.
-    const linkedAreaStmt = db.prepare(`
+    // For each step that links to an Area of Discovery (Discovery Award rows
+    // and STEAM-style multi-slot rows), pull the kid's enrolled badges in
+    // that area at the award's level — ordered by % complete, highest first.
+    // When multiple steps link to the same category (e.g. STEAM has 4 rows
+    // pointing at Discover Science & Tech), each row gets a DIFFERENT
+    // enrolled badge by tracking which task_set_ids have already been
+    // assigned to earlier rows.
+    const linkedAreaListStmt = db.prepare(`
       SELECT linked_ts.id AS linked_task_set_id,
         b.name       AS linked_badge_name,
         b.image_file AS linked_badge_image,
@@ -327,9 +328,9 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
                / (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = linked_ts.id AND is_active = 1)
         END
       ) DESC
-      LIMIT 1
     `);
     const awardLevel = taskSet?.badge_level || null;
+    const assignedTaskSetIds = new Set();
     for (const step of steps) {
       if (step.linked_badge_id) {
         const info = linkedAssignmentStmt.get(userId, step.linked_badge_id, userId);
@@ -340,14 +341,16 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
           step.linked_completed_count = info.linked_completed_count;
         }
       } else if (step.linked_badge_category && awardLevel) {
-        const info = linkedAreaStmt.get(userId, step.linked_badge_category, awardLevel, userId, userId);
-        if (info) {
-          step.linked_task_set_id     = info.linked_task_set_id;
-          step.linked_badge_name      = info.linked_badge_name;
-          step.linked_badge_image     = info.linked_badge_image;
-          step.linked_badge_emoji     = info.linked_badge_emoji;
-          step.linked_step_count      = info.linked_step_count;
-          step.linked_completed_count = info.linked_completed_count;
+        const candidates = linkedAreaListStmt.all(userId, step.linked_badge_category, awardLevel, userId, userId);
+        const pick = candidates.find((c) => !assignedTaskSetIds.has(c.linked_task_set_id));
+        if (pick) {
+          assignedTaskSetIds.add(pick.linked_task_set_id);
+          step.linked_task_set_id     = pick.linked_task_set_id;
+          step.linked_badge_name      = pick.linked_badge_name;
+          step.linked_badge_image     = pick.linked_badge_image;
+          step.linked_badge_emoji     = pick.linked_badge_emoji;
+          step.linked_step_count      = pick.linked_step_count;
+          step.linked_completed_count = pick.linked_completed_count;
         }
       }
     }
