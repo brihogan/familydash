@@ -26,14 +26,34 @@ function shortArea(category) {
 export function generateAwardSteps(db, awardType, awardConfig, awardLevel) {
   const cfg = awardConfig || {};
   const out = [];
-  const lookupBadge = (name) => db.prepare(
-    `SELECT id FROM badges WHERE name = ? COLLATE NOCASE AND is_award = 0 AND is_active = 1 LIMIT 1`
-  ).get(name);
+  // Resolve a referenced badge. We prefer slug because slugs come from CU's
+  // canonical URL and don't drift — names can. Falls back to a case-
+  // insensitive name match for legacy entries in award_config that haven't
+  // been migrated to slug-based references yet.
+  const lookupBadge = ({ slug, name }) => {
+    if (slug) {
+      const bySlug = db.prepare(
+        `SELECT id, name FROM badges WHERE slug = ? AND is_award = 0 AND is_active = 1 LIMIT 1`
+      ).get(slug);
+      if (bySlug) return bySlug;
+    }
+    if (name) {
+      return db.prepare(
+        `SELECT id, name FROM badges WHERE name = ? COLLATE NOCASE AND is_award = 0 AND is_active = 1 LIMIT 1`
+      ).get(name);
+    }
+    return null;
+  };
 
-  const pushBadgeStep = (name, level) => {
-    const b = lookupBadge(name);
+  // pushBadgeStep accepts either `name` (legacy) or `slug` (preferred).
+  // The visible step text is "Earn the {displayName} badge" where
+  // displayName comes from the badge row if found, else falls back to the
+  // config's `name` or a slug-derived label.
+  const pushBadgeStep = ({ name, slug }, level) => {
+    const b = lookupBadge({ slug, name });
+    const displayName = b?.name || name || (slug || '').replace(/-badge$/, '').replace(/-/g, ' ');
     out.push({
-      name: `Earn the ${name} badge`,
+      name: `Earn the ${displayName} badge`,
       linked_badge_id: b?.id || null,
       linked_badge_category: null,
       level: level || null,
@@ -63,7 +83,7 @@ export function generateAwardSteps(db, awardType, awardConfig, awardLevel) {
     // Each step carries its source level so the renderer can group them.
     const per = cfg.per_level || {};
     const emitStep = (step, level) => {
-      if (step.type === 'badge')               pushBadgeStep(step.name, level);
+      if (step.type === 'badge')               pushBadgeStep({ name: step.name, slug: step.slug }, level);
       else if (step.type === 'badge_category') pushBadgeCategoryStep(step.text, step.category, level);
       else                                     pushActivityStep(step.text, level);
     };
@@ -76,7 +96,10 @@ export function generateAwardSteps(db, awardType, awardConfig, awardLevel) {
     }
     for (const step of per.all || []) emitStep(step, 'all');
   } else if (awardType === 'specific_badges') {
-    for (const name of cfg.badge_names || []) pushBadgeStep(name, null);
+    // `badge_names` is a legacy string-array config; `badges` is the newer
+    // shape that supports { name } or { slug } per entry. Either is fine.
+    for (const name of cfg.badge_names || []) pushBadgeStep({ name }, null);
+    for (const entry of cfg.badges || []) pushBadgeStep(entry, null);
   } else if (awardType === 'area_coverage') {
     for (const area of AREAS) {
       out.push({

@@ -419,7 +419,11 @@ const AWARDS = [
       // enrolled badges in `category` (each row gets a different match).
       per_level: {
         all: [
-          { type: 'badge', name: 'Math' },
+          // Slug-keyed so the link survives a name drift (CU's canonical
+          // name is "Mathematics"; older snapshots used "Math"). The
+          // display label comes from whatever name the matched badge row
+          // currently has.
+          { type: 'badge', slug: 'mathematics-badge' },
           { type: 'badge_category', category: 'Discover Science & Technology', text: 'Earn a Life Science badge (e.g. Biology, Botany, Human Body)' },
           { type: 'badge_category', category: 'Discover Science & Technology', text: 'Earn another Life Science badge' },
           { type: 'badge_category', category: 'Discover Science & Technology', text: 'Earn a Physical Science badge (e.g. Physics, Electricity, Magnetism)' },
