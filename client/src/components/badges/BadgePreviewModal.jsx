@@ -120,7 +120,7 @@ export default function BadgePreviewModal({ badge, userId, userLevel, canEnroll,
                 >
                   <img
                     src={`/api/uploads/badges/${badge.image_file}`}
-                    alt={badge.name}
+                    alt=""
                     className="w-full h-full object-cover"
                     onError={(e) => { e.target.style.display = 'none'; }}
                   />
@@ -260,7 +260,7 @@ export default function BadgePreviewModal({ badge, userId, userLevel, canEnroll,
       {lightbox && (
         <BadgeImageLightbox
           imageFile={badge.image_file}
-          alt={badge.name}
+          alt=""
           onClose={() => setLightbox(false)}
         />
       )}

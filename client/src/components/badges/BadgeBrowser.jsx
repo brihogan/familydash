@@ -66,14 +66,20 @@ function BadgeImage({ imageFile, emoji, name, size = 64 }) {
 }
 
 /**
- * Reusable badge browser. Used by the standalone /badges/:userId page and by
- * the "Browse Badges" modal on KidTasksPage.
+ * Reusable badge browser. Used by the standalone /badges/:userId page, the
+ * "Browse Badges" modal on KidTasksPage, and the "Pick a badge" modal on
+ * award steps with no specific linked_badge_id.
  *
- * @param {{ userId: number, compact?: boolean, onEnrolled?: (taskSetId: number) => void }} props
- *   - compact: hide the page-level header + kid picker (modal already frames them).
- *   - onEnrolled: callback after successful enrollment. Defaults to navigating to the new task set.
+ * @param {object} props
+ *   - userId: kid we're viewing the library as
+ *   - compact: hide the page-level header + kid picker (modal already frames them)
+ *   - onEnrolled: callback after successful enrollment. Defaults to navigating.
+ *   - onPickEnrolled: when set, the browser is in "pick mode" — clicking on
+ *     an ALREADY-ENROLLED badge calls this with (taskSetId, badge) instead
+ *     of opening the preview/start modal. Used by award-step linkers so the
+ *     parent can connect an existing badge to a STEAM/Discovery slot.
  */
-export default function BadgeBrowser({ userId, compact = false, onEnrolled, initialType = 'badge', initialCategory = '' }) {
+export default function BadgeBrowser({ userId, compact = false, onEnrolled, onPickEnrolled, initialType = 'badge', initialCategory = '' }) {
   const { user }    = useAuth();
   const navigate    = useNavigate();
   const isParent    = user?.role === 'parent';
@@ -92,6 +98,8 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
   // "New" = badges whose scraped_at matches MAX(scraped_at) — i.e. the latest
   // scrape batch. Server resolves the cutoff so the UI doesn't need to know.
   const [newOnly,        setNewOnly]        = useState(false);
+  // "Picked" = badges the kid is currently assigned to (has an active task_set).
+  const [enrolledOnly,   setEnrolledOnly]   = useState(false);
   const [page,           setPage]           = useState(1);
   const [badges,   setBadges]   = useState([]);
   const [total,    setTotal]    = useState(0);
@@ -105,16 +113,17 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
 
   const LIMIT = 48;
 
-  const fetchBadges = useCallback(async (s, cat, pg, t, bo, no) => {
+  const fetchBadges = useCallback(async (s, cat, pg, t, bo, no, eo) => {
     setLoading(true);
     setError('');
     try {
       const params = { limit: LIMIT, page: pg, type: t };
-      if (s)        params.search        = s;
-      if (cat)      params.category      = cat;
-      if (targetId) params.bookmarksFor  = targetId;
+      if (s)        params.search         = s;
+      if (cat)      params.category       = cat;
+      if (targetId) params.bookmarksFor   = targetId;
       if (bo)       params.bookmarkedOnly = 'true';
       if (no)       params.newOnly        = 'true';
+      if (eo)       params.enrolledOnly   = 'true';
       const data = await badgesApi.getBadges(params);
       setBadges(data.badges || []);
       setTotal(data.total  || 0);
@@ -126,14 +135,14 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
   }, [targetId]);
 
   useEffect(() => {
-    fetchBadges(search, category, page, type, bookmarkedOnly, newOnly);
-  }, [category, page, type, bookmarkedOnly, newOnly, fetchBadges]); // search is debounced below
+    fetchBadges(search, category, page, type, bookmarkedOnly, newOnly, enrolledOnly);
+  }, [category, page, type, bookmarkedOnly, newOnly, enrolledOnly, fetchBadges]); // search is debounced below
 
   const handleSearch = (val) => {
     setSearch(val);
     setPage(1);
     clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(() => fetchBadges(val, category, 1, type, bookmarkedOnly, newOnly), 350);
+    searchTimeout.current = setTimeout(() => fetchBadges(val, category, 1, type, bookmarkedOnly, newOnly, enrolledOnly), 350);
   };
 
   const handleCategory = (cat) => {
@@ -270,6 +279,25 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
           } ${newOnly ? '' : 'animate-pulse'}`} />
           New
         </button>
+        {/* "Picked" = only the badges/awards this kid is currently
+            assigned to. Uses the same emerald accent as the per-card
+            "enrolled" highlight so it visually pairs with what each card
+            shows when toggled. */}
+        <button
+          type="button"
+          onClick={() => { setEnrolledOnly((v) => !v); setPage(1); }}
+          className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
+            enrolledOnly
+              ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+              : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-emerald-300'
+          }`}
+          title={enrolledOnly ? 'Show all' : 'Show only ones already in this kid\'s list'}
+        >
+          <span className={`inline-block w-3 h-3 rounded-full text-[8px] font-bold flex items-center justify-center ${
+            enrolledOnly ? 'bg-emerald-500 text-white' : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400'
+          }`}>✓</span>
+          Picked
+        </button>
       </div>
 
       {/* Search */}
@@ -333,14 +361,40 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
           {badges.map((badge) => {
-            const isActive = activeBadgeIds.has(badge.id);
+            const isActive   = activeBadgeIds.has(badge.id);
+            const isEnrolled = !!badge.enrolled_task_set_id;
+            // Click routing:
+            //   • Pick mode + enrolled    → link this enrollment to the step
+            //   • Browse mode + enrolled  → close modal, jump to that task set
+            //     (the kid already has it — no need to re-enroll via preview)
+            //   • Otherwise              → open BadgePreviewModal (Start flow)
+            const handleCardClick = () => {
+              if (isEnrolled && onPickEnrolled) {
+                onPickEnrolled(badge.enrolled_task_set_id, badge);
+                return;
+              }
+              if (isEnrolled) {
+                handleEnrolled(badge.enrolled_task_set_id);
+                return;
+              }
+              setPreviewBadge(badge);
+            };
+            // Enrolled badges get a colored border + corner check icon so
+            // the kid recognizes them at a glance and (in normal browse
+            // mode) doesn't try to enroll twice.
+            const enrolledClasses = isEnrolled
+              ? 'border-emerald-400 dark:border-emerald-500 ring-2 ring-emerald-200 dark:ring-emerald-800/50'
+              : 'border-gray-200 dark:border-gray-700 hover:border-brand-300 dark:hover:border-brand-500/50';
 
             return (
               <button
                 type="button"
                 key={badge.id}
-                onClick={() => setPreviewBadge(badge)}
-                className="relative flex flex-col items-center p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:shadow-md hover:border-brand-300 dark:hover:border-brand-500/50 hover:bg-brand-50/30 dark:hover:bg-brand-900/10 transition-all text-left cursor-pointer"
+                onClick={handleCardClick}
+                className={`relative flex flex-col items-center p-3 bg-white dark:bg-gray-800 border rounded-xl shadow-sm hover:shadow-md hover:bg-brand-50/30 dark:hover:bg-brand-900/10 transition-all text-left cursor-pointer ${enrolledClasses}`}
+                title={isEnrolled
+                  ? (onPickEnrolled ? 'Click to link this badge to the step' : "Already in this kid's list")
+                  : undefined}
               >
                 {/* Bookmark toggle — top-right of card; click bookmarks/unbookmarks
                     without opening the preview, and re-sorts bookmarked to the top. */}
@@ -374,6 +428,11 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, init
                 {isActive && (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
                     Active
+                  </span>
+                )}
+                {isEnrolled && (
+                  <span className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold shadow ring-2 ring-white dark:ring-gray-800" aria-hidden>
+                    ✓
                   </span>
                 )}
               </button>

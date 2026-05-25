@@ -102,7 +102,7 @@ export default function TrophyDetailModal({ userId, taskSetId, onClose }) {
                   >
                     <img
                       src={`/api/uploads/badges/${taskSet.badge_image_file}`}
-                      alt={taskSet.name}
+                      alt=""
                       className="w-full h-full object-cover"
                       onError={(e) => { e.target.style.display = 'none'; }}
                     />
@@ -203,7 +203,7 @@ export default function TrophyDetailModal({ userId, taskSetId, onClose }) {
       {lightbox && taskSet?.badge_image_file && (
         <BadgeImageLightbox
           imageFile={taskSet.badge_image_file}
-          alt={taskSet.name}
+          alt=""
           onClose={() => setLightbox(false)}
         />
       )}

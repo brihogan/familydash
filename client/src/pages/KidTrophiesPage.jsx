@@ -98,7 +98,7 @@ export default function KidTrophiesPage() {
             {ts.badge_image_file ? (
               <img
                 src={`/api/uploads/badges/${ts.badge_image_file}`}
-                alt={ts.name}
+                alt=""
                 className="w-full h-full object-cover"
                 onError={(e) => { e.target.style.display = 'none'; }}
               />

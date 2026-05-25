@@ -160,6 +160,26 @@ export default function KidTasksPage() {
     const overallPct = c.totalSteps > 0 ? Math.round((c.doneSteps / c.totalSteps) * 100) : 0;
     const trackColor    = kidLevelCfg?.trackColor  || kidLevelCfg?.color || '#E5E7EB';
     const progressColor = kidLevelCfg?.borderColor || '#6366F1';
+
+    // Curved title — uppercase label across the top arc, "FOLDER" across the
+    // bottom arc. Both arcs sit INSIDE the colored inner disc (r=32), tucked
+    // ~2px in from where TaskSetCard places them. NOTE: we do NOT use
+    // side="right" on the bottom path — a CCW left→right bottom arc already
+    // puts glyph tops on the inner (toward-center) side of the curve, which
+    // at the bottom = pointing up = right-side up. side="right" would flip
+    // them to point AWAY from center → upside down. (The TaskSetCard
+    // emoji-badge bottom arc is rarely shown for short names, so the
+    // upside-down issue there hides itself.)
+    const cx        = size / 2;
+    const cy        = size / 2;
+    const topR      = 22;
+    const botR      = 26;
+    const topPathId = `group-arc-top-${key}`;
+    const botPathId = `group-arc-bot-${key}`;
+    const topPathD  = `M ${cx - topR},${cy} A ${topR},${topR} 0 0 1 ${cx + topR},${cy}`;
+    const botPathD  = `M ${cx - botR},${cy} A ${botR},${botR} 0 0 0 ${cx + botR},${cy}`;
+    const arcText   = { fontSize: 7, fontWeight: 700, letterSpacing: '0.2px', textTransform: 'uppercase' };
+
     return (
       <button
         key={key}
@@ -182,6 +202,24 @@ export default function KidTasksPage() {
         >
           <FontAwesomeIcon icon={icon} />
         </span>
+        {/* Arc text drawn LAST so it sits on top of the colored inner disc.
+            z-10 keeps it above both the progress-ring SVG and the icon span. */}
+        <svg width={size} height={size} className="absolute inset-0 pointer-events-none z-10">
+          <defs>
+            <path id={topPathId} d={topPathD} fill="none" />
+            <path id={botPathId} d={botPathD} fill="none" />
+          </defs>
+          <text fill={color} style={arcText}>
+            <textPath href={`#${topPathId}`} startOffset="50%" textAnchor="middle">
+              {label.toUpperCase()}
+            </textPath>
+          </text>
+          <text fill={color} style={arcText}>
+            <textPath href={`#${botPathId}`} startOffset="50%" textAnchor="middle">
+              FOLDER
+            </textPath>
+          </text>
+        </svg>
       </button>
     );
   };
@@ -359,7 +397,9 @@ export default function KidTasksPage() {
         </div>
       ) : (
         // Flex-wrap layout: circles flow naturally and pack tighter than a grid.
-        <div className="flex flex-wrap gap-4 sm:gap-5">
+        // pt-4 gives the medallions a bit of breathing room from the filter
+        // pill row above so the row of circles doesn't feel cramped.
+        <div className="flex flex-wrap gap-4 sm:gap-5 pt-4">
           {awardSets.length > 0 && renderGroupCard({
             key: 'awards',
             label: 'Awards',

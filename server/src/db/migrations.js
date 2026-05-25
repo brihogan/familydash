@@ -620,6 +620,24 @@ export function runMigrations(db) {
   // Awards were imported separately on 2026-05-24 via importAwards.js
   db.exec(`UPDATE badges SET scraped_at = '2026-05-24' WHERE scraped_at IS NULL AND is_award = 1`);
 
+  // v73: per-step user-chosen badge link. Award steps with
+  //   `linked_badge_category` previously auto-picked the kid's highest-
+  //   progress enrolled badge in that category — which goes wrong when (a)
+  //   the category is too broad (STEAM's "Man Made Wonders" inside Discover
+  //   Knowledge) or (b) two rows in the same category got the same badge
+  //   name. This column lets the kid (or a parent) explicitly link a badge
+  //   to the step; the server prefers the stored link over the auto-pick
+  //   when populating enrichment.
+  try { db.exec(`ALTER TABLE task_steps ADD COLUMN linked_task_set_id INTEGER REFERENCES task_sets(id) ON DELETE SET NULL`); } catch (_) {}
+
+  // v74: per-level optional pool. Most CU badges share one Optional
+  //   Requirements list — NULL here means "available at any level the kid
+  //   reaches." A few (Math, possibly others) embed their non-starred
+  //   items inline within each level section, giving each level its own
+  //   unique set; the parser tags those rows with the level they came from
+  //   so the picker only offers level-appropriate options.
+  try { db.exec(`ALTER TABLE badge_optional_requirements ADD COLUMN level TEXT`); } catch (_) {}
+
   // v70: archive a task assignment without losing its data. Set the timestamp
   //   to hide the assignment from the kid's main list; clear to restore. The
   //   row's is_active stays 1; the existing soft-delete via is_active=0 is

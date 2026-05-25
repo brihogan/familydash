@@ -93,7 +93,7 @@ export default function TaskSetDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { useTickets, choresLabelLower } = useFamilySettings();
+  const { useTickets, useBadges, choresLabelLower } = useFamilySettings();
   const isParent = user?.role === 'parent';
 
   // ── Data ──────────────────────────────────────────────────────────────────
@@ -388,7 +388,7 @@ export default function TaskSetDetailPage() {
             {taskSet.badge_image_file ? (
               <img
                 src={`/api/uploads/badges/${taskSet.badge_image_file}`}
-                alt={taskSet.name}
+                alt=""
                 className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
@@ -1006,13 +1006,55 @@ export default function TaskSetDetailPage() {
             </div>
           )}
 
-          <LinkedBadgePicker
-            linkedBadgeId={stepForm.linked_badge_id}
-            linkedBadgeName={stepForm._linked_badge_name}
-            linkedBadgeImage={stepForm._linked_badge_image}
-            linkedBadgeCategory={stepForm.linked_badge_category}
-            onChange={(patch) => setStepForm((f) => ({ ...f, ...patch }))}
-          />
+          {/* Linked badge / area-of-discovery. The whole section is gated by
+              a checkbox so steps that aren't badge-linked don't carry extra
+              UI noise. Default-on when editing a step that already has a
+              link; default-off otherwise. Initial click stamps the "*" any-
+              area sentinel so the step becomes a cross-area pick by default
+              (parent can refine via the picker). Hidden entirely if the
+              family has Use Badges turned off in settings. */}
+          {useBadges && (() => {
+            const hasLink = !!stepForm.linked_badge_id || !!stepForm.linked_badge_category;
+            const toggleLink = () => {
+              if (hasLink) {
+                setStepForm((f) => ({
+                  ...f,
+                  linked_badge_id: null,
+                  linked_badge_category: null,
+                  _linked_badge_name: null,
+                  _linked_badge_image: null,
+                }));
+              } else {
+                setStepForm((f) => ({ ...f, linked_badge_category: '*' }));
+              }
+            };
+            return (
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={hasLink}
+                    onChange={toggleLink}
+                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-brand-500 focus:ring-brand-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Link to a badge or Area of Discovery
+                  </span>
+                </label>
+                {hasLink && (
+                  <div className="mt-3">
+                    <LinkedBadgePicker
+                      linkedBadgeId={stepForm.linked_badge_id}
+                      linkedBadgeName={stepForm._linked_badge_name}
+                      linkedBadgeImage={stepForm._linked_badge_image}
+                      linkedBadgeCategory={stepForm.linked_badge_category}
+                      onChange={(patch) => setStepForm((f) => ({ ...f, ...patch }))}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

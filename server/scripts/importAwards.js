@@ -424,14 +424,24 @@ const AWARDS = [
           { type: 'badge_category', category: 'Discover Science & Technology', text: 'Earn another Life Science badge' },
           { type: 'badge_category', category: 'Discover Science & Technology', text: 'Earn a Physical Science badge (e.g. Physics, Electricity, Magnetism)' },
           { type: 'badge_category', category: 'Discover Science & Technology', text: 'Earn another Physical Science badge' },
-          { type: 'badge_category', category: 'Discover Knowledge',            text: 'Earn a Man Made Wonders badge' },
-          { type: 'badge_category', category: 'Discover Knowledge',            text: 'Earn another Man Made Wonders badge' },
-          { type: 'badge_category', category: 'Discover the Outdoors',         text: 'Earn an outdoor science badge (e.g. Astronomy, Geology, Weather)' },
+          // "*" is the sentinel for ANY Area of Discovery — Man Made
+          // Wonders + outdoor science badges cross area boundaries on CU
+          // (Knowledge / Science & Tech / Outdoors all possible). The
+          // picker will offer all the kid's enrolled badges; the parent
+          // explicitly links one rather than letting auto-pick guess.
+          { type: 'badge_category', category: '*', text: 'Earn a Man Made Wonders badge' },
+          { type: 'badge_category', category: '*', text: 'Earn another Man Made Wonders badge' },
+          { type: 'badge_category', category: '*', text: 'Earn an outdoor science badge (e.g. Astronomy, Geology, Weather)' },
           { type: 'badge_category', category: 'Discover Art',                  text: 'Earn an Art-area badge' },
           { type: 'badge_category', category: 'Discover Art',                  text: 'Earn another Art-area badge' },
           // CU mentions a "Biographies" badge but none exists in the library —
           // kept as an activity the parent confirms.
-          { type: 'activity', text: 'Earn or create a Biography-type badge about a scientist, engineer, mathematician, or artist.' },
+          // Biography row is also a badge slot, but cross-area — CU's
+          // Biographies badge sits in different Areas depending on subject
+          // (scientist / artist / engineer / mathematician), so we use the
+          // "*" any-area sentinel and let the parent pick which enrolled
+          // biography badge satisfies it.
+          { type: 'badge_category', category: '*', text: 'Earn or create a Biography-type badge about a scientist, engineer, mathematician, or artist.' },
           { type: 'activity', text: 'Create a list of types of engineers and what they do.' },
           { type: 'activity', text: 'Create a list of types of scientists and what they do.' },
           { type: 'activity', text: 'Design a piece of technology that uses art to make it appealing.' },

@@ -219,7 +219,9 @@ export default function KidGroupPage() {
             : 'No matches for these filters.'}
         </div>
       ) : (
-        <div className="flex flex-wrap gap-4 sm:gap-5">
+        // pt-4 keeps the medallion row from sitting flush against the filter
+        // pills above — matches the spacing on KidTasksPage.
+        <div className="flex flex-wrap gap-4 sm:gap-5 pt-4">
           {filtered.map(renderCard)}
         </div>
       )}

@@ -283,7 +283,7 @@ export default function SettingsTasksPage() {
                 {ts.badge_image_file ? (
                   <img
                     src={`/api/uploads/badges/${ts.badge_image_file}`}
-                    alt={ts.name}
+                    alt=""
                     className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                     onError={(e) => { e.target.style.display = 'none'; }}
                   />

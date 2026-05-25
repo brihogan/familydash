@@ -75,7 +75,7 @@ export default function BadgeEnrollModal({ badge, userId, userLevel, onClose, on
         {badge.image_file ? (
           <img
             src={`/api/uploads/badges/${badge.image_file}`}
-            alt={badge.name}
+            alt=""
             className="w-14 h-14 rounded-full object-cover shrink-0"
             onError={(e) => { e.target.style.display = 'none'; }}
           />

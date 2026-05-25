@@ -51,15 +51,15 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: `http://localhost:${process.env.VITE_API_PORT || '3001'}`,
+        target: `http://localhost:${process.env.VITE_API_PORT || '3010'}`,
         changeOrigin: true,
       },
       '/apps': {
-        target: `http://localhost:${process.env.VITE_API_PORT || '3001'}`,
+        target: `http://localhost:${process.env.VITE_API_PORT || '3010'}`,
         changeOrigin: true,
       },
       '/ws': {
-        target: `http://localhost:${process.env.VITE_API_PORT || '3001'}`,
+        target: `http://localhost:${process.env.VITE_API_PORT || '3010'}`,
         changeOrigin: true,
         ws: true,
       },

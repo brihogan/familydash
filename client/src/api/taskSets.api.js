@@ -28,5 +28,13 @@ export const taskSetsApi = {
   unarchiveAssignment: (userId, taskSetId) => client.post(`/users/${userId}/task-assignments/${taskSetId}/unarchive`).then((r) => r.data),
   getUserTaskSet:  (userId, taskSetId)         => client.get(`/users/${userId}/task-assignments/${taskSetId}`).then((r) => r.data),
   toggleStep:      (userId, taskSetId, stepId, undo = false, inputResponse = null) => client.post(`/users/${userId}/task-assignments/${taskSetId}/steps/${stepId}/toggle`, { ...(undo ? { undo: true } : {}), ...(inputResponse ? { input_response: inputResponse } : {}) }).then((r) => r.data),
+  // PATCH the user-chosen badge link on an award step. Pass `null` to clear
+  // the link (lets the step fall back to category auto-pick or become
+  // un-picked depending on the step's config).
+  linkStep:        (userId, taskSetId, stepId, linkedTaskSetId) => client.patch(`/users/${userId}/task-assignments/${taskSetId}/steps/${stepId}/link`, { linkedTaskSetId }).then((r) => r.data),
   updateAwardState:(userId, taskSetId, state)  => client.patch(`/users/${userId}/awards/${taskSetId}/state`, state).then((r) => r.data),
+  // count_at_level award progress (WOW / Major / Gem). Returns { min, count,
+  // level, isComplete, completed: [{task_set_id, badge_id, name, image_file,
+  // emoji, completed_at}, …] } — used by CountAtLevelAwardDetail.
+  getAwardBadgeProgress: (userId, taskSetId) => client.get(`/users/${userId}/awards/${taskSetId}/badge-progress`).then((r) => r.data),
 };

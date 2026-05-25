@@ -2,24 +2,24 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "API Server",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "server", "--", "--env-file=../.env"],
-      "port": 4000,
-      "autoPort": true
-    },
-    {
       "name": "Vite Client",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "client"],
+      "runtimeArgs": ["run", "dev", "--prefix", "client", "--", "--port", "6010", "--strictPort"],
       "port": 6010,
-      "autoPort": true
+      "autoPort": false
     },
     {
       "name": "Both (concurrently)",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 6010,
+      "autoPort": true
+    },
+    {
+      "name": "API Server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "server", "--", "--env-file=../.env"],
+      "port": 4000,
       "autoPort": true
     }
   ]

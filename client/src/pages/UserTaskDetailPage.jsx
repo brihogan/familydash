@@ -17,6 +17,7 @@ import AwardDetail from '../components/awards/AwardDetail.jsx';
 import ProgressRing from '../components/dashboard/ProgressRing.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { playChoreCheck, playVictory } from '../utils/sounds.js';
+import { awardProgress } from '../utils/awardProgress.js';
 import useScrollLock from '../hooks/useScrollLock.js';
 
 // ── Fullscreen step detail modal (image + description) ───────────────────────
@@ -345,7 +346,7 @@ function AwardCompletionModal({ taskSet, userId, assignedAt, completedAt, pendin
             {taskSet.badge_image_file ? (
               <img
                 src={`/api/uploads/badges/${taskSet.badge_image_file}`}
-                alt={taskSet.name}
+                alt=""
                 className="w-full h-full object-cover"
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
@@ -456,7 +457,11 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
   const needsInput = !!step.require_input;
   // Steps that point at a specific badge auto-complete when that badge is
   // finished. Kids can't toggle them manually — show them as inert / awaiting.
-  const isAutoLinked = !!step.linked_badge_id;
+  // Steps that point at a specific badge (linked_badge_id) OR an area of
+  // discovery (linked_badge_category, e.g. Discovery Award's "Earn a badge
+  // in Art") are both auto-managed by syncLinkedAwardSteps — kids can't
+  // toggle either manually, the server rejects it.
+  const isAutoLinked = !!step.linked_badge_id || !!step.linked_badge_category;
 
   const handleClick = () => {
     if (disabled || step._limitedToday || phase !== 'idle') return;
@@ -568,7 +573,7 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
 
       {/* Step name + description */}
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium transition-colors ${showDone ? 'line-through text-gray-400 dark:text-gray-500' : step._limitedToday ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
+        <p className={`text-sm font-medium transition-colors whitespace-pre-line ${showDone ? 'line-through text-gray-400 dark:text-gray-500' : step._limitedToday ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
           {step._displayName || step.name}
         </p>
         {step._limitedToday && (
@@ -616,39 +621,56 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
           3. Area step with no assignment in that area → "Find ↗" pill; click →
              BadgeBrowser modal pre-filtered to the area. */}
       {!step.image && step.linked_task_set_id && (
-        <Link
-          to={`/tasks/${userId || ''}/${step.linked_task_set_id}`}
-          onClick={(e) => e.stopPropagation()}
-          className="flex items-center gap-1.5 flex-shrink-0 hover:opacity-80 transition-opacity"
-          title={`${step.linked_completed_count}/${step.linked_step_count} steps — open ${step.linked_badge_name}`}
-        >
-          {step.linked_step_count > 0 && (
-            <span className="text-[10px] font-semibold tabular-nums text-gray-500 dark:text-gray-400">
-              {step.linked_completed_count}/{step.linked_step_count}
-            </span>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Swap button — sits to the LEFT of the badge icon so it doesn't
+              get crowded by the right-edge of the row. Only on slot-style
+              steps (linked_badge_category set, incl. the "*" any-area
+              sentinel); specific-badge steps (linked_badge_id) are baked
+              into the award config and can't be swapped. */}
+          {step.linked_badge_category && !step.linked_badge_id && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onFindArea?.(step.linked_badge_category, step); }}
+              className="text-[10px] font-semibold px-1.5 py-1 rounded-md border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-brand-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+              title="Swap which badge fills this slot"
+            >
+              Swap
+            </button>
           )}
-          <ProgressRing
-            pct={step.linked_step_count > 0 ? Math.round((step.linked_completed_count / step.linked_step_count) * 100) : 0}
-            done={step.linked_step_count > 0 && step.linked_completed_count >= step.linked_step_count}
-            size={40}
+          <Link
+            to={`/tasks/${userId || ''}/${step.linked_task_set_id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+            title={`${step.linked_completed_count}/${step.linked_step_count} steps — open ${step.linked_badge_name}`}
           >
-            {step.linked_badge_image ? (
-              <img
-                src={`/api/uploads/badges/${step.linked_badge_image}`}
-                alt={step.linked_badge_name || ''}
-                className="w-full h-full rounded-full object-cover"
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
-            ) : (
-              <span
-                className="w-full h-full rounded-full flex items-center justify-center text-base leading-none"
-                style={{ background: 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)' }}
-              >
-                {step.linked_badge_emoji || '🏅'}
+            {step.linked_step_count > 0 && (
+              <span className="text-[10px] font-semibold tabular-nums text-gray-500 dark:text-gray-400">
+                {step.linked_completed_count}/{step.linked_step_count}
               </span>
             )}
-          </ProgressRing>
-        </Link>
+            <ProgressRing
+              pct={step.linked_step_count > 0 ? Math.round((step.linked_completed_count / step.linked_step_count) * 100) : 0}
+              done={step.linked_step_count > 0 && step.linked_completed_count >= step.linked_step_count}
+              size={40}
+            >
+              {step.linked_badge_image ? (
+                <img
+                  src={`/api/uploads/badges/${step.linked_badge_image}`}
+                  alt=""
+                  className="w-full h-full rounded-full object-cover"
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+              ) : (
+                <span
+                  className="w-full h-full rounded-full flex items-center justify-center text-base leading-none"
+                  style={{ background: 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)' }}
+                >
+                  {step.linked_badge_emoji || '🏅'}
+                </span>
+              )}
+            </ProgressRing>
+          </Link>
+        </div>
       )}
       {!step.image && !step.linked_task_set_id && step.linked_badge_id && (
         <button
@@ -671,7 +693,7 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
           {step.linked_badge_image ? (
             <img
               src={`/api/uploads/badges/${step.linked_badge_image}`}
-              alt={step.linked_badge_name || ''}
+              alt=""
               className="w-full h-full object-cover"
               onError={(e) => { e.target.style.display = 'none'; }}
             />
@@ -683,11 +705,11 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
       {!step.image && !step.linked_task_set_id && !step.linked_badge_id && step.linked_badge_category && (
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); onFindArea?.(step.linked_badge_category); }}
+          onClick={(e) => { e.stopPropagation(); onFindArea?.(step.linked_badge_category, step); }}
           className="text-[10px] font-semibold px-2 py-1 rounded-full border border-brand-300 dark:border-brand-500/50 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors flex-shrink-0 whitespace-nowrap"
-          title={`Find a badge in ${step.linked_badge_category}`}
+          title={step.linked_badge_category === '*' ? 'Pick any badge to link' : `Find a badge in ${step.linked_badge_category}`}
         >
-          Find ↗
+          {step.linked_badge_category === '*' ? 'Pick ↗' : 'Find ↗'}
         </button>
       )}
       {/* Note icon for description (no-image steps in list view) */}
@@ -713,8 +735,17 @@ function StepCard({ step, onToggle, disabled, done, isLast }) {
   const [lightbox, setLightbox] = useState(false);
   const inputRef = useRef(null);
   const needsInput = !!step.require_input;
+  // Award steps that point at a specific badge (linked_badge_id) are
+  // auto-completed by the badge-completion sync, never manually. Lock the
+  // card's checkbox so the kid can't toggle it from the award grid view.
+  // Steps that point at a specific badge (linked_badge_id) OR an area of
+  // discovery (linked_badge_category, e.g. Discovery Award's "Earn a badge
+  // in Art") are both auto-managed by syncLinkedAwardSteps — kids can't
+  // toggle either manually, the server rejects it.
+  const isAutoLinked = !!step.linked_badge_id || !!step.linked_badge_category;
 
   const handleCheck = () => {
+    if (isAutoLinked) return;
     if (done) return;
     if (disabled || step._limitedToday || phase !== 'idle') return;
     if (needsInput && !showInput) {
@@ -737,7 +768,7 @@ function StepCard({ step, onToggle, disabled, done, isLast }) {
 
   const isAnimating = phase !== 'idle';
   const showDone = done || isAnimating;
-  const canCheck = !done && !disabled && !isAnimating && !step._limitedToday;
+  const canCheck = !done && !disabled && !isAnimating && !step._limitedToday && !isAutoLinked;
 
   const cardStyle = (() => {
     if (phase === 'exit') return { transition: 'opacity 360ms ease-out, transform 360ms ease-out', opacity: 0, transform: 'scale(0.9)' };
@@ -802,6 +833,7 @@ function StepCard({ step, onToggle, disabled, done, isLast }) {
       <div
         className={`flex items-center gap-1.5 w-full p-2 ${canCheck && !showInput ? 'cursor-pointer' : ''}`}
         onClick={canCheck && !showInput ? handleCheck : undefined}
+        title={isAutoLinked ? 'Auto-completes when the linked badge is finished' : undefined}
       >
         {/* Checkbox circle */}
         <div className="relative shrink-0">
@@ -809,7 +841,9 @@ function StepCard({ step, onToggle, disabled, done, isLast }) {
             className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
               showDone
                 ? 'border-green-500 bg-green-500'
-                : 'border-gray-300 dark:border-gray-600'
+                : isAutoLinked
+                  ? 'border-gray-300 dark:border-gray-600 border-dashed opacity-60'
+                  : 'border-gray-300 dark:border-gray-600'
             }`}
             style={phase === 'pop' ? { animation: 'chore-checkbox-pop 480ms cubic-bezier(0.36,0.07,0.19,0.97) both' } : undefined}
           >
@@ -971,8 +1005,14 @@ export default function UserTaskDetailPage() {
   // Opens BadgePreviewModal when a kid clicks a linked-badge step they haven't enrolled in yet.
   const [previewBadge,     setPreviewBadge]     = useState(null);
   // Opens the BadgeBrowser modal pre-filtered to an Area of Discovery when a
-  // kid clicks "Find ↗" on an unmatched area-linked award step.
-  const [areaBrowserCategory, setAreaBrowserCategory] = useState(null);
+  // kid clicks "Find ↗" / "Pick ↗" on an unmatched area-linked award step.
+  // Tuple { category, stepId } so we can route a picked badge back to the
+  // right step via the link API. category === '*' = no category filter.
+  const [areaBrowser, setAreaBrowser] = useState(null);
+  // Progress reported by CountAtLevelAwardDetail (WOW award). null until
+  // its API call lands; { count, min, isComplete, … } afterward. The
+  // header ring + count pill use this when the task_set is count_at_level.
+  const [countProgress, setCountProgress] = useState(null);
   const [descOverflowing,  setDescOverflowing]  = useState(false);
   const descRef = useRef(null);
 
@@ -1002,16 +1042,26 @@ export default function UserTaskDetailPage() {
     setDescOverflowing(el.scrollHeight - el.clientHeight > 1);
   }, [taskSet?.description, descExpanded]);
 
-  // Load optional pool when needed (chevron or shortfall picker)
+  // Load optional pool when needed (chevron or shortfall picker). Passes
+  // the task set's badge_level so per-level badges (Math) only return the
+  // kid's own-level options + NULL-level shared rows.
   const loadOptionalPool = useCallback(async () => {
     if (!taskSet?.badge_id) return;
     try {
-      const data = await badgesApi.getBadgeOptionals(taskSet.badge_id);
+      const data = await badgesApi.getBadgeOptionals(taskSet.badge_id, taskSet.badge_level);
       setOptionalPool(data.optionals || []);
     } catch {
       setOptionalPool([]);
     }
-  }, [taskSet?.badge_id]);
+  }, [taskSet?.badge_id, taskSet?.badge_level]);
+
+  // Reset the optional pool whenever we navigate to a different task set,
+  // otherwise client-side route changes (e.g. clicking a linked badge from
+  // an award detail page) leave the previous badge's pool stuck in state
+  // and the `!optionalPool` guard below short-circuits the reload.
+  useEffect(() => {
+    setOptionalPool(null);
+  }, [taskSetId]);
 
   // Auto-load pool for badge task sets so the kid sees options upfront
   useEffect(() => {
@@ -1203,8 +1253,24 @@ export default function UserTaskDetailPage() {
   const optionalsRemaining = Math.max(0, levelOptCount - selectedOptCount);
   const needsPicks         = !!taskSet?.badge_id && optionalsRemaining > 0;
 
-  const totalCount     = steps.reduce((sum, s) => sum + (s.repeat_count || 1), 0);
-  const completedCount = steps.reduce((sum, s) => sum + (s.completed_count || 0), 0);
+  // Progress accounting differs by task-set shape:
+  //   • count_at_level awards (WOW) — count vs. min, no steps
+  //   • award task sets with steps   — weighted by linked-badge substeps
+  //     (a step linked to a 9-step badge counts as 9 toward the total) so
+  //     adding more badge slots doesn't make the same amount of effort
+  //     look like worse progress. Unlinked slots use a level-typical
+  //     average so the denominator is stable.
+  //   • everything else              — plain repeat_count sum
+  const isCountAtLevel = taskSet?.award_type === 'count_at_level' && taskSet?.is_award;
+  const isWeightedAward = !!taskSet?.is_award && !isCountAtLevel && steps.length > 0;
+  const weighted = isWeightedAward ? awardProgress(steps, taskSet?.badge_level) : null;
+
+  const totalCount     = isCountAtLevel ? (countProgress?.min   ?? 0)
+                       : isWeightedAward ? weighted.totalCount
+                       : steps.reduce((sum, s) => sum + (s.repeat_count || 1), 0);
+  const completedCount = isCountAtLevel ? (countProgress?.count ?? 0)
+                       : isWeightedAward ? weighted.completedCount
+                       : steps.reduce((sum, s) => sum + (s.completed_count || 0), 0);
   const allDone        = totalCount > 0 && completedCount >= totalCount;
   const pct            = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
   const anyBusy        = toggling.size > 0;
@@ -1215,7 +1281,7 @@ export default function UserTaskDetailPage() {
       {imageLightbox && taskSet?.badge_image_file && (
         <BadgeImageLightbox
           imageFile={taskSet.badge_image_file}
-          alt={taskSet.name}
+          alt=""
           onClose={() => setImageLightbox(false)}
         />
       )}
@@ -1229,16 +1295,42 @@ export default function UserTaskDetailPage() {
           onEnrolled={(taskSetId) => { setPreviewBadge(null); navigate(`/tasks/${userId}/${taskSetId}`); }}
         />
       )}
-      <Modal open={!!areaBrowserCategory} onClose={() => setAreaBrowserCategory(null)} title="Find a badge" size="xl">
-        {areaBrowserCategory && (
+      <Modal open={!!areaBrowser} onClose={() => setAreaBrowser(null)} title={areaBrowser?.stepId ? 'Pick a badge for this step' : 'Find a badge'} size="xl">
+        {areaBrowser && (
           <BadgeBrowser
             userId={parseInt(userId, 10)}
             compact
             initialType="badge"
-            initialCategory={areaBrowserCategory}
-            onEnrolled={(taskSetId) => {
-              setAreaBrowserCategory(null);
-              navigate(`/tasks/${userId}/${taskSetId}`);
+            // '*' = no area filter (cross-area STEAM rows); anything else
+            // pre-filters to that Area of Discovery.
+            initialCategory={areaBrowser.category === '*' ? '' : areaBrowser.category}
+            // Clicking an already-enrolled badge links it to the step that
+            // opened this modal — no Start flow, no new enrollment.
+            onPickEnrolled={areaBrowser.stepId ? async (linkedTaskSetId) => {
+              try {
+                await taskSetsApi.linkStep(parseInt(userId, 10), parseInt(taskSetId, 10), areaBrowser.stepId, linkedTaskSetId);
+                setAreaBrowser(null);
+                fetchDetail();
+              } catch (e) {
+                console.error('linkStep failed', e);
+              }
+            } : undefined}
+            onEnrolled={async (newTaskSetId) => {
+              // Brand-new enrollment from inside the picker: link it to the
+              // step too, then stay on the award page (the kid just picked
+              // a destination, no need to navigate them away).
+              if (areaBrowser.stepId) {
+                try {
+                  await taskSetsApi.linkStep(parseInt(userId, 10), parseInt(taskSetId, 10), areaBrowser.stepId, newTaskSetId);
+                  setAreaBrowser(null);
+                  fetchDetail();
+                } catch (e) {
+                  console.error('linkStep failed', e);
+                }
+              } else {
+                setAreaBrowser(null);
+                navigate(`/tasks/${userId}/${newTaskSetId}`);
+              }
             }}
           />
         )}
@@ -1369,7 +1461,7 @@ export default function UserTaskDetailPage() {
                     >
                       <img
                         src={`/api/uploads/badges/${taskSet.badge_image_file}`}
-                        alt={taskSet.name}
+                        alt=""
                         className="w-full h-full object-cover"
                         onError={(e) => { e.target.style.display = 'none'; }}
                       />
@@ -1487,6 +1579,7 @@ export default function UserTaskDetailPage() {
           userId={parseInt(userId, 10)}
           taskSet={taskSet}
           onAwardStateChanged={(newState) => setTaskSet((t) => t ? { ...t, award_state: newState } : t)}
+          onCountProgress={setCountProgress}
         />
       ) : steps.length === 0 ? (
         <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">No steps in this task set yet.</p>
@@ -1567,7 +1660,7 @@ export default function UserTaskDetailPage() {
                       )}
                       <div className="space-y-2">
                         {group.rows.map((step) => (
-                          <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={setAreaBrowserCategory} />
+                          <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} />
                         ))}
                       </div>
                     </div>
@@ -1578,7 +1671,7 @@ export default function UserTaskDetailPage() {
                   <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Required</h3>
                   <div className="space-y-2">
                     {expanded.todoRequired.map((step) => (
-                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={setAreaBrowserCategory} />
+                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} />
                     ))}
                   </div>
                 </div>
@@ -1607,7 +1700,7 @@ export default function UserTaskDetailPage() {
                         className="w-full text-left flex gap-2.5 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 bg-white dark:bg-gray-800 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors disabled:opacity-50"
                       >
                         <span className="mt-0.5 text-amber-500 shrink-0">+</span>
-                        <span className="text-sm text-gray-700 dark:text-gray-200 leading-snug">{opt.text}</span>
+                        <span className="text-sm text-gray-700 dark:text-gray-200 leading-snug whitespace-pre-line">{opt.text}</span>
                       </button>
                     ))}
                   </div>
@@ -1622,7 +1715,7 @@ export default function UserTaskDetailPage() {
                   </h3>
                   <div className="space-y-2">
                     {expanded.todoOptional.map((step) => (
-                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={setAreaBrowserCategory} />
+                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} />
                     ))}
                   </div>
 
@@ -1647,7 +1740,7 @@ export default function UserTaskDetailPage() {
                           {unselectedOptionals.map((opt) => (
                             <div key={opt.id} className="flex items-start gap-3 p-3 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                               <span className="mt-0.5 text-gray-300 dark:text-gray-600 text-sm shrink-0">○</span>
-                              <p className="text-sm text-gray-600 dark:text-gray-300 flex-1 leading-snug">{opt.text}</p>
+                              <p className="text-sm text-gray-600 dark:text-gray-300 flex-1 leading-snug whitespace-pre-line">{opt.text}</p>
                               {expanded.todoOptional.length > 0 && (
                                 <div className="shrink-0">
                                   <select
@@ -1684,7 +1777,7 @@ export default function UserTaskDetailPage() {
             expanded.todo.length > 0 && (
               <div className="space-y-2">
                 {expanded.todo.map((step) => (
-                  <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={setAreaBrowserCategory} />
+                  <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} />
                 ))}
               </div>
             )

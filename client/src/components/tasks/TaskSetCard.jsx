@@ -166,7 +166,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
           {ts.badge_image_file ? (
             <img
               src={`/api/uploads/badges/${ts.badge_image_file}`}
-              alt={ts.name}
+              alt=""
               className="w-16 h-16 rounded-full object-cover"
               onError={(e) => { e.target.style.display = 'none'; }}
             />
@@ -279,7 +279,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
               {ts.badge_image_file ? (
                 <img
                   src={`/api/uploads/badges/${ts.badge_image_file}`}
-                  alt={ts.name}
+                  alt=""
                   className="w-20 h-20 rounded-full object-cover"
                   onError={(e) => { e.target.style.display = 'none'; }}
                 />

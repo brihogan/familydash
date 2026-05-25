@@ -1,4 +1,5 @@
 import GenericAwardDetail from './GenericAwardDetail.jsx';
+import CountAtLevelAwardDetail from './CountAtLevelAwardDetail.jsx';
 
 /**
  * Rendered by UserTaskDetailPage ONLY when an award task_set has zero steps —
@@ -7,6 +8,9 @@ import GenericAwardDetail from './GenericAwardDetail.jsx';
  * specific_badges, area_coverage) generates real task_steps on enrollment
  * and falls through to the standard step rendering instead.
  */
-export default function AwardDetail({ userId, taskSet, onAwardStateChanged }) {
+export default function AwardDetail({ userId, taskSet, onAwardStateChanged, onCountProgress }) {
+  if (taskSet.award_type === 'count_at_level') {
+    return <CountAtLevelAwardDetail userId={userId} taskSet={taskSet} onProgress={onCountProgress} />;
+  }
   return <GenericAwardDetail userId={userId} taskSet={taskSet} onAwardStateChanged={onAwardStateChanged} />;
 }

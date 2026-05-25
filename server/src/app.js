@@ -80,7 +80,10 @@ app.use(
     hsts: false,
   }),
 );
-app.use(express.json());
+// 5mb default JSON body limit — covers the dev-only scrape sink that
+// posts the parsed CU badge dump (~400KB) and leaves plenty of headroom
+// for normal API payloads.
+app.use(express.json({ limit: '5mb' }));
 app.use(cookieParser());
 
 const authLimiter = rateLimit({
@@ -137,6 +140,29 @@ app.get('/sdk/multiplayer.js', (_req, res) => {
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// DEV-ONLY: tiny scrape sink so the Claude-in-Chrome browser session can POST
+// parsed badge JSON back to /tmp/ without us hitting tool-return truncation
+// limits. CORS is wide-open here — fine because the endpoint only writes to
+// /tmp on the dev machine. Remove (or NODE_ENV-gate) before merging if you
+// don't want it sticking around.
+if (process.env.NODE_ENV !== 'production') {
+  app.options('/api/_scrape-sink', (_req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    res.sendStatus(204);
+  });
+  app.post('/api/_scrape-sink', express.json({ limit: '20mb' }), async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    const fs   = await import('fs');
+    const path = await import('path');
+    const batch = String(req.body?.batch || 'default').replace(/[^a-z0-9_-]/gi, '');
+    const file  = path.join('/tmp', `cu-scrape-${batch}.json`);
+    fs.writeFileSync(file, JSON.stringify(req.body?.data ?? req.body, null, 2));
+    res.json({ ok: true, file, bytes: fs.statSync(file).size });
+  });
+}
 
 // Serve uploaded step images and badge images
 const dataDir = process.env.DATABASE_PATH ? dirname(process.env.DATABASE_PATH) : join(__dirname, '..', '..', 'data');

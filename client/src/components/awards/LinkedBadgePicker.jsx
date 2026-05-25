@@ -119,10 +119,16 @@ export default function LinkedBadgePicker({
       )}
       {linkedBadgeCategory && (
         <div className="flex items-center gap-3 mb-3 p-2 rounded-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-          <div className="w-10 h-10 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center text-xl">🎯</div>
+          <div className="w-10 h-10 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center text-xl">{linkedBadgeCategory === '*' ? '✨' : '🎯'}</div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{linkedBadgeCategory}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Any badge in this Area satisfies the step.</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+              {linkedBadgeCategory === '*' ? 'Any Area of Discovery' : linkedBadgeCategory}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {linkedBadgeCategory === '*'
+                ? 'Any enrolled badge satisfies the step — the kid (or parent) picks which one.'
+                : 'Any badge in this Area satisfies the step.'}
+            </p>
           </div>
         </div>
       )}
@@ -176,6 +182,7 @@ export default function LinkedBadgePicker({
             className="flex-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-400"
           >
             <option value="">— pick an Area —</option>
+            <option value="*">✨ Any Area (cross-category pick)</option>
             {AREAS.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>

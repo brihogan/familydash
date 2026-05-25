@@ -61,14 +61,38 @@ router.get('/badges', authenticate, (req, res, next) => {
     const bookmarksForRaw = parseInt(req.query.bookmarksFor || '', 10);
     const bookmarksFor = Number.isFinite(bookmarksForRaw) ? bookmarksForRaw : null;
     const bookmarkedOnly = bookmarksFor && req.query.bookmarkedOnly === 'true';
+    // Adding `is_enrolled` + `enrolled_task_set_id` per badge so the
+    // browser can highlight badges the user already has. Same gate as
+    // bookmarks — only relevant when scoped to a user.
     const bookmarkSelect = bookmarksFor
-      ? `, EXISTS (SELECT 1 FROM badge_bookmarks bb WHERE bb.user_id = ? AND bb.badge_id = b.id) AS is_bookmarked`
+      ? `, EXISTS (SELECT 1 FROM badge_bookmarks bb WHERE bb.user_id = ? AND bb.badge_id = b.id) AS is_bookmarked,
+         (SELECT ts.id FROM task_sets ts
+          JOIN task_assignments ta ON ta.task_set_id = ts.id
+          WHERE ts.badge_id = b.id AND ts.is_active = 1 AND ta.user_id = ? AND ta.is_active = 1
+          LIMIT 1) AS enrolled_task_set_id`
       : '';
-    const selectParams = bookmarksFor ? [bookmarksFor] : [];
+    const selectParams = bookmarksFor ? [bookmarksFor, bookmarksFor] : [];
     const whereWithBookmark = bookmarkedOnly
       ? `${where} AND EXISTS (SELECT 1 FROM badge_bookmarks bb WHERE bb.user_id = ? AND bb.badge_id = b.id)`
       : where;
     const whereExtraParams = bookmarkedOnly ? [bookmarksFor] : [];
+
+    // ?enrolledOnly=true — show only badges/awards the user is currently
+    //   assigned to (has an active task_set + assignment for). Requires
+    //   bookmarksFor since we need the user context. Pairs with the
+    //   emerald-border "enrolled" highlight in the BadgeBrowser cards.
+    const enrolledOnly = bookmarksFor && req.query.enrolledOnly === 'true';
+    let enrolledWhere = '';
+    const enrolledWhereParams = [];
+    if (enrolledOnly) {
+      enrolledWhere = ` AND EXISTS (
+        SELECT 1 FROM task_sets ts2
+        JOIN task_assignments ta2 ON ta2.task_set_id = ts2.id
+        WHERE ts2.badge_id = b.id AND ts2.is_active = 1
+          AND ta2.user_id = ? AND ta2.is_active = 1
+      )`;
+      enrolledWhereParams.push(bookmarksFor);
+    }
 
     // ?newOnly=true — show only the latest scrape batch (badges whose
     //   scraped_at matches MAX(scraped_at) across the matching `type` filter).
@@ -94,9 +118,9 @@ router.get('/badges', authenticate, (req, res, next) => {
       }
     }
 
-    const finalWhere = whereWithBookmark + newWhere;
+    const finalWhere = whereWithBookmark + newWhere + enrolledWhere;
 
-    const total = db.prepare(`SELECT COUNT(*) AS n FROM badges b WHERE ${finalWhere}`).get(...params, ...whereExtraParams, ...newWhereParams).n;
+    const total = db.prepare(`SELECT COUNT(*) AS n FROM badges b WHERE ${finalWhere}`).get(...params, ...whereExtraParams, ...newWhereParams, ...enrolledWhereParams).n;
 
     const badges = db.prepare(`
       SELECT b.id, b.name, b.slug, b.category, b.author, b.image_file,
@@ -107,7 +131,7 @@ router.get('/badges', authenticate, (req, res, next) => {
       WHERE ${finalWhere}
       ORDER BY b.name ASC
       LIMIT ? OFFSET ?
-    `).all(...selectParams, ...params, ...whereExtraParams, ...newWhereParams, limit, offset);
+    `).all(...selectParams, ...params, ...whereExtraParams, ...newWhereParams, ...enrolledWhereParams, limit, offset);
 
     // Categories list excludes awards so the area-filter pills stay clean.
     const categories = db.prepare(
@@ -138,17 +162,50 @@ router.get('/badges/:id', authenticate, (req, res, next) => {
       const maxIdx = LEVEL_ORDER.indexOf(levelParam);
       const levelsToFetch = LEVEL_ORDER.slice(0, maxIdx + 1);
       const placeholders = levelsToFetch.map(() => '?').join(', ');
-      requirements = db.prepare(
+      const raw = db.prepare(
         `SELECT id, level, sort_order, text
          FROM badge_level_requirements
          WHERE badge_id = ? AND level IN (${placeholders})
          ORDER BY sort_order ASC`
       ).all(badgeId, ...levelsToFetch);
+      // Some badges (e.g. Marshmallow) share the same starred requirements
+      // across every level — the parser intentionally fans them out to each
+      // level's row set so per-level progress tracking still works at the
+      // task-step layer. But for the badge browser's "required steps" view
+      // we want each unique text to appear once. Keep the first occurrence
+      // (lowest level wins) and drop subsequent duplicates by normalized
+      // text. Cross-references like "Do Preschool requirements 1 & 2" are
+      // already stripped at import time, so the comparison is on substantive
+      // text only.
+      const seen = new Set();
+      requirements = raw.filter((r) => {
+        const key = (r.text || '').replace(/\s+/g, ' ').trim().toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
     }
 
-    const optionals = db.prepare(
-      `SELECT id, req_number, text FROM badge_optional_requirements WHERE badge_id = ? ORDER BY req_number ASC`
-    ).all(badgeId);
+    // Optional pool. Two flavors of CU badge:
+    //   • Shared pool (Shakespeare, etc.) — every row has level=NULL and any
+    //     kid can pick from it at any level.
+    //   • Per-level (Math) — each row is tagged with the exact level it came
+    //     from. The kid only sees their OWN level's options (not cumulative)
+    //     since lower-level options are scoped to lower-level kids.
+    // With a level requested we return NULL-level rows + the kid's exact
+    // level. No level requested (admin view) → return everything.
+    let optionals;
+    if (levelParam && LEVEL_ORDER.includes(levelParam)) {
+      optionals = db.prepare(
+        `SELECT id, req_number, text, level FROM badge_optional_requirements
+         WHERE badge_id = ? AND (level IS NULL OR level = ?)
+         ORDER BY req_number ASC`
+      ).all(badgeId, levelParam);
+    } else {
+      optionals = db.prepare(
+        `SELECT id, req_number, text, level FROM badge_optional_requirements WHERE badge_id = ? ORDER BY req_number ASC`
+      ).all(badgeId);
+    }
 
     const optCounts = JSON.parse(badge.level_opt_counts || '{}');
 
@@ -159,16 +216,29 @@ router.get('/badges/:id', authenticate, (req, res, next) => {
 });
 
 // ─── GET /api/badges/:id/optionals ───────────────────────────────────────────
-// Full optional pool for a badge (used by the swap chevron in the task view).
+// Full optional pool for a badge (used by the swap chevron in the task view
+// and by the "Pick X more optional tasks" modal on the kid's task page).
+// Respects the same per-level filter as the detail endpoint so Math-style
+// badges only surface the kid's own-level options.
 router.get('/badges/:id/optionals', authenticate, (req, res, next) => {
   try {
     const badgeId = parseInt(req.params.id, 10);
     const badge = db.prepare(`SELECT id FROM badges WHERE id = ? AND is_active = 1`).get(badgeId);
     if (!badge) return res.status(404).json({ error: 'Badge not found.' });
 
-    const optionals = db.prepare(
-      `SELECT id, req_number, text FROM badge_optional_requirements WHERE badge_id = ? ORDER BY req_number ASC`
-    ).all(badgeId);
+    const levelParam = req.query.level || null;
+    let optionals;
+    if (levelParam && LEVEL_ORDER.includes(levelParam)) {
+      optionals = db.prepare(
+        `SELECT id, req_number, text, level FROM badge_optional_requirements
+         WHERE badge_id = ? AND (level IS NULL OR level = ?)
+         ORDER BY req_number ASC`
+      ).all(badgeId, levelParam);
+    } else {
+      optionals = db.prepare(
+        `SELECT id, req_number, text, level FROM badge_optional_requirements WHERE badge_id = ? ORDER BY req_number ASC`
+      ).all(badgeId);
+    }
 
     res.json({ optionals });
   } catch (err) {
@@ -270,15 +340,25 @@ router.post('/users/:userId/badges/enroll', authenticate, (req, res, next) => {
       }
     }
 
-    // Fetch flattened required steps for all levels up to and including userLevel
+    // Fetch flattened required steps for all levels up to and including
+    // userLevel. Shared-starred-req badges (Marshmallow et al.) have the
+    // same text rows at every level — dedupe by normalized text so we don't
+    // create 12 task_steps for what is really 2 unique required steps.
     const maxIdx = LEVEL_ORDER.indexOf(userLevel);
     const levelsToFetch = LEVEL_ORDER.slice(0, maxIdx + 1);
     const placeholders = levelsToFetch.map(() => '?').join(', ');
-    const requiredSteps = db.prepare(
+    const requiredStepsRaw = db.prepare(
       `SELECT text FROM badge_level_requirements
        WHERE badge_id = ? AND level IN (${placeholders})
        ORDER BY sort_order ASC`
     ).all(badge.id, ...levelsToFetch);
+    const seenText = new Set();
+    const requiredSteps = requiredStepsRaw.filter((s) => {
+      const key = (s.text || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      if (seenText.has(key)) return false;
+      seenText.add(key);
+      return true;
+    });
 
     // Fetch selected optional step texts
     const selectedOpts = body.selectedOptionalIds.length > 0

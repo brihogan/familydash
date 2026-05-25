@@ -2,6 +2,44 @@
 
 ## Session Start: 2026-05-25 (evening)
 
+### 2026-05-25 — Massive badge-library + award progress overhaul (5+ hour session)
+
+**Library import + scrape (96 missing + 153 emoji backfill + 26 broken refresh)**
+- Built a Chrome-MCP-driven scrape pipeline (`server/scripts/scrapeCuBadges.js`, `parseScrapedTexts.js`, `mergeScrapedBadges.js`, `refreshScrapedBadges.js`, `backfillEmojiImages.js`). Browser fetches CU pages with the user's authenticated session via the Claude-in-Chrome extension; raw text + og:image streams back through a dev-only POST sink (`/api/_scrape-sink` in `app.js`).
+- **+81 truly-new badges** added from CU's Yoast sitemap (Shakespeare, Star Trek, Steampunk, Charcuterie, Microsoft Office, Seven Teachings, Zombie Apocalypse, Martial Arts, etc.). All cropped, imaged, level-tagged.
+- **+152 emoji backfills**: scraped og:image for the 151 badges that had only an emoji + 1 retro-fix. Cropped + ringed. `scraped_at` deliberately preserved so they don't pollute the "New" filter (image swap ≠ new badge).
+- **26 broken-from-March badges refreshed** (Marshmallow, Teal Pumpkin, Microsoft Office, Seven Teachings, Water Games, etc.) — the original 2026-03-04 scrape had partial level data or missing optionals. Re-scraped each.
+- Parser learned several CU author variations: "Do/Choose/Complete N requirements", "Do the M starred plus N optional", digit-or-word counts ("4" vs "four"), shared starred reqs across levels (Marshmallow pattern), en-dash section separators, URL-on-its-own-line continuation, multi-line sub-bullets, name-detection fallbacks for pages with no `<h1>` (Goosebumps), and 8-underscore requirement markers (Math).
+- Sentinel `linked_badge_category='*'` for cross-area award slots (STEAM's Man Made Wonders + outdoor science + Biography rows).
+
+**Schema (migrations v72 → v74)**
+- v72: `badges.scraped_at` — powers the "New" badge browser pill.
+- v73: `task_steps.linked_task_set_id` — per-step user-chosen badge link, overrides auto-pick.
+- v74: `badge_optional_requirements.level` — for badges (Math) whose optionals are scoped per-level rather than a shared pool.
+
+**Award engine improvements**
+- `awardSync` now auto-completes BOTH `linked_badge_id` AND `linked_badge_category` award steps when the kid finishes a qualifying badge. Discovery Award's "Earn a badge in Art" steps actually auto-resolve now.
+- Manual badge link API: `PATCH /api/users/:userId/task-assignments/:taskSetId/steps/:stepId/link`. Validates the target task_set belongs to the user.
+- BadgeBrowser highlights already-enrolled badges with an emerald border + ✓ corner badge. Clicking an enrolled badge in browse mode jumps to the kid's task page; in pick mode it links the badge to the calling step. Same logic powers the new "Picked" filter pill (next to Bookmarked / New).
+- Swap pill on linked-badge step rows lets a parent re-pick which badge fills a category slot.
+- New `count_at_level` award detail (`CountAtLevelAwardDetail`) for WOW: shows progress count + completed-badge medallions at the award's level. Retroactive credit; no manual checkboxes.
+- Weighted award progress (`client/src/utils/awardProgress.js`): a step linked to a 9-substep badge counts as 9 toward the denominator; unlinked slots use level-average (`{preschool:3, level1:5, level2:7, level3:9, level4:12, level5:15}`, empirical cumulative). Mirrored server-side in the bulk task-assignments endpoint so folder cards match detail-page rings.
+
+**Cropper + image pipeline fixes**
+- `cropBadgeImages.js` now flattens transparent PNGs to white before trim so the colored ring on Shakespeare/Big Cats/Star Trek/Steampunk gets caught and stripped. Skips `award-*` files (they have their own pipeline).
+- All `<img alt={name}>` swapped to `alt=""` to prevent BIG TEXT title flash during image load (15 spots across the client).
+
+**UI polish**
+- Folder cards on KidTasksPage have curved "AWARDS / FOLDER" and "BADGES / FOLDER" arc titles, level-tinted progress rings, +4 padding so they don't sit flush against the filter pills.
+- Step text rendered with `whitespace-pre-line` so Math's multi-line sub-bullets stay on separate lines.
+- Bookmark + New + Picked filter pills on BadgeBrowser (Picked = enrolled-only).
+- Edit Step modal in `TaskSetDetailPage` gates the LinkedBadgePicker behind a checkbox; hidden when family settings have badges off.
+
+**Dev infrastructure**
+- Vite client moved to strict port 6010 via `.claude/launch.json`. `vite.config.js` API proxy default now 3010 (was 3001 — conflicted with AuditProofv2).
+- Killed a stale `server/public/` from May 20 that was being served on top of the live dev API and confusing the preview panel; renamed to `server/public.stale-2026-05-20` and out of the way.
+- Dev-only POST sink endpoint `/api/_scrape-sink` for browser-to-disk handoff during in-page scrape loops.
+
 ### 2026-05-25 — Max Active Badges raised to 50 + dashboard rings capped at 6
 - Client UI cap (`SettingsUserDetailPage`) raised from 10 → 50, server Zod schema (`family.js`) from 20 → 50. Existing server enrollment guard in `badges.js` already reads the per-user value, no change needed.
 - `DashboardTable` + `KidOverviewPage` now slice the task-set rings to the top 6 via new `client/src/utils/topTaskSets.js`: in-progress first (sorted by % desc, then by step count), then completed if there are leftover slots. Stops a kid with 50 active badges from blowing out the row.

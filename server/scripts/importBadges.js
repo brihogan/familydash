@@ -50,12 +50,32 @@ function normalizeCategory(raw) {
 
 // ─── Requirement stripping ────────────────────────────────────────────────────
 // Removes "Do Preschool requirement 1." / "Do Level 1 requirements 1 & 2." etc.
-// leaving only the new content that follows (if any).
-
-const STRIP_RE = /^Do\s+(Preschool|Level\s+\d+)\s+requirements?\s+[\d\s,&]+\.?\s*/i;
-
+// leaving only the new content that follows (if any). CU authors are
+// inconsistent — we have to handle:
+//   Do Preschool requirements 1 & 2.
+//   Do Preschool requirements 1 and 2.
+//   Do Level 4 requirement #1.
+//   Do Level 3 requirements # 1 & 2, but identify four constellations.
+//   Do Level 3 requirements number 1 & 2.
+//   . Do Level 1 requirements 1 & 2 (leading punctuation from list-item dash)
+//
+// Strategy: trim leading punctuation, then consume the whole "Do <Level>
+// requirements [optional # or 'number'] N [& N | and N | , N]* [terminator]"
+// clause. If the post-strip text begins with a conjunction fragment
+// ("and 2", "but X"), drop that too — that's left-over from a multi-clause
+// reference that the previous step's authoring didn't fully repeat.
 function stripLevelRef(text) {
-  return text.replace(STRIP_RE, '').trim();
+  let t = (text || '').trim();
+  // Strip leading punctuation that snuck in from list-marker leftovers.
+  t = t.replace(/^[.,;:]\s*/, '');
+  // The cross-reference clause itself.
+  t = t.replace(
+    /^Do\s+(?:Preschool|Level\s*\d+)\s+requirements?\s*(?:#\s*|number\s+)?\d+(?:\s*(?:&|and|,)\s*#?\s*\d+)*\s*[,.]?\s*/i,
+    ''
+  );
+  // Fragment left behind by a partial author edit ("and 2", "& 2", "but X").
+  t = t.replace(/^(and|or|but|&)\s+#?\d+\s*[,.]?\s*/i, '');
+  return t.trim();
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -104,7 +124,7 @@ const insertReq = db.prepare(`
 `);
 
 const insertOpt = db.prepare(`
-  INSERT INTO badge_optional_requirements (badge_id, req_number, text) VALUES (?, ?, ?)
+  INSERT INTO badge_optional_requirements (badge_id, req_number, text, level) VALUES (?, ?, ?, ?)
 `);
 
 const getBadgeId = db.prepare(`SELECT id FROM badges WHERE slug = ?`);
@@ -170,7 +190,7 @@ const doImport = db.transaction(() => {
     // Optional requirements pool (shared across all levels)
     for (const opt of badge.optionalRequirements ?? []) {
       if (opt.text?.trim()) {
-        insertOpt.run(badgeId, opt.number, opt.text.trim());
+        insertOpt.run(badgeId, opt.number, opt.text.trim(), opt.level || null);
       }
     }
 

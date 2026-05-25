@@ -77,6 +77,7 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
         b.image_file AS badge_image_file,
         b.category   AS badge_category,
         b.is_award   AS badge_is_award,
+        b.award_type AS award_type,
         (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)   AS step_count,
         (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ?)                AS completed_count,
         (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ? AND approval_status = 'pending') AS pending_step_count,
@@ -88,6 +89,130 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
         ${archivedFilter}
       ORDER BY ts.name ASC
     `).all(userId, userId, userId, userId);
+
+    // Override step_count/completed_count for award task sets with weighted
+    // progress (linked-badge sub-steps + level-average estimates for unpicked
+    // slots). Same math as the detail page so the folder card progress rings
+    // line up with what the kid sees when they click in. N+1 query per award
+    // is fine — kids rarely have more than a dozen awards enrolled.
+    const LEVEL_AVG_STEPS = { preschool: 3, level1: 5, level2: 7, level3: 9, level4: 12, level5: 15 };
+    // Per-award step fetch: includes whatever linked_task_set_id the user
+    // explicitly picked, but most auto-picked slots have NULL — the detail
+    // endpoint resolves those at read time. We mirror the same resolution
+    // here so folder progress matches what the kid sees inside the award.
+    const awardStepsStmt = db.prepare(`
+      SELECT s.id, s.linked_badge_id, s.linked_badge_category, s.linked_task_set_id, s.repeat_count,
+        (SELECT COUNT(*) FROM task_step_completions WHERE task_step_id = s.id AND user_id = ?) AS completed_count
+      FROM task_steps s WHERE s.task_set_id = ? AND s.is_active = 1
+    `);
+    // Resolve a linked-badge step → which task_set is the kid currently
+    // tracking it through (enrollment for the specific badge_id)?
+    const linkedByIdStmt = db.prepare(`
+      SELECT linked_ts.id AS linked_task_set_id,
+        (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = linked_ts.id AND is_active = 1) AS linked_step_count,
+        (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = linked_ts.id AND user_id = ?) AS linked_completed_count
+      FROM task_sets linked_ts
+      JOIN task_assignments lta ON lta.task_set_id = linked_ts.id
+      WHERE linked_ts.badge_id = ? AND linked_ts.is_active = 1
+        AND lta.user_id = ? AND lta.is_active = 1
+      LIMIT 1
+    `);
+    // Resolve a category-linked step → highest-progress enrolled badge in
+    // that area at the award's level (mirrors the auto-pick in
+    // /:userId/task-assignments/:taskSetId).
+    const linkedByCategoryStmt = db.prepare(`
+      SELECT linked_ts.id AS linked_task_set_id,
+        (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = linked_ts.id AND is_active = 1) AS linked_step_count,
+        (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = linked_ts.id AND user_id = ?) AS linked_completed_count
+      FROM task_sets linked_ts
+      JOIN task_assignments lta ON lta.task_set_id = linked_ts.id
+      JOIN badges b ON b.id = linked_ts.badge_id
+      WHERE b.category = ? AND b.is_award = 0 AND b.is_active = 1
+        AND linked_ts.is_active = 1 AND linked_ts.badge_level = ?
+        AND lta.user_id = ? AND lta.is_active = 1
+      ORDER BY (
+        CASE WHEN (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = linked_ts.id AND is_active = 1) = 0
+          THEN 0
+          ELSE (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = linked_ts.id AND user_id = ?) * 100
+               / (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = linked_ts.id AND is_active = 1)
+        END
+      ) DESC
+    `);
+    // Resolve by an explicitly-stored linked_task_set_id (the v73 manual pick).
+    const storedLinkStmt = db.prepare(`
+      SELECT linked_ts.id AS linked_task_set_id,
+        (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = linked_ts.id AND is_active = 1) AS linked_step_count,
+        (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = linked_ts.id AND user_id = ?) AS linked_completed_count
+      FROM task_sets linked_ts WHERE linked_ts.id = ? AND linked_ts.is_active = 1
+    `);
+    // count_at_level awards (WOW) have no task_steps — progress is the
+    // number of 100%-complete badges the kid has at the award's level vs.
+    // the `min` target from award_config. Mirrors the per-detail endpoint.
+    const countAtLevelStmt = db.prepare(`
+      SELECT b.award_config FROM badges b WHERE b.id = ?
+    `);
+    const completeBadgeCountStmt = db.prepare(`
+      SELECT COUNT(*) AS n FROM task_sets ts
+      JOIN task_assignments ta ON ta.task_set_id = ts.id AND ta.user_id = ? AND ta.is_active = 1
+      JOIN badges b ON b.id = ts.badge_id
+      WHERE ts.is_active = 1 AND b.is_award = 0 AND ts.badge_level = ?
+        AND (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1) > 0
+        AND (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ta.user_id) >=
+            (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)
+    `);
+
+    for (const row of rows) {
+      if (!row.badge_is_award) continue;
+      const stepsForAward = awardStepsStmt.all(userId, row.id);
+      if (stepsForAward.length === 0) {
+        // count_at_level / manual / composite. Only count_at_level has live
+        // progress; others stay 0/0.
+        const cfgRow = countAtLevelStmt.get(row.badge_id);
+        const awardType = row.award_type || null;
+        if (awardType === 'count_at_level' && row.badge_level && cfgRow) {
+          let cfg = {};
+          try { cfg = JSON.parse(cfgRow.award_config || '{}'); } catch (_) {}
+          const min = cfg.min || 100;
+          const count = completeBadgeCountStmt.get(userId, row.badge_level)?.n || 0;
+          row.step_count      = min;
+          row.completed_count = Math.min(count, min);
+        }
+        continue;
+      }
+      const avg = LEVEL_AVG_STEPS[row.badge_level] || 5;
+      const assignedTaskSetIds = new Set();
+      let total = 0, done = 0;
+      for (const s of stepsForAward) {
+        const linked = !!s.linked_badge_id || !!s.linked_badge_category;
+        if (!linked) {
+          // Plain activity step.
+          total += Math.max(1, s.repeat_count || 1);
+          done  += Math.min(s.completed_count || 0, Math.max(1, s.repeat_count || 1));
+          continue;
+        }
+        // Resolve which task_set this step is linked to (manual pick → specific
+        // badge enrollment → category auto-pick → unresolved).
+        let pick = null;
+        if (s.linked_task_set_id) {
+          pick = storedLinkStmt.get(userId, s.linked_task_set_id);
+        } else if (s.linked_badge_id) {
+          pick = linkedByIdStmt.get(userId, s.linked_badge_id, userId);
+        } else if (s.linked_badge_category && s.linked_badge_category !== '*' && row.badge_level) {
+          const candidates = linkedByCategoryStmt.all(userId, s.linked_badge_category, row.badge_level, userId, userId);
+          pick = candidates.find((c) => !assignedTaskSetIds.has(c.linked_task_set_id)) || null;
+        }
+        if (pick && pick.linked_step_count > 0) {
+          assignedTaskSetIds.add(pick.linked_task_set_id);
+          total += pick.linked_step_count;
+          done  += pick.linked_completed_count || 0;
+        } else {
+          // Unresolved / cross-area unpicked / no enrollment yet → estimate.
+          total += avg;
+        }
+      }
+      row.step_count      = total;
+      row.completed_count = Math.min(done, total);
+    }
 
     // ── Compute daily streak ──────────────────────────────────────────────
     const activityDates = db.prepare(`
@@ -329,9 +454,46 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
         END
       ) DESC
     `);
+    // Lookup for steps whose stored linked_task_set_id points at an
+    // arbitrary enrolled badge (per-kid manual pick stored in v73 column).
+    const storedLinkStmt = db.prepare(`
+      SELECT linked_ts.id AS linked_task_set_id,
+        b.name       AS linked_badge_name,
+        b.image_file AS linked_badge_image,
+        b.emoji      AS linked_badge_emoji,
+        (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = linked_ts.id AND is_active = 1) AS linked_step_count,
+        (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = linked_ts.id AND user_id = ?) AS linked_completed_count
+      FROM task_sets linked_ts
+      JOIN badges b ON b.id = linked_ts.badge_id
+      WHERE linked_ts.id = ? AND linked_ts.is_active = 1 AND b.is_active = 1
+    `);
     const awardLevel = taskSet?.badge_level || null;
     const assignedTaskSetIds = new Set();
     for (const step of steps) {
+      // Stored manual pick wins over auto-pick. This covers both
+      // category-linked steps (STEAM/Discovery) where the kid explicitly
+      // picked a badge AND cross-area steps (STEAM's Man Made Wonders
+      // and outdoor science) whose category is null.
+      const storedLink = step.linked_task_set_id || null;
+      if (storedLink) {
+        const info = storedLinkStmt.get(userId, storedLink);
+        if (info) {
+          assignedTaskSetIds.add(info.linked_task_set_id);
+          step.linked_task_set_id     = info.linked_task_set_id;
+          step.linked_badge_name      = info.linked_badge_name;
+          step.linked_badge_image     = info.linked_badge_image;
+          step.linked_badge_emoji     = info.linked_badge_emoji;
+          step.linked_step_count      = info.linked_step_count;
+          step.linked_completed_count = info.linked_completed_count;
+        } else {
+          // The linked task_set was deactivated; clear the stored id so
+          // the kid can re-pick. (Defensive — column has ON DELETE SET NULL
+          // but soft-deletes via is_active=0 wouldn't fire that.)
+          step.linked_task_set_id = null;
+        }
+        continue;
+      }
+
       if (step.linked_badge_id) {
         const info = linkedAssignmentStmt.get(userId, step.linked_badge_id, userId);
         if (info) {
@@ -387,13 +549,14 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
     if (!assignment) return res.status(404).json({ error: 'Task set not assigned to this user.' });
 
     const step = db.prepare(
-      'SELECT id, name, repeat_count, limit_one_per_day, require_input, input_prompt, linked_badge_id FROM task_steps WHERE id = ? AND task_set_id = ? AND is_active = 1'
+      'SELECT id, name, repeat_count, limit_one_per_day, require_input, input_prompt, linked_badge_id, linked_badge_category FROM task_steps WHERE id = ? AND task_set_id = ? AND is_active = 1'
     ).get(stepId, taskSetId);
     if (!step) return res.status(404).json({ error: 'Step not found.' });
 
-    // Linked-badge steps are auto-managed (sync runs after any toggle on the
-    // linked badge's task_set). Reject manual toggles to keep state coherent.
-    if (step.linked_badge_id) {
+    // Linked-badge / linked-category steps are auto-managed by syncLinkedAwardSteps
+    // (which runs after any badge-step toggle). Reject manual toggles for both
+    // so award progress stays consistent with the underlying badge progress.
+    if (step.linked_badge_id || step.linked_badge_category) {
       return res.status(400).json({
         error: 'This step auto-completes when the linked badge is finished.',
       });
@@ -632,6 +795,72 @@ router.patch('/:userId/awards/:taskSetId/state', authenticate, (req, res, next) 
   } catch (err) { next(err); }
 });
 
+// GET /api/users/:userId/awards/:taskSetId/badge-progress
+// For count_at_level awards (WOW, Major, Gem). Returns the list of every
+// 100%-complete badge the kid has at the award's level, with `min` = the
+// target count from award_config. The detail page renders progress = X/min
+// + the badge grid. Includes badges completed BEFORE the award was enrolled
+// — i.e. retroactive credit. CU's WOW wording: "100+ badges at any single
+// level"; each WOW enrollment is tied to one level, so we filter to that.
+router.get('/:userId/awards/:taskSetId/badge-progress', authenticate, (req, res, next) => {
+  try {
+    const userId    = parseInt(req.params.userId,    10);
+    const taskSetId = parseInt(req.params.taskSetId, 10);
+    assertUserInFamily(userId, req.user.familyId);
+
+    const award = db.prepare(`
+      SELECT ts.id AS task_set_id, ts.badge_level, b.award_type, b.award_config
+      FROM task_sets ts
+      JOIN badges b ON b.id = ts.badge_id
+      JOIN task_assignments ta ON ta.task_set_id = ts.id AND ta.user_id = ? AND ta.is_active = 1
+      WHERE ts.id = ? AND ts.is_active = 1 AND b.is_award = 1
+    `).get(userId, taskSetId);
+    if (!award) return res.status(404).json({ error: 'Award not assigned to this user.' });
+
+    let cfg = {};
+    try { cfg = JSON.parse(award.award_config || '{}'); } catch { cfg = {}; }
+    const min = cfg.min || 100;
+
+    // Every badge enrollment for this kid at the award's level whose step
+    // total is fully covered by completions. We compute totals per task_set
+    // and filter to fully-complete ones in JS (cleaner than a triple-nested
+    // GROUP BY ... HAVING in SQLite).
+    const sets = db.prepare(`
+      SELECT ts.id AS task_set_id, ts.name, ts.badge_id,
+             b.image_file, b.emoji,
+             (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1) AS step_count,
+             (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ?) AS completed_count,
+             (SELECT MAX(completed_at) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ?) AS last_completion_at
+      FROM task_sets ts
+      JOIN badges b ON b.id = ts.badge_id
+      JOIN task_assignments ta ON ta.task_set_id = ts.id AND ta.user_id = ? AND ta.is_active = 1
+      WHERE ts.is_active = 1
+        AND b.is_award = 0
+        AND ts.badge_level = ?
+      ORDER BY last_completion_at DESC NULLS LAST
+    `).all(userId, userId, userId, award.badge_level);
+
+    const completed = sets
+      .filter((s) => s.step_count > 0 && s.completed_count >= s.step_count)
+      .map((s) => ({
+        task_set_id:        s.task_set_id,
+        badge_id:           s.badge_id,
+        name:               s.name,
+        image_file:         s.image_file,
+        emoji:              s.emoji,
+        completed_at:       s.last_completion_at,
+      }));
+
+    res.json({
+      min,
+      count:        completed.length,
+      level:        award.badge_level,
+      isComplete:   completed.length >= min,
+      completed,
+    });
+  } catch (err) { next(err); }
+});
+
 // POST /api/users/:userId/task-assignments/:taskSetId/archive
 // Hide a task assignment from the kid's active list. The row stays so the
 // kid (or a parent) can unarchive it later via the Archived filter.
@@ -665,6 +894,53 @@ router.post('/:userId/task-assignments/:taskSetId/unarchive', authenticate, (req
     ).run(taskSetId, userId);
     if (result.changes === 0) return res.status(404).json({ error: 'Assignment not found.' });
     res.json({ archived: false });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/users/:userId/task-assignments/:taskSetId/steps/:stepId/link
+// Body: { linkedTaskSetId: number | null }
+//   Set (or clear with null) the user-chosen badge link for an award step.
+//   Only valid on steps with `linked_badge_category` (Discovery, STEAM area
+//   steps) or with category null (STEAM cross-area Man Made Wonders /
+//   outdoor science). The endpoint validates the linked task_set is one of
+//   the user's own enrollments before saving — no cross-user linking.
+router.patch('/:userId/task-assignments/:taskSetId/steps/:stepId/link', authenticate, (req, res, next) => {
+  try {
+    const userId    = parseInt(req.params.userId,    10);
+    const taskSetId = parseInt(req.params.taskSetId, 10);
+    const stepId    = parseInt(req.params.stepId,    10);
+    const linkedTaskSetId = req.body?.linkedTaskSetId == null ? null : parseInt(req.body.linkedTaskSetId, 10);
+
+    assertUserInFamily(userId, req.user.familyId);
+    if (req.user.userId !== userId && req.user.role !== 'parent') {
+      return res.status(403).json({ error: 'Forbidden.' });
+    }
+
+    const step = db.prepare(
+      'SELECT id, linked_badge_id, linked_badge_category FROM task_steps WHERE id = ? AND task_set_id = ? AND is_active = 1'
+    ).get(stepId, taskSetId);
+    if (!step) return res.status(404).json({ error: 'Step not found.' });
+    if (step.linked_badge_id) {
+      // Specific-badge steps already have their link baked in via award config.
+      return res.status(400).json({ error: 'This step is locked to a specific badge.' });
+    }
+
+    if (linkedTaskSetId != null) {
+      // Verify the target task_set is one of THIS user's active enrollments
+      // before storing — no cross-user linking, no awards linking to awards.
+      const target = db.prepare(`
+        SELECT ts.id, b.is_award
+        FROM task_sets ts
+        JOIN task_assignments ta ON ta.task_set_id = ts.id AND ta.user_id = ? AND ta.is_active = 1
+        JOIN badges b ON b.id = ts.badge_id
+        WHERE ts.id = ? AND ts.is_active = 1
+      `).get(userId, linkedTaskSetId);
+      if (!target)            return res.status(400).json({ error: 'Linked task set is not one of your enrollments.' });
+      if (target.is_award)    return res.status(400).json({ error: 'Cannot link an award to another award.' });
+    }
+
+    db.prepare('UPDATE task_steps SET linked_task_set_id = ? WHERE id = ?').run(linkedTaskSetId, stepId);
+    res.json({ ok: true, linked_task_set_id: linkedTaskSetId });
   } catch (err) { next(err); }
 });
 

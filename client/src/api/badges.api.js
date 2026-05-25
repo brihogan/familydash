@@ -7,8 +7,10 @@ export const badgesApi = {
   getBadge:          (id, level) =>
     client.get(`/badges/${id}`, { params: level ? { level } : {} }).then((r) => r.data),
 
-  getBadgeOptionals: (badgeId) =>
-    client.get(`/badges/${badgeId}/optionals`).then((r) => r.data),
+  // Pass the kid's level so per-level optional badges (Math) are filtered
+  // to that exact level + any NULL-level shared pool entries.
+  getBadgeOptionals: (badgeId, level) =>
+    client.get(`/badges/${badgeId}/optionals`, { params: level ? { level } : {} }).then((r) => r.data),
 
   enroll:            (userId, badgeId, selectedOptionalIds) =>
     client.post(`/users/${userId}/badges/enroll`, { badgeId, selectedOptionalIds }).then((r) => r.data),
