@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef, useLayoutEffect, useCallback } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faTrophy } from '@fortawesome/free-solid-svg-icons';
@@ -6,10 +6,11 @@ import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
 import { BADGE_LEVELS } from '../constants/badgeLevels.js';
 
-// Big circular medallion identical in style to the TaskSetCard "minimal"
-// variant — progress ring + level-tinted track + center disc with image or
-// emoji. Used as both the root award node and each child badge/award node.
-function Medallion({ size, taskSet, step, label, status, pct, onClick, refEl }) {
+// Circular medallion in the TaskSetCard "minimal" style: progress ring +
+// level-tinted track + center disc with image or emoji. No label — the
+// tree view leans on iconography (the badge images already carry the
+// name on their artwork in the CU library).
+function Medallion({ size, taskSet, step, status, pct, onClick, title }) {
   const sw = Math.max(6, Math.round(size * 0.08));
   const r  = (size - sw) / 2;
   const circ = 2 * Math.PI * r;
@@ -24,57 +25,47 @@ function Medallion({ size, taskSet, step, label, status, pct, onClick, refEl }) 
   const emoji     = taskSet?.emoji || step?.linked_badge_emoji || '🏅';
   return (
     <button
-      ref={refEl}
       type="button"
       onClick={onClick}
       disabled={!onClick}
-      className={`relative flex flex-col items-center group ${onClick ? 'cursor-pointer' : 'cursor-default'}`}
-      title={label}
+      className={`relative rounded-full shadow-md hover:shadow-lg transition-shadow bg-white dark:bg-gray-800 ${onClick ? 'cursor-pointer hover:opacity-95' : 'cursor-default'}`}
+      style={{ width: size, height: size }}
+      title={title}
     >
-      <div
-        className="relative shadow-md group-hover:shadow-lg transition-shadow rounded-full bg-white dark:bg-gray-800"
-        style={{ width: size, height: size }}
-      >
-        <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={trackColor} strokeWidth={sw} />
-          {pct > 0 && (
-            <circle
-              cx={size / 2} cy={size / 2} r={r}
-              fill="none" stroke={progressColor} strokeWidth={sw}
-              strokeDasharray={circ}
-              strokeDashoffset={circ - pct * circ}
-              strokeLinecap="round"
-            />
-          )}
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          {imageFile ? (
-            <img
-              src={`/api/uploads/badges/${imageFile}`}
-              alt=""
-              className="rounded-full object-cover"
-              style={{ width: innerSize, height: innerSize }}
-              onError={(e) => { e.target.style.display = 'none'; }}
-            />
-          ) : (
-            <span
-              className="rounded-full flex items-center justify-center leading-none"
-              style={{
-                width: innerSize, height: innerSize,
-                fontSize: Math.round(innerSize * 0.5),
-                background: 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)',
-              }}
-            >
-              {emoji}
-            </span>
-          )}
-        </div>
+      <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={trackColor} strokeWidth={sw} />
+        {pct > 0 && (
+          <circle
+            cx={size / 2} cy={size / 2} r={r}
+            fill="none" stroke={progressColor} strokeWidth={sw}
+            strokeDasharray={circ}
+            strokeDashoffset={circ - pct * circ}
+            strokeLinecap="round"
+          />
+        )}
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        {imageFile ? (
+          <img
+            src={`/api/uploads/badges/${imageFile}`}
+            alt=""
+            className="rounded-full object-cover"
+            style={{ width: innerSize, height: innerSize }}
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+        ) : (
+          <span
+            className="rounded-full flex items-center justify-center leading-none"
+            style={{
+              width: innerSize, height: innerSize,
+              fontSize: Math.round(innerSize * 0.5),
+              background: 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)',
+            }}
+          >
+            {emoji}
+          </span>
+        )}
       </div>
-      <p
-        className="mt-2 text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 text-center leading-tight max-w-[120px] line-clamp-2"
-      >
-        {label}
-      </p>
     </button>
   );
 }
@@ -82,10 +73,20 @@ function Medallion({ size, taskSet, step, label, status, pct, onClick, refEl }) 
 export default function AwardTreePage() {
   const { userId, taskSetId } = useParams();
   const navigate = useNavigate();
-  const [taskSet, setTaskSet]   = useState(null);
-  const [steps, setSteps]       = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState('');
+  const [taskSet, setTaskSet] = useState(null);
+  const [steps, setSteps]     = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState('');
+
+  // Viewport-driven layout: < 640px splits children into top/bottom arcs
+  // because a full 360° ring won't fit in a phone's width; >= 640px fans
+  // them out evenly around the parent.
+  const [vw, setVw] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1024));
+  useEffect(() => {
+    const onResize = () => setVw(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,10 +102,6 @@ export default function AwardTreePage() {
     return () => { cancelled = true; };
   }, [userId, taskSetId]);
 
-  // One node per step with a linked badge / category / task_set. Steps that
-  // resolve to an enrolled task set get progress; specific-badge steps with
-  // no enrollment yet show 0%; pure category slots ("Earn any Art badge")
-  // get a placeholder node that opens the parent step on click.
   const children = useMemo(() => {
     return steps
       .filter((s) => s.linked_task_set_id || s.linked_badge_id || s.linked_badge_category)
@@ -131,7 +128,8 @@ export default function AwardTreePage() {
       });
   }, [steps]);
 
-  // Overall award progress for the central node
+  // Overall award progress for the central node — uses the same per-step
+  // tally the detail page uses (counted_count / repeat_count fallback).
   const awardProgress = useMemo(() => {
     const total = steps.length;
     const done  = steps.reduce((n, s) => n + Math.min(s.completed_count || 0, s.repeat_count || 1), 0);
@@ -143,43 +141,64 @@ export default function AwardTreePage() {
     return { pct, status };
   }, [steps]);
 
-  // Measure positions and draw connector lines from the award medallion's
-  // bottom-center to each child medallion's top-center. Re-measure on
-  // resize (children wrap on narrow viewports) via ResizeObserver.
-  const containerRef = useRef(null);
-  const awardRef     = useRef(null);
-  const childRefs    = useRef([]);
-  const [paint, setPaint] = useState({ w: 0, h: 0, lines: [] });
-  const measure = useCallback(() => {
-    const cont = containerRef.current;
-    const award = awardRef.current;
-    if (!cont || !award) return;
-    const cr = cont.getBoundingClientRect();
-    const ar = award.getBoundingClientRect();
-    const fromX = ar.left + ar.width / 2 - cr.left;
-    const fromY = ar.bottom - cr.top;
-    const lines = childRefs.current.map((el) => {
-      if (!el) return null;
-      const r = el.getBoundingClientRect();
-      return {
-        x1: fromX, y1: fromY,
-        x2: r.left + r.width / 2 - cr.left,
-        y2: r.top - cr.top,
-      };
-    }).filter(Boolean);
-    setPaint({ w: cr.width, h: cr.height, lines });
-  }, []);
-
-  useLayoutEffect(() => {
-    measure();
-    const cont = containerRef.current;
-    if (!cont) return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(cont);
-    // Children's individual sizes can shift when images load; observe each.
-    for (const el of childRefs.current) { if (el) ro.observe(el); }
-    return () => ro.disconnect();
-  }, [children, measure]);
+  // ── Radial layout ────────────────────────────────────────────────────
+  // Polar coordinates with origin at the container center, y axis flipped
+  // (screen y grows downward). Children are placed at (R·cosθ, −R·sinθ).
+  // Two modes:
+  //   • ring (>= 640px): θ spread evenly across the full 2π, starting at
+  //     top (π/2) and going CCW.
+  //   • split (< 640px): children split into two halves — first half on
+  //     the top semicircle, second half on the bottom semicircle. Keeps
+  //     the layout vertical on a narrow phone.
+  const layout = useMemo(() => {
+    const isMobile = vw < 640;
+    const childSize  = isMobile ? 84 : 104;
+    const parentSize = isMobile ? 110 : 140;
+    const N = children.length;
+    if (N === 0) {
+      const size = parentSize + 32;
+      return { isMobile, childSize, parentSize, positions: [], containerSize: size };
+    }
+    let radius;
+    let positions = [];
+    if (isMobile && N >= 3) {
+      // Split — top arc: first ceil(N/2), bottom arc: rest.
+      const splitAt = Math.ceil(N / 2);
+      const topCount = splitAt;
+      const botCount = N - splitAt;
+      // Need each arc to clear the parent + leave room for the child.
+      // 140 keeps the spacing reasonable on a 375-wide viewport.
+      radius = 140;
+      // Top semicircle: each child gets an "interior" slot so neither arc
+      // places a child exactly on the horizontal axis (which would collide
+      // with the corresponding slot in the bottom arc). theta_i = π −
+      // (i+1)·π / (topCount+1) walks left-to-right strictly above the
+      // horizontal — first child at upper-left, last at upper-right.
+      for (let i = 0; i < topCount; i++) {
+        const theta = Math.PI - (i + 1) * Math.PI / (topCount + 1);
+        positions.push({ x: radius * Math.cos(theta), y: -radius * Math.sin(theta) });
+      }
+      // Bottom semicircle: mirror of the top, strictly below the axis.
+      for (let i = 0; i < botCount; i++) {
+        const theta = -Math.PI + (i + 1) * Math.PI / (botCount + 1);
+        positions.push({ x: radius * Math.cos(theta), y: -radius * Math.sin(theta) });
+      }
+    } else {
+      // Ring — pick a radius wide enough that adjacent child centers are
+      // at least one childSize + 24px apart (chord length formula). Floor
+      // at 160 so tiny awards (N=2,3) don't look squished into the parent.
+      const minSpacing = childSize + 24;
+      radius = N >= 2
+        ? Math.max(160, minSpacing / (2 * Math.sin(Math.PI / N)))
+        : 0;
+      for (let i = 0; i < N; i++) {
+        const theta = Math.PI / 2 - i * 2 * Math.PI / N;
+        positions.push({ x: radius * Math.cos(theta), y: -radius * Math.sin(theta) });
+      }
+    }
+    const containerSize = 2 * (radius + childSize / 2 + 16);
+    return { isMobile, childSize, parentSize, positions, containerSize };
+  }, [vw, children.length]);
 
   if (loading) {
     return (
@@ -209,6 +228,10 @@ export default function AwardTreePage() {
     );
   }
 
+  const { childSize, parentSize, positions, containerSize } = layout;
+  const cx = containerSize / 2;
+  const cy = containerSize / 2;
+
   return (
     <div>
       <div className="mb-4 flex items-center gap-2">
@@ -232,19 +255,23 @@ export default function AwardTreePage() {
           This award has no badge or sub-award steps to map yet.
         </div>
       ) : (
-        <div ref={containerRef} className="relative pt-2 pb-8">
-          {/* Connector lines overlay — drawn first so it sits behind the
-              medallions. pointer-events-none so clicks pass through to the
-              nodes underneath. */}
+        <div
+          className="relative mx-auto"
+          style={{ width: containerSize, height: containerSize }}
+        >
+          {/* Connector lines — drawn from parent center to each child
+              center. The medallion buttons sit on top of the SVG (later in
+              DOM order) so the line ends are hidden under the badge,
+              visually appearing to terminate at the badge edge. */}
           <svg
-            width={paint.w}
-            height={paint.h}
+            width={containerSize} height={containerSize}
             className="absolute inset-0 pointer-events-none"
           >
-            {paint.lines.map((l, i) => (
+            {positions.map((p, i) => (
               <line
                 key={i}
-                x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
+                x1={cx} y1={cy}
+                x2={cx + p.x} y2={cy + p.y}
                 stroke="#94A3B8"
                 strokeWidth={2}
                 strokeLinecap="round"
@@ -253,35 +280,46 @@ export default function AwardTreePage() {
             ))}
           </svg>
 
-          {/* Central award node */}
-          <div className="flex justify-center mb-12">
+          {/* Parent at center */}
+          <div
+            className="absolute"
+            style={{
+              left: cx, top: cy,
+              transform: 'translate(-50%, -50%)',
+            }}
+          >
             <Medallion
-              size={140}
+              size={parentSize}
               taskSet={taskSet}
-              label={taskSet.name}
               status={awardProgress.status}
               pct={awardProgress.pct}
-              refEl={awardRef}
+              title={taskSet.name}
             />
           </div>
 
-          {/* Children row — wraps on narrow viewports */}
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-8">
-            {children.map((c, i) => (
+          {/* Children fanned out */}
+          {children.map((c, i) => (
+            <div
+              key={c.step.id}
+              className="absolute"
+              style={{
+                left: cx + positions[i].x,
+                top:  cy + positions[i].y,
+                transform: 'translate(-50%, -50%)',
+              }}
+            >
               <Medallion
-                key={c.step.id}
-                size={104}
+                size={childSize}
                 step={c.step}
-                label={c.label}
                 status={c.status}
                 pct={c.pct}
-                refEl={(el) => { childRefs.current[i] = el; }}
+                title={`${c.label}${c.total > 0 ? ` — ${c.completed}/${c.total}` : ''}`}
                 onClick={c.step.linked_task_set_id
                   ? () => navigate(`/tasks/${userId}/${c.step.linked_task_set_id}`)
                   : () => navigate(`/tasks/${userId}/${taskSetId}`)}
               />
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
