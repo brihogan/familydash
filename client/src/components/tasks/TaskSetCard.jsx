@@ -203,7 +203,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
             {ts.linked_awards.map((a, i) => (
               <div
                 key={a.id}
-                className={`w-6 h-6 rounded-full bg-white dark:bg-gray-800 ring-2 ring-white dark:ring-gray-800 shadow-sm overflow-hidden flex items-center justify-center text-xs leading-none ${i > 0 ? '-ml-2' : ''}`}
+                className={`w-6 h-6 rounded-full bg-white dark:bg-gray-800 ring-2 ring-gray-400 dark:ring-gray-500 shadow-sm overflow-hidden flex items-center justify-center text-xs leading-none ${i > 0 ? '-ml-2' : ''}`}
                 title={`Counts toward ${a.name}`}
               >
                 {a.image_file ? (

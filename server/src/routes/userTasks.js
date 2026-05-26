@@ -216,12 +216,17 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
 
     // ── Linked-award badges per badge ───────────────────────────────────
     // For every BADGE task set the kid is enrolled in, find the AWARD task
-    // sets (also kid-enrolled) whose steps point at it — either via a
-    // direct linked_badge_id match, or a manual linked_task_set_id pick
-    // (v73). Surfaces in the UI as small overlay badges so a kid/parent
-    // can see at a glance which badges contribute to multiple awards.
-    // Category auto-picks are NOT included here (computed at read time;
-    // would require running the auto-pick logic per (award, category)).
+    // sets (also kid-enrolled) whose steps point at it. Matches three
+    // kinds of linkage:
+    //   1. Specific badge: step.linked_badge_id = badge.id
+    //   2. Manual pick:    step.linked_task_set_id = badge's task_set.id
+    //   3. Category slot:  step.linked_badge_category = badge.category
+    //      (covers e.g. Discovery Award's "Earn any World badge"
+    //       row matching every enrolled World badge). Excludes the "*"
+    //       cross-area sentinel since that would attach an award to
+    //       every single enrolled badge — too noisy.
+    // Surfaces in the UI as small overlay badges so a kid/parent can see
+    // at a glance which badges contribute to multiple awards at once.
     const linkedAwardRows = db.prepare(`
       SELECT
         ts_badge.id              AS badge_task_set_id,
@@ -240,12 +245,19 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
       JOIN task_sets ts_badge
         ON ts_badge.is_active = 1
        AND ts_badge.badge_id IS NOT NULL
-       AND (step.linked_task_set_id = ts_badge.id
-            OR (step.linked_badge_id IS NOT NULL AND step.linked_badge_id = ts_badge.badge_id))
+      JOIN badges b_badge
+        ON b_badge.id = ts_badge.badge_id AND b_badge.is_award = 0
       JOIN task_assignments ta_badge
         ON ta_badge.task_set_id = ts_badge.id
        AND ta_badge.user_id = ? AND ta_badge.is_active = 1
       WHERE ts_award.is_active = 1
+        AND (
+          step.linked_task_set_id = ts_badge.id
+          OR (step.linked_badge_id IS NOT NULL AND step.linked_badge_id = ts_badge.badge_id)
+          OR (step.linked_badge_category IS NOT NULL
+              AND step.linked_badge_category != '*'
+              AND step.linked_badge_category = b_badge.category)
+        )
       GROUP BY ts_badge.id, ts_award.id
     `).all(userId, userId);
     const linkedAwardsByBadge = new Map();
