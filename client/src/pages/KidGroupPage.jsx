@@ -253,7 +253,7 @@ export default function KidGroupPage() {
               <>
                 {pinned.map(renderCard)}
                 {pinned.length > 0 && rest.length > 0 && (
-                  <div className="col-span-full border-t border-gray-200 dark:border-gray-700 mt-1 mb-2" />
+                  <div className="col-span-full justify-self-stretch w-full border-t border-gray-200 dark:border-gray-700 mt-1 mb-2" />
                 )}
                 {rest.map(renderCard)}
               </>

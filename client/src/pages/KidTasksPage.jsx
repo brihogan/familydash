@@ -320,7 +320,7 @@ export default function KidTasksPage() {
               a re-sort. col-span-full spans every column of the
               responsive grid; hidden when nothing is pinned. */}
           {pinnedSets.length > 0 && (
-            <div className="col-span-full border-t border-gray-200 dark:border-gray-700 mt-1 mb-2" />
+            <div className="col-span-full justify-self-stretch w-full border-t border-gray-200 dark:border-gray-700 mt-1 mb-2" />
           )}
           {awardSets.length > 0 && renderGroupCard({
             key: 'awards',
