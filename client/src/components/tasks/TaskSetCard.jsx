@@ -208,11 +208,14 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
           const cx        = size / 2;
           const cy        = size / 2;
           const N         = ts.linked_awards.length;
-          // Fan centered on 45° (bottom-right diagonal). 45° between
-          // neighbors gives N=2 clean separation at this smaller radius;
-          // narrows to keep multi-award fans inside the bottom-right
-          // quadrant (overlap is acceptable for N>=4 — rare).
-          const stepDeg   = N >= 2 ? Math.min(45, 80 / (N - 1)) : 0;
+          // Fan centered on 45° (bottom-right diagonal). Angular step
+          // chosen so adjacent minis overlap by exactly OVERLAP_PX along
+          // the chord between their centers: chord = miniSize - OVERLAP
+          // → step = 2·asin(chord / 2R).
+          const OVERLAP_PX = 3;
+          const stepDeg   = N >= 2
+            ? (2 * Math.asin((miniSize - OVERLAP_PX) / (2 * radius))) * 180 / Math.PI
+            : 0;
           const startDeg  = 45 - ((N - 1) * stepDeg) / 2;
           return (
             <div className="absolute inset-0 pointer-events-none">
