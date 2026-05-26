@@ -1,5 +1,33 @@
 # Work Log
 
+## Session Start: 2026-05-26 (morning)
+
+### 2026-05-26 — Bowling badge: backfilled Level 5 reqs + 18 optionals
+- The CU Bowling page is missing the two starred Level 5 requirements (page jumps straight to item 3) and the optional pool was empty in our DB despite `level_opt_counts.level5=7`. Inserted:
+  - Two `level=level5` rows: `* Do Level 4 requirements 1 & 2` and a made-up capstone `* Bowl 3 games and try to beat your personal best, OR teach someone the basics of bowling (safety, etiquette, and how to keep score).`
+  - 18 `level=NULL` optionals matching CU items 3–9 and 11–21 (item 10 was blank on the page, skipped). `req_number` preserved from the source so the numbering matches the page.
+- No active enrollments existed, so no existing kid task lists are affected. Future enrollments at any level pick from the full shared optional pool.
+
+### 2026-05-26 — KidGroupPage sort: in-progress (by %) → not-started → completed
+- The `/tasks/:userId/group/{badges,awards}` lists now bucket-sort: in-progress first (highest % at top, so the kid sees what they're closest to finishing), then not-started, then completed at the bottom. Within in-progress, sorted by completion ratio desc; within other buckets, alphabetical. Archived view keeps simple alphabetical.
+
+### 2026-05-26 — Removed KidTasksPage filter-pills row
+- Dropped the "All / type / category / tag / level" pill row on `/tasks/:userId` and also unwired `onPillFilter` from the medallions so card-pill clicks no longer apply an invisible filter (the row was the only visible reset). Underlying `activeFilter` / `filterOptions` / `setMatchesFilter` machinery is now inert; left in place for now to keep the diff minimal, can be pruned later.
+
+### 2026-05-26 — Pruned KidTasksPage filter dead code
+- Deleted the now-inert filter machinery from `KidTasksPage.jsx`: `activeFilter` state, `filterOptions` IIFE, `setMatchesFilter`, the unused `.filter()` in `sortedSets`, `togglePillFilter`, and `filterDotColor`. Collapsed the conditional empty-state copy to just "No tasks assigned yet." `BADGE_LEVELS` import retained — still used by `kidLevelCfg` for the folder-card progress arcs. Verified `/tasks/52` renders normally in the preview with the 3 medallion view (Awards/Badges folders + 🎯 set), no new console errors.
+
+### 2026-05-26 — "Shared with" badge-library filter
+- BadgeBrowser gets a violet "Shared with…" dropdown listing every other family member with a `badge_level`. Selecting one filters the library to badges that user is currently enrolled in (any level), so a parent picking a badge for one kid in the "Pick a badge for this step" modal can intentionally choose something a sibling is already working on. Since the BadgeBrowser is shared, the filter shows up on `/badges/:userId` and inside the "Browse Badges" modal on KidTasksPage too.
+- Each dropdown option shows a live count "Name (N)" reflecting the current type/category/search/newOnly filters, and options with 0 are disabled — so you can tell at a glance which siblings have anything to coordinate in this view. Backed by a new `GET /api/badges/shared-counts` endpoint that runs the same WHERE conditions as `/badges` but groups by `task_assignments.user_id`.
+- New server param `?enrolledByUserId=` on `GET /api/badges`. Guarded with a same-family check (`users.family_id = req.user.familyId`) so the filter can't be used to probe another family. Adds a single `EXISTS` clause; unrelated to the existing `enrolledOnly` flag which uses `bookmarksFor`.
+- Files: `server/src/routes/badges.js`, `client/src/api/badges.api.js`, `client/src/components/badges/BadgeBrowser.jsx`.
+
+### 2026-05-26 — Bigger badge medallions + responsive grid
+- KidTasksPage / KidGroupPage badge medallions bumped from 96→120px, container switched from `flex flex-wrap` to a responsive grid: `grid-cols-3 sm:4 md:5 lg:6 xl:8` with `justify-items-center` on mobile and `lg:justify-items-start` on desktop. iPhone 12 mini fits 3 across by extending the grid past the page padding with `-mx-4 sm:mx-0` (3×120 + 2×4 gap = 368 < 375); 1440-wide desktop shows 8 per row, left-aligned.
+- Inner image disc grew from `w-16` (64px) to `w-24` (96px), arc-text radii from 22/26 → 36/40 to keep proportions inside the larger ring. Affected files: `TaskSetCard.jsx`, `KidTasksPage.jsx`, `KidGroupPage.jsx`.
+- Side-fix: rebuilding the API server on Node 24 required bumping `better-sqlite3` from `^9.4.3` → `^12.10.0` (9.x has no Node-24 prebuilt and its source no longer compiles against V8's C++20 headers).
+
 ## Session Start: 2026-05-25 (evening)
 
 ### 2026-05-25 — Prod deployment + slug-based award badge linking

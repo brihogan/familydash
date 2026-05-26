@@ -90,6 +90,10 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, onPi
   const memberName   = targetMember?.name || '';
   const isSelf       = user?.id === targetId;
   const badgeMembers = members.filter((m) => m.badge_level && m.is_active);
+  // Other family members (excluding the kid we're viewing the library as)
+  // who have enrollable badges — they're the candidates for the
+  // "Shared with" filter so a parent can pick a badge a sibling already has.
+  const otherMembers = badgeMembers.filter((m) => m.id !== targetId);
 
   const [search,         setSearch]         = useState('');
   const [category,       setCategory]       = useState(initialCategory);
@@ -100,6 +104,10 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, onPi
   const [newOnly,        setNewOnly]        = useState(false);
   // "Picked" = badges the kid is currently assigned to (has an active task_set).
   const [enrolledOnly,   setEnrolledOnly]   = useState(false);
+  // "Shared with" = filter to badges another family member is currently
+  // enrolled in. Lets a parent pick a badge a sibling already has so the
+  // kids can work on it together. Null = no filter.
+  const [enrolledByUserId, setEnrolledByUserId] = useState(null);
   const [page,           setPage]           = useState(1);
   const [badges,   setBadges]   = useState([]);
   const [total,    setTotal]    = useState(0);
@@ -108,22 +116,27 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, onPi
 
   const [activeBadgeIds] = useState(new Set());
   const [previewBadge, setPreviewBadge] = useState(null);
+  // Per-other-member enrolled counts within the current type/category/search/
+  // newOnly filters — shown as "(N)" in the "Shared with…" dropdown so the
+  // user can skip siblings with nothing to coordinate in this view.
+  const [sharedCounts, setSharedCounts] = useState({});
 
   const searchTimeout = useRef(null);
 
   const LIMIT = 48;
 
-  const fetchBadges = useCallback(async (s, cat, pg, t, bo, no, eo) => {
+  const fetchBadges = useCallback(async (s, cat, pg, t, bo, no, eo, ebu) => {
     setLoading(true);
     setError('');
     try {
       const params = { limit: LIMIT, page: pg, type: t };
-      if (s)        params.search         = s;
-      if (cat)      params.category       = cat;
-      if (targetId) params.bookmarksFor   = targetId;
-      if (bo)       params.bookmarkedOnly = 'true';
-      if (no)       params.newOnly        = 'true';
-      if (eo)       params.enrolledOnly   = 'true';
+      if (s)        params.search           = s;
+      if (cat)      params.category         = cat;
+      if (targetId) params.bookmarksFor     = targetId;
+      if (bo)       params.bookmarkedOnly   = 'true';
+      if (no)       params.newOnly          = 'true';
+      if (eo)       params.enrolledOnly     = 'true';
+      if (ebu)      params.enrolledByUserId = ebu;
       const data = await badgesApi.getBadges(params);
       setBadges(data.badges || []);
       setTotal(data.total  || 0);
@@ -135,14 +148,31 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, onPi
   }, [targetId]);
 
   useEffect(() => {
-    fetchBadges(search, category, page, type, bookmarkedOnly, newOnly, enrolledOnly);
-  }, [category, page, type, bookmarkedOnly, newOnly, enrolledOnly, fetchBadges]); // search is debounced below
+    fetchBadges(search, category, page, type, bookmarkedOnly, newOnly, enrolledOnly, enrolledByUserId);
+  }, [category, page, type, bookmarkedOnly, newOnly, enrolledOnly, enrolledByUserId, fetchBadges]); // search is debounced below
+
+  // Refresh the "Shared with…" per-user counts whenever a filter that shapes
+  // the visible badge set changes. enrolledByUserId itself is excluded — the
+  // counts describe the universe BEFORE picking a sibling, so they don't
+  // change when you flip between siblings.
+  useEffect(() => {
+    if (otherMembers.length === 0) return;
+    let cancelled = false;
+    const params = { type };
+    if (search)   params.search   = search;
+    if (category) params.category = category;
+    if (newOnly)  params.newOnly  = 'true';
+    badgesApi.getSharedCounts(params)
+      .then((data) => { if (!cancelled) setSharedCounts(data.counts || {}); })
+      .catch(() => { if (!cancelled) setSharedCounts({}); });
+    return () => { cancelled = true; };
+  }, [type, category, search, newOnly, otherMembers.length]);
 
   const handleSearch = (val) => {
     setSearch(val);
     setPage(1);
     clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(() => fetchBadges(val, category, 1, type, bookmarkedOnly, newOnly, enrolledOnly), 350);
+    searchTimeout.current = setTimeout(() => fetchBadges(val, category, 1, type, bookmarkedOnly, newOnly, enrolledOnly, enrolledByUserId), 350);
   };
 
   const handleCategory = (cat) => {
@@ -298,6 +328,68 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, onPi
           }`}>✓</span>
           Picked
         </button>
+        {/* "Shared with" dropdown — filters to badges another family member is
+            currently enrolled in, so a parent can pick something a sibling
+            already has and they can work on it together. Hidden when there
+            are no other badge-enabled members to coordinate with. */}
+        {otherMembers.length > 0 && (() => {
+          const selected = otherMembers.find((m) => m.id === enrolledByUserId) || null;
+          return (
+            <label
+              className={`relative text-xs font-semibold pl-3 pr-7 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 cursor-pointer ${
+                selected
+                  ? 'bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700'
+                  : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-violet-300'
+              }`}
+              title={selected
+                ? `Showing badges ${selected.name} has — click to change or clear`
+                : 'Show only badges a sibling is currently working on'}
+            >
+              {selected ? (
+                <>
+                  <span
+                    className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px]"
+                    style={{ backgroundColor: (selected.avatar_color || '#8B5CF6') + '33' }}
+                  >
+                    {selected.avatar_emoji || (selected.name?.[0]?.toUpperCase() ?? '🙂')}
+                  </span>
+                  <span>
+                    Shared with {selected.name.split(' ')[0]}
+                    {typeof sharedCounts[selected.id] === 'number' && (
+                      <span className="ml-1 opacity-70">({sharedCounts[selected.id]})</span>
+                    )}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="inline-block w-3 h-3 rounded-full bg-violet-200 dark:bg-violet-900/40" />
+                  <span>Shared with…</span>
+                </>
+              )}
+              {/* Triangle indicator — non-interactive; the whole label is the click target */}
+              <span className="pointer-events-none absolute right-2 text-[8px] opacity-60">▼</span>
+              <select
+                value={enrolledByUserId ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setEnrolledByUserId(v ? parseInt(v, 10) : null);
+                  setPage(1);
+                }}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+              >
+                <option value="">— anyone (clear filter) —</option>
+                {otherMembers.map((m) => {
+                  const n = sharedCounts[m.id] || 0;
+                  return (
+                    <option key={m.id} value={m.id} disabled={n === 0}>
+                      {m.name} ({n})
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+          );
+        })()}
       </div>
 
       {/* Search */}

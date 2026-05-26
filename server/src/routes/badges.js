@@ -94,6 +94,35 @@ router.get('/badges', authenticate, (req, res, next) => {
       enrolledWhereParams.push(bookmarksFor);
     }
 
+    // ?enrolledByUserId=:userId — show only badges some OTHER family member
+    //   is currently enrolled in. Independent of bookmarksFor (which scopes
+    //   the bookmark/enrollment state shown per card). Used by the "Pick a
+    //   badge for this step" modal so a parent can pick a badge another kid
+    //   already has, letting siblings work on awards together. Authorized
+    //   to any same-family member (parent or sibling).
+    const enrolledByRaw = parseInt(req.query.enrolledByUserId || '', 10);
+    const enrolledByUserId = Number.isFinite(enrolledByRaw) ? enrolledByRaw : null;
+    let enrolledByWhere = '';
+    const enrolledByWhereParams = [];
+    if (enrolledByUserId) {
+      // Same-family guard so this can't be used to probe another family.
+      const sameFamily = db.prepare(
+        `SELECT 1 FROM users WHERE id = ? AND family_id = ?`
+      ).get(enrolledByUserId, req.user.familyId);
+      if (sameFamily) {
+        enrolledByWhere = ` AND EXISTS (
+          SELECT 1 FROM task_sets ts3
+          JOIN task_assignments ta3 ON ta3.task_set_id = ts3.id
+          WHERE ts3.badge_id = b.id AND ts3.is_active = 1
+            AND ta3.user_id = ? AND ta3.is_active = 1
+        )`;
+        enrolledByWhereParams.push(enrolledByUserId);
+      } else {
+        // Out-of-family or unknown user → return nothing rather than leaking results.
+        enrolledByWhere = ' AND 1=0';
+      }
+    }
+
     // ?newOnly=true — show only the latest scrape batch (badges whose
     //   scraped_at matches MAX(scraped_at) across the matching `type` filter).
     //   Filter is scoped to the current type ('badge' or 'award') so toggling
@@ -118,9 +147,10 @@ router.get('/badges', authenticate, (req, res, next) => {
       }
     }
 
-    const finalWhere = whereWithBookmark + newWhere + enrolledWhere;
+    const finalWhere = whereWithBookmark + newWhere + enrolledWhere + enrolledByWhere;
 
-    const total = db.prepare(`SELECT COUNT(*) AS n FROM badges b WHERE ${finalWhere}`).get(...params, ...whereExtraParams, ...newWhereParams, ...enrolledWhereParams).n;
+    const total = db.prepare(`SELECT COUNT(*) AS n FROM badges b WHERE ${finalWhere}`)
+      .get(...params, ...whereExtraParams, ...newWhereParams, ...enrolledWhereParams, ...enrolledByWhereParams).n;
 
     const badges = db.prepare(`
       SELECT b.id, b.name, b.slug, b.category, b.author, b.image_file,
@@ -131,7 +161,7 @@ router.get('/badges', authenticate, (req, res, next) => {
       WHERE ${finalWhere}
       ORDER BY b.name ASC
       LIMIT ? OFFSET ?
-    `).all(...selectParams, ...params, ...whereExtraParams, ...newWhereParams, ...enrolledWhereParams, limit, offset);
+    `).all(...selectParams, ...params, ...whereExtraParams, ...newWhereParams, ...enrolledWhereParams, ...enrolledByWhereParams, limit, offset);
 
     // Categories list excludes awards so the area-filter pills stay clean.
     const categories = db.prepare(
@@ -139,6 +169,67 @@ router.get('/badges', authenticate, (req, res, next) => {
     ).all().map(r => r.category);
 
     res.json({ badges, total, page, limit, categories });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── GET /api/badges/shared-counts ────────────────────────────────────────────
+// For each same-family member with a badge_level, return how many badges they
+// are CURRENTLY enrolled in that also match the caller's library filters
+// (type, category, search, newOnly). Powers the "(N)" annotations in the
+// BadgeBrowser's "Shared with…" dropdown so a parent can tell at a glance
+// which siblings have anything to coordinate on within the current view.
+router.get('/badges/shared-counts', authenticate, (req, res, next) => {
+  try {
+    const search   = (req.query.search   || '').trim();
+    const category = (req.query.category || '').trim();
+    const typeParam = (req.query.type || 'badge').toLowerCase();
+    const newOnly  = req.query.newOnly === 'true';
+
+    const conditions = ['b.is_active = 1'];
+    const params     = [];
+
+    if (typeParam === 'award')      conditions.push(`b.is_award = 1`);
+    else if (typeParam === 'badge') conditions.push(`b.is_award = 0`);
+
+    if (search) {
+      conditions.push(`b.name LIKE ?`);
+      params.push(`%${search}%`);
+    }
+    if (category) {
+      conditions.push(`b.category = ?`);
+      params.push(category);
+    }
+    if (newOnly) {
+      const isAwardClause = typeParam === 'award' ? 'is_award = 1'
+                          : typeParam === 'badge' ? 'is_award = 0'
+                          : '1=1';
+      const maxScrape = db.prepare(
+        `SELECT MAX(scraped_at) AS m FROM badges WHERE ${isAwardClause}`
+      ).get()?.m;
+      if (maxScrape) {
+        conditions.push('b.scraped_at = ?');
+        params.push(maxScrape);
+      } else {
+        conditions.push('1=0');
+      }
+    }
+
+    const rows = db.prepare(`
+      SELECT ta.user_id AS userId, COUNT(DISTINCT b.id) AS n
+      FROM badges b
+      JOIN task_sets ts ON ts.badge_id = b.id AND ts.is_active = 1
+      JOIN task_assignments ta ON ta.task_set_id = ts.id AND ta.is_active = 1
+      JOIN users u ON u.id = ta.user_id
+      WHERE u.family_id = ? AND u.is_active = 1 AND u.badge_level IS NOT NULL
+        AND ${conditions.join(' AND ')}
+      GROUP BY ta.user_id
+    `).all(req.user.familyId, ...params);
+
+    const counts = {};
+    for (const r of rows) counts[r.userId] = r.n;
+    res.json({ counts });
   } catch (err) {
     next(err);
   }

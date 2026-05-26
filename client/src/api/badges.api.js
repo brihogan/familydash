@@ -4,6 +4,9 @@ export const badgesApi = {
   getBadges:         (params) =>
     client.get('/badges', { params }).then((r) => r.data),
 
+  getSharedCounts:   (params) =>
+    client.get('/badges/shared-counts', { params }).then((r) => r.data),
+
   getBadge:          (id, level) =>
     client.get(`/badges/${id}`, { params: level ? { level } : {} }).then((r) => r.data),
 

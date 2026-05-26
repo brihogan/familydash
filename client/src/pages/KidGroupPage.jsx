@@ -102,11 +102,28 @@ export default function KidGroupPage() {
 
   const filtered = useMemo(() => {
     const source = status === 'archived' ? archivedGroupSets : groupSets;
+    // Bucket order on the main list: in-progress first (highest % at the top
+    // so the kid sees what they're closest to finishing), then not-started
+    // (next-up suggestions), then completed (already-won, sinks to the
+    // bottom). Archived view keeps simple alphabetical since there's only
+    // one bucket there.
+    const bucketOrder = { in_progress: 0, not_started: 1, completed: 2 };
     return source.filter((ts) => {
       if (status !== 'all' && status !== 'archived' && statusFor(ts) !== status) return false;
       if (area && !(Array.isArray(ts.tags) && ts.tags.includes(area))) return false;
       return true;
-    }).sort((a, b) => a.name.localeCompare(b.name));
+    }).sort((a, b) => {
+      if (status === 'archived') return a.name.localeCompare(b.name);
+      const sa = statusFor(a);
+      const sb = statusFor(b);
+      if (bucketOrder[sa] !== bucketOrder[sb]) return bucketOrder[sa] - bucketOrder[sb];
+      if (sa === 'in_progress') {
+        const pa = a.step_count > 0 ? a.completed_count / a.step_count : 0;
+        const pb = b.step_count > 0 ? b.completed_count / b.step_count : 0;
+        if (pa !== pb) return pb - pa; // higher % first
+      }
+      return a.name.localeCompare(b.name);
+    });
   }, [groupSets, archivedGroupSets, status, area]);
 
   const statusCounts = useMemo(() => {
@@ -219,9 +236,10 @@ export default function KidGroupPage() {
             : 'No matches for these filters.'}
         </div>
       ) : (
-        // pt-4 keeps the medallion row from sitting flush against the filter
-        // pills above — matches the spacing on KidTasksPage.
-        <div className="flex flex-wrap gap-4 sm:gap-5 pt-4">
+        // Responsive grid mirrors KidTasksPage: 3 per row on iPhone-mini-class
+        // screens, 8 on xl desktops. Mobile extends beyond the page padding
+        // (-mx-4) so 120px badges fit 3-across on a 375px viewport.
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-1 sm:gap-3 lg:gap-4 pt-4 -mx-4 sm:mx-0 justify-items-center lg:justify-items-start">
           {filtered.map(renderCard)}
         </div>
       )}
