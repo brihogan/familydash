@@ -10,7 +10,7 @@ import { BADGE_LEVELS } from '../constants/badgeLevels.js';
 // level-tinted track + center disc with image or emoji. No label — the
 // tree view leans on iconography (the badge images already carry the
 // name on their artwork in the CU library).
-function Medallion({ size, taskSet, step, status, pct, onClick, title }) {
+function Medallion({ size, taskSet, step, status, pct, onClick, title, placeholderEmoji = '🏅', isGeneric = false }) {
   const sw = Math.max(6, Math.round(size * 0.08));
   const r  = (size - sw) / 2;
   const circ = 2 * Math.PI * r;
@@ -21,8 +21,10 @@ function Medallion({ size, taskSet, step, status, pct, onClick, title }) {
     ? '#22C55E'
     : (levelCfg?.borderColor || '#6366F1');
   const innerSize = Math.round(size * 0.78);
-  const imageFile = taskSet?.badge_image_file || step?.linked_badge_image;
-  const emoji     = taskSet?.emoji || step?.linked_badge_emoji || '🏅';
+  const imageFile = isGeneric ? null : (taskSet?.badge_image_file || step?.linked_badge_image);
+  const emoji     = isGeneric
+    ? placeholderEmoji
+    : (taskSet?.emoji || step?.linked_badge_emoji || placeholderEmoji);
   return (
     <button
       type="button"
@@ -103,29 +105,49 @@ export default function AwardTreePage() {
   }, [userId, taskSetId]);
 
   const children = useMemo(() => {
-    return steps
-      .filter((s) => s.linked_task_set_id || s.linked_badge_id || s.linked_badge_category)
-      .map((s) => {
-        const completed = s.linked_completed_count || 0;
-        const total     = s.linked_step_count || 0;
-        const pct = total > 0 ? completed / total : 0;
-        const status = total > 0 && completed >= total ? 'completed'
-                     : completed > 0 ? 'in_progress'
-                     : 'not_started';
-        const label = s.linked_badge_name
-                   || (s.linked_badge_category && !s.linked_badge_id
-                       ? (s.linked_badge_category === '*'
-                           ? 'Any badge'
-                           : `Any ${s.linked_badge_category.replace(/^Discover (the )?/, '')} badge`)
-                       : s.name);
-        return { step: s, pct, status, completed, total, label };
-      })
-      .sort((a, b) => {
-        const order = { in_progress: 0, not_started: 1, completed: 2 };
-        if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
-        if (a.status === 'in_progress') return b.pct - a.pct;
-        return (a.label || '').localeCompare(b.label || '');
+    const linked = steps.filter((s) => s.linked_task_set_id || s.linked_badge_id || s.linked_badge_category);
+    const other  = steps.filter((s) => !(s.linked_task_set_id || s.linked_badge_id || s.linked_badge_category));
+
+    const linkedNodes = linked.map((s) => {
+      const completed = s.linked_completed_count || 0;
+      const total     = s.linked_step_count || 0;
+      const pct = total > 0 ? completed / total : 0;
+      const status = total > 0 && completed >= total ? 'completed'
+                   : completed > 0 ? 'in_progress'
+                   : 'not_started';
+      const label = s.linked_badge_name
+                 || (s.linked_badge_category && !s.linked_badge_id
+                     ? (s.linked_badge_category === '*'
+                         ? 'Any badge'
+                         : `Any ${s.linked_badge_category.replace(/^Discover (the )?/, '')} badge`)
+                     : s.name);
+      return { kind: 'linked', step: s, pct, status, completed, total, label };
+    });
+
+    // Aggregate every step that isn't tied to a sub-badge/award into one
+    // "Other steps" node — checklist items the kid has to tick off as
+    // part of this award but that don't have their own sub-progress.
+    const nodes = [...linkedNodes];
+    if (other.length > 0) {
+      const completed = other.reduce((n, s) => n + Math.min(s.completed_count || 0, s.repeat_count || 1), 0);
+      const total     = other.reduce((n, s) => n + (s.repeat_count || 1), 0);
+      const pct = total > 0 ? completed / total : 0;
+      const status = total > 0 && completed >= total ? 'completed'
+                   : completed > 0 ? 'in_progress'
+                   : 'not_started';
+      nodes.push({
+        kind: 'generic',
+        pct, status, completed, total,
+        label: `Other steps (${other.length})`,
       });
+    }
+
+    return nodes.sort((a, b) => {
+      const order = { in_progress: 0, not_started: 1, completed: 2 };
+      if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
+      if (a.status === 'in_progress') return b.pct - a.pct;
+      return (a.label || '').localeCompare(b.label || '');
+    });
   }, [steps]);
 
   // Overall award progress for the central node — uses the same per-step
@@ -298,28 +320,39 @@ export default function AwardTreePage() {
           </div>
 
           {/* Children fanned out */}
-          {children.map((c, i) => (
-            <div
-              key={c.step.id}
-              className="absolute"
-              style={{
-                left: cx + positions[i].x,
-                top:  cy + positions[i].y,
-                transform: 'translate(-50%, -50%)',
-              }}
-            >
-              <Medallion
-                size={childSize}
-                step={c.step}
-                status={c.status}
-                pct={c.pct}
-                title={`${c.label}${c.total > 0 ? ` — ${c.completed}/${c.total}` : ''}`}
-                onClick={c.step.linked_task_set_id
-                  ? () => navigate(`/tasks/${userId}/${c.step.linked_task_set_id}`)
-                  : () => navigate(`/tasks/${userId}/${taskSetId}`)}
-              />
-            </div>
-          ))}
+          {children.map((c, i) => {
+            const isGeneric = c.kind === 'generic';
+            // "?" placeholder for badge/award slots that aren't linked
+            // yet (category slots with no specific badge picked, or
+            // specific-badge steps the kid hasn't enrolled in). Linked
+            // children fall back to the medal emoji only if their own
+            // emoji is also missing.
+            const unlinked = !isGeneric && !c.step.linked_task_set_id && !c.step.linked_badge_image;
+            return (
+              <div
+                key={isGeneric ? 'generic-aggregate' : c.step.id}
+                className="absolute"
+                style={{
+                  left: cx + positions[i].x,
+                  top:  cy + positions[i].y,
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                <Medallion
+                  size={childSize}
+                  step={isGeneric ? undefined : c.step}
+                  status={c.status}
+                  pct={c.pct}
+                  isGeneric={isGeneric}
+                  placeholderEmoji={isGeneric ? '📝' : (unlinked ? '❓' : '🏅')}
+                  title={`${c.label}${c.total > 0 ? ` — ${c.completed}/${c.total}` : ''}`}
+                  onClick={isGeneric || !c.step.linked_task_set_id
+                    ? () => navigate(`/tasks/${userId}/${taskSetId}`)
+                    : () => navigate(`/tasks/${userId}/${c.step.linked_task_set_id}`)}
+                />
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

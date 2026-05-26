@@ -1186,10 +1186,23 @@ export default function UserTaskDetailPage() {
     }
   };
 
+  // Back chevron target: explicit (not history-based) so that going to the
+  // tree view and then hitting back doesn't bounce us right back into the
+  // tree. Routes to the matching group page when we know the type, falls
+  // back to the kid's task page.
+  const goBack = () => {
+    const tags = taskSet?.tags;
+    if (Array.isArray(tags)) {
+      if (tags.includes('Award')) return navigate(`/tasks/${userId}/group/awards`);
+      if (tags.includes('Badge')) return navigate(`/tasks/${userId}/group/badges`);
+    }
+    navigate(`/tasks/${userId}`);
+  };
+
   if (loading) {
     return (
       <div>
-        <button onClick={() => navigate(-1)} className="mb-4 flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors">
+        <button onClick={goBack} className="mb-4 flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors">
           <FontAwesomeIcon icon={faChevronLeft} className="text-xs" /> Back
         </button>
         <LoadingSkeleton rows={4} />
@@ -1200,7 +1213,7 @@ export default function UserTaskDetailPage() {
   if (error || !taskSet) {
     return (
       <div>
-        <button onClick={() => navigate(-1)} className="mb-4 flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors">
+        <button onClick={goBack} className="mb-4 flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors">
           <FontAwesomeIcon icon={faChevronLeft} className="text-xs" /> Back
         </button>
         <p className="text-red-500 text-sm">{error || 'Task set not found.'}</p>
@@ -1414,7 +1427,7 @@ export default function UserTaskDetailPage() {
         <div className="flex items-start gap-3">
           <div className="flex-shrink-0 flex flex-col items-center gap-1 mt-1">
             <button
-              onClick={() => navigate(-1)}
+              onClick={goBack}
               className="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               aria-label="Go back"
             >
