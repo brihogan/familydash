@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } fr
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faStickyNote, faBoxArchive, faBoxOpen, faSitemap } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faStickyNote, faBoxArchive, faBoxOpen, faSitemap, faThumbtack } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import Fireworks from '../components/shared/Fireworks.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
@@ -992,6 +992,8 @@ export default function UserTaskDetailPage() {
   const [archivedAt,       setArchivedAt]       = useState(null);
   const [confirmArchive,   setConfirmArchive]   = useState(false);
   const [archiveBusy,      setArchiveBusy]      = useState(false);
+  const [isPinned,         setIsPinned]         = useState(false);
+  const [pinBusy,          setPinBusy]          = useState(false);
   const [pendingApproval,  setPendingApproval]  = useState(false);
   const completedAtRef = useRef(null);
 
@@ -1026,6 +1028,7 @@ export default function UserTaskDetailPage() {
       setAssignedAt(data.assignedAt ?? null);
       setCompletionStatus(data.completionStatus ?? null);
       setArchivedAt(data.archivedAt ?? null);
+      setIsPinned(!!data.isPinned);
     } catch {
       setError('Failed to load task set.');
     } finally {
@@ -1123,6 +1126,19 @@ export default function UserTaskDetailPage() {
       setArchivedAt(result.archived ? new Date().toISOString() : null);
     } finally {
       setArchiveBusy(false);
+    }
+  };
+
+  const handleTogglePin = async () => {
+    setPinBusy(true);
+    const next = !isPinned;
+    setIsPinned(next); // optimistic
+    try {
+      await taskSetsApi.setPinned(userId, taskSetId, next);
+    } catch {
+      setIsPinned(!next);
+    } finally {
+      setPinBusy(false);
     }
   };
 
@@ -1518,15 +1534,34 @@ export default function UserTaskDetailPage() {
                 {taskSet.name}
               </h1>
               {!archivedAt && (
-                <button
-                  type="button"
-                  onClick={() => setConfirmArchive(true)}
-                  className="shrink-0 text-xs font-medium px-2.5 py-1 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors flex items-center gap-1.5"
-                  title="Archive — hide from your active list"
-                >
-                  <FontAwesomeIcon icon={faBoxArchive} className="text-[11px]" />
-                  Archive
-                </button>
+                <div className="shrink-0 flex flex-col items-end gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmArchive(true)}
+                    className="text-xs font-medium px-2.5 py-1 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors flex items-center gap-1.5"
+                    title="Archive — hide from your active list"
+                  >
+                    <FontAwesomeIcon icon={faBoxArchive} className="text-[11px]" />
+                    Archive
+                  </button>
+                  {/* Pin floats this task set to the top of the kid's list
+                      (loose sets on /tasks/:userId, or top of the matching
+                      group page for badges/awards). */}
+                  <button
+                    type="button"
+                    onClick={handleTogglePin}
+                    disabled={pinBusy}
+                    className={`text-xs font-medium px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50 ${
+                      isPinned
+                        ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60'
+                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200'
+                    }`}
+                    title={isPinned ? 'Unpin — return to normal sort' : 'Pin — float to the top of the list'}
+                  >
+                    <FontAwesomeIcon icon={faThumbtack} className={`text-[11px] ${isPinned ? '' : 'rotate-45'}`} />
+                    {isPinned ? 'Pinned' : 'Pin'}
+                  </button>
+                </div>
               )}
             </div>{/* /flex header */}
             {taskSet.description && (

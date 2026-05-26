@@ -644,6 +644,12 @@ export function runMigrations(db) {
   //   kept for explicit "remove" actions.
   try { db.exec(`ALTER TABLE task_assignments ADD COLUMN archived_at TEXT`); } catch (_) {}
 
+  // v75: per-assignment pin flag. Pinned task sets float to the top of the
+  //   kid's lists (main /tasks page for loose sets, group pages for badges/
+  //   awards). Independent of archive — a pinned set that gets archived
+  //   keeps the pin so unarchiving restores its top-of-list position.
+  try { db.exec(`ALTER TABLE task_assignments ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
+
   // v68: re-generate award task_steps for any enrollment that hasn't been
   //   started yet. The earlier v67 backfill used cumulative steps (all levels
   //   up through the kid's level); the corrected logic shows only the kid's

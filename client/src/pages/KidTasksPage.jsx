@@ -87,7 +87,18 @@ export default function KidTasksPage() {
   const awardSets = taskSets.filter(isAwardTs);
   const otherSets = visibleSets.filter((ts) => !isBadgeTs(ts) && !isAwardTs(ts));
 
+  // Pinned task sets surface at the top of /tasks/:userId regardless of
+  // type (loose tasks, badges, awards all show here when pinned). Badges
+  // and awards still appear inside their folder card too — pinning just
+  // adds them up here, doesn't move them.
+  const pinnedSets = visibleSets
+    .filter((ts) => ts.is_pinned)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // Loose sets excluding pinned ones (they're already rendered above) so
+  // we don't double-render.
   const sortedSets = otherSets
+    .filter((ts) => !ts.is_pinned)
     .sort((a, b) => {
       const typeOrder = (t) => (t === 'Project' ? 0 : 1);
       if (typeOrder(a.type) !== typeOrder(b.type)) return typeOrder(a.type) - typeOrder(b.type);
@@ -300,6 +311,10 @@ export default function KidTasksPage() {
         // padding and let the cells size themselves; badges are left-aligned
         // in their cells on lg+ for a clean column.
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-1 sm:gap-3 lg:gap-4 pt-4 -mx-4 sm:mx-0 justify-items-center lg:justify-items-start">
+          {/* Pinned task sets — rendered first so they always sit at the
+              top of the page. Badges/awards that are pinned ALSO continue
+              to show inside their folder below; pinning is additive. */}
+          {pinnedSets.map(renderCard)}
           {awardSets.length > 0 && renderGroupCard({
             key: 'awards',
             label: 'Awards',

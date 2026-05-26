@@ -73,7 +73,7 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
     else if (archivedParam === 'all')  archivedFilter = '';
 
     const rows = db.prepare(`
-      SELECT ts.*, ta.completion_status, ta.archived_at,
+      SELECT ts.*, ta.completion_status, ta.archived_at, ta.is_pinned,
         b.image_file AS badge_image_file,
         b.category   AS badge_category,
         b.is_award   AS badge_is_award,
@@ -370,7 +370,7 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
     assertUserInFamily(userId, req.user.familyId);
 
     const assignment = db.prepare(
-      'SELECT id, assigned_at, completion_status, archived_at FROM task_assignments WHERE task_set_id = ? AND user_id = ? AND is_active = 1'
+      'SELECT id, assigned_at, completion_status, archived_at, is_pinned FROM task_assignments WHERE task_set_id = ? AND user_id = ? AND is_active = 1'
     ).get(taskSetId, userId);
     if (!assignment) return res.status(404).json({ error: 'Task set not assigned to this user.' });
 
@@ -525,7 +525,7 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
       ORDER BY task_step_id, instance
     `).all(taskSetId, userId);
 
-    res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at, completions, completionStatus: assignment.completion_status, archivedAt: assignment.archived_at });
+    res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at, completions, completionStatus: assignment.completion_status, archivedAt: assignment.archived_at, isPinned: !!assignment.is_pinned });
   } catch (err) { next(err); }
 });
 
@@ -894,6 +894,30 @@ router.post('/:userId/task-assignments/:taskSetId/unarchive', authenticate, (req
     ).run(taskSetId, userId);
     if (result.changes === 0) return res.status(404).json({ error: 'Assignment not found.' });
     res.json({ archived: false });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/users/:userId/task-assignments/:taskSetId/pin
+// Body: { pinned: boolean }
+//   Toggle the pin flag on an assignment. Pinned task sets float to the
+//   top of the kid's lists — loose pinned items rise on /tasks/:userId,
+//   pinned badges/awards rise inside their group page. Independent of
+//   archive (pinning + archiving are both allowed; archive wins on the
+//   main list, pin is preserved for when it's unarchived).
+router.patch('/:userId/task-assignments/:taskSetId/pin', authenticate, (req, res, next) => {
+  try {
+    const userId    = parseInt(req.params.userId,    10);
+    const taskSetId = parseInt(req.params.taskSetId, 10);
+    assertUserInFamily(userId, req.user.familyId);
+    if (req.user.userId !== userId && req.user.role !== 'parent') {
+      return res.status(403).json({ error: 'Forbidden.' });
+    }
+    const pinned = req.body?.pinned ? 1 : 0;
+    const result = db.prepare(
+      'UPDATE task_assignments SET is_pinned = ? WHERE task_set_id = ? AND user_id = ? AND is_active = 1'
+    ).run(pinned, taskSetId, userId);
+    if (result.changes === 0) return res.status(404).json({ error: 'Assignment not found.' });
+    res.json({ pinned: !!pinned });
   } catch (err) { next(err); }
 });
 
