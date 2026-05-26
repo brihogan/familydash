@@ -241,7 +241,7 @@ export default function KidGroupPage() {
         // Responsive grid mirrors KidTasksPage: 3 per row on iPhone-mini-class
         // screens, 8 on xl desktops. Mobile extends beyond the page padding
         // (-mx-4) so 120px badges fit 3-across on a 375px viewport.
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-x-1 gap-y-5 sm:gap-3 lg:gap-4 pt-4 -mx-4 sm:mx-0 justify-items-center lg:justify-items-start">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-x-2 gap-y-5 sm:gap-3 lg:gap-4 pt-4 justify-items-center lg:justify-items-start">
           {(() => {
             // Split the already-sorted list into pinned + rest so we can
             // drop a divider between them. `filtered` is sorted with

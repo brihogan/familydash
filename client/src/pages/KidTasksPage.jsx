@@ -129,7 +129,7 @@ export default function KidTasksPage() {
   const kidLevelCfg = member?.badge_level && BADGE_LEVELS[member.badge_level];
   const renderGroupCard = ({ key, label, icon, sets, color }) => {
     const c = groupCardCounts(sets);
-    const size = 120;
+    const size = 104;
     const sw = 8;
     const r = (size - sw) / 2; // stroke flush to button edge — no white halo
     const circ = 2 * Math.PI * r;
@@ -148,8 +148,8 @@ export default function KidTasksPage() {
     // upside-down issue there hides itself.)
     const cx        = size / 2;
     const cy        = size / 2;
-    const topR      = 36;
-    const botR      = 40;
+    const topR      = 30;
+    const botR      = 34;
     const topPathId = `group-arc-top-${key}`;
     const botPathId = `group-arc-bot-${key}`;
     const topPathD  = `M ${cx - topR},${cy} A ${topR},${topR} 0 0 1 ${cx + topR},${cy}`;
@@ -173,7 +173,7 @@ export default function KidTasksPage() {
           )}
         </svg>
         <span
-          className="w-24 h-24 rounded-full flex items-center justify-center text-4xl"
+          className="w-20 h-20 rounded-full flex items-center justify-center text-3xl"
           style={{ backgroundColor: `${color}1A`, color }}
         >
           <FontAwesomeIcon icon={icon} />
@@ -310,7 +310,7 @@ export default function KidTasksPage() {
         // 375px viewport (3*120 + 2*4 = 368 < 375). On sm+ we restore the
         // padding and let the cells size themselves; badges are left-aligned
         // in their cells on lg+ for a clean column.
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-x-1 gap-y-5 sm:gap-3 lg:gap-4 pt-4 -mx-4 sm:mx-0 justify-items-center lg:justify-items-start">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-x-2 gap-y-5 sm:gap-3 lg:gap-4 pt-4 justify-items-center lg:justify-items-start">
           {/* Pinned task sets — rendered first so they always sit at the
               top of the page. Badges/awards that are pinned ALSO continue
               to show inside their folder below; pinning is additive. */}

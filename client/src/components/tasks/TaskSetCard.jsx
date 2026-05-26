@@ -62,7 +62,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
   const navigate = useNavigate();
   const pct  = ts.step_count > 0 ? Math.round((ts.completed_count / ts.step_count) * 100) : 0;
   const done = ts.step_count > 0 && ts.completed_count === ts.step_count;
-  const size = minimal ? 120 : 112;
+  const size = minimal ? 104 : 112;
   const sw   = 8;
   // Rich card keeps its old inset radius. Minimal pushes the stroke to the
   // button edge so there's no whitespace between the ring and the shadow.
@@ -103,7 +103,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
         {!ts.badge_image_file && ts.name && (() => {
           const cx = size / 2;
           const cy = size / 2;
-          const textR = 36;
+          const textR = 30;
           // Top arc length (radius * π) approximated against UPPERCASE width
           // (~5px per char at 7px font + 0.2 letter-spacing). If the name
           // overflows, find the most balanced word break and overflow the
@@ -162,17 +162,17 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
             </svg>
           );
         })()}
-        <div className="absolute inset-0 flex items-center justify-center text-4xl leading-none">
+        <div className="absolute inset-0 flex items-center justify-center text-3xl leading-none">
           {ts.badge_image_file ? (
             <img
               src={`/api/uploads/badges/${ts.badge_image_file}`}
               alt=""
-              className="w-24 h-24 rounded-full object-cover"
+              className="w-20 h-20 rounded-full object-cover"
               onError={(e) => { e.target.style.display = 'none'; }}
             />
           ) : ts.badge_id ? (
             <div
-              className="w-24 h-24 rounded-full flex items-center justify-center"
+              className="w-20 h-20 rounded-full flex items-center justify-center"
               style={{ background: 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)' }}
             >
               <IconDisplay value={ts.emoji} fallback="🏅" />
@@ -182,7 +182,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
             // so the curved title has a clean background and the icon reads
             // against a consistent inner circle.
             <div
-              className="w-24 h-24 rounded-full flex items-center justify-center"
+              className="w-20 h-20 rounded-full flex items-center justify-center"
               style={{ background: 'radial-gradient(circle at center, #F9FAFB 0%, #D1D5DB 100%)' }}
             >
               <IconDisplay value={ts.emoji} fallback="📋" />
