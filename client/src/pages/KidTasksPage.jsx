@@ -310,11 +310,18 @@ export default function KidTasksPage() {
         // 375px viewport (3*120 + 2*4 = 368 < 375). On sm+ we restore the
         // padding and let the cells size themselves; badges are left-aligned
         // in their cells on lg+ for a clean column.
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-1 sm:gap-3 lg:gap-4 pt-4 -mx-4 sm:mx-0 justify-items-center lg:justify-items-start">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-x-1 gap-y-5 sm:gap-3 lg:gap-4 pt-4 -mx-4 sm:mx-0 justify-items-center lg:justify-items-start">
           {/* Pinned task sets — rendered first so they always sit at the
               top of the page. Badges/awards that are pinned ALSO continue
               to show inside their folder below; pinning is additive. */}
           {pinnedSets.map(renderCard)}
+          {/* Divider between the pinned group and the rest of the list,
+              so it reads as a deliberate "shortcut row" instead of just
+              a re-sort. col-span-full spans every column of the
+              responsive grid; hidden when nothing is pinned. */}
+          {pinnedSets.length > 0 && (
+            <div className="col-span-full border-t border-gray-200 dark:border-gray-700 mt-1 mb-2" />
+          )}
           {awardSets.length > 0 && renderGroupCard({
             key: 'awards',
             label: 'Awards',

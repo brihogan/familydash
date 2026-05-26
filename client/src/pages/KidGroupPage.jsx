@@ -241,8 +241,24 @@ export default function KidGroupPage() {
         // Responsive grid mirrors KidTasksPage: 3 per row on iPhone-mini-class
         // screens, 8 on xl desktops. Mobile extends beyond the page padding
         // (-mx-4) so 120px badges fit 3-across on a 375px viewport.
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-1 sm:gap-3 lg:gap-4 pt-4 -mx-4 sm:mx-0 justify-items-center lg:justify-items-start">
-          {filtered.map(renderCard)}
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-x-1 gap-y-5 sm:gap-3 lg:gap-4 pt-4 -mx-4 sm:mx-0 justify-items-center lg:justify-items-start">
+          {(() => {
+            // Split the already-sorted list into pinned + rest so we can
+            // drop a divider between them. `filtered` is sorted with
+            // pinned first (see the bucket order in the useMemo above),
+            // so this is just a fast partition.
+            const pinned = filtered.filter((ts) => ts.is_pinned);
+            const rest   = filtered.filter((ts) => !ts.is_pinned);
+            return (
+              <>
+                {pinned.map(renderCard)}
+                {pinned.length > 0 && rest.length > 0 && (
+                  <div className="col-span-full border-t border-gray-200 dark:border-gray-700 mt-1 mb-2" />
+                )}
+                {rest.map(renderCard)}
+              </>
+            );
+          })()}
         </div>
       )}
 
