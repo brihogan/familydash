@@ -201,15 +201,19 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
             (parent button owns the click). */}
         {Array.isArray(ts.linked_awards) && ts.linked_awards.length > 0 && (() => {
           const miniSize  = 30;
-          const radius    = size / 2 + 6;   // mini-center sits 6px past the badge edge
+          // Mini-center sits inside the badge so the outer edge of the
+          // mini pokes ~5px into the progress ring (ring spans 52..60 from
+          // center for a 120px medallion). Visually anchors the minis to
+          // the badge they belong to instead of floating outside.
+          const radius    = size / 2 - 18;
           const cx        = size / 2;
           const cy        = size / 2;
           const N         = ts.linked_awards.length;
-          // Fan centered on 45° (bottom-right diagonal). 35° between
-          // neighbors gives 30px circles clear separation; narrows once
-          // we get to 4+ awards so the whole fan stays inside the
-          // bottom-right quadrant.
-          const stepDeg   = Math.min(35, 90 / Math.max(N - 1, 1));
+          // Fan centered on 45° (bottom-right diagonal). 45° between
+          // neighbors gives N=2 clean separation at this smaller radius;
+          // narrows to keep multi-award fans inside the bottom-right
+          // quadrant (overlap is acceptable for N>=4 — rare).
+          const stepDeg   = N >= 2 ? Math.min(45, 80 / (N - 1)) : 0;
           const startDeg  = 45 - ((N - 1) * stepDeg) / 2;
           return (
             <div className="absolute inset-0 pointer-events-none">
@@ -220,7 +224,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
                 return (
                   <div
                     key={a.id}
-                    className="absolute rounded-full bg-white dark:bg-gray-800 ring-2 ring-gray-400 dark:ring-gray-500 shadow-sm overflow-hidden flex items-center justify-center text-xs leading-none"
+                    className="absolute rounded-full bg-white dark:bg-gray-800 ring-4 ring-gray-400 dark:ring-gray-500 shadow-sm overflow-hidden flex items-center justify-center text-xs leading-none"
                     style={{
                       width: miniSize, height: miniSize,
                       left: x, top: y,
