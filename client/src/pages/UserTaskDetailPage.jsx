@@ -1000,6 +1000,7 @@ export default function UserTaskDetailPage() {
   // Badge optional pool (for swap chevron)
   const [optionalPool,     setOptionalPool]     = useState(null);
   const [poolOpen,         setPoolOpen]         = useState(false);
+  const [pickerOpen,       setPickerOpen]       = useState(false); // Modal for "Pick optional tasks"
   const [swapping,         setSwapping]         = useState(false);
   const [swapError,        setSwapError]        = useState('');
   const [imageLightbox,    setImageLightbox]    = useState(false);
@@ -1098,6 +1099,20 @@ export default function UserTaskDetailPage() {
       setOptionalPool(null);
     } catch (e) {
       setSwapError(e?.response?.data?.error || 'Could not add optional.');
+    } finally {
+      setSwapping(false);
+    }
+  };
+
+  const handleRemoveOptional = async (removeOptionalReqId) => {
+    setSwapping(true);
+    setSwapError('');
+    try {
+      const result = await badgesApi.removeOptional(userId, taskSetId, removeOptionalReqId);
+      setSteps(result.steps);
+      setOptionalPool(null);
+    } catch (e) {
+      setSwapError(e?.response?.data?.error || 'Could not remove optional.');
     } finally {
       setSwapping(false);
     }
@@ -1364,6 +1379,90 @@ export default function UserTaskDetailPage() {
           />
         )}
       </Modal>
+
+      {/* Optional-task picker modal — full library of optionals for this
+          badge with toggle state. Selected entries get a green outline +
+          check + dimmed text; click toggles add/remove. Steps with any
+          completion history are locked (refuse to remove on the server
+          would lose progress) — those show check + lock and don't toggle. */}
+      <Modal
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        title={`Optional tasks — ${selectedOptCount} of ${levelOptCount} selected`}
+        size="xl"
+      >
+        {!optionalPool ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
+        ) : (
+          <>
+            {swapError && (
+              <p className="text-sm text-red-600 dark:text-red-400 mb-3">{swapError}</p>
+            )}
+            <div className="space-y-2">
+              {optionalPool.map((opt) => {
+                const isSelected = selectedOptReqIds.has(opt.id);
+                const selectedStep = steps.find((s) => s.badge_opt_req_id === opt.id && s.is_active);
+                const hasProgress  = isSelected && selectedStep && (selectedStep.completed_count || 0) > 0;
+                // Can't add more once at quota (server rejects too), but
+                // we still let the user click selected ones to remove —
+                // unless they have completion history.
+                const cantAddMore  = !isSelected && optionalsRemaining <= 0;
+                const locked       = hasProgress || cantAddMore;
+                const onClick = () => {
+                  if (locked || swapping) return;
+                  if (isSelected) handleRemoveOptional(opt.id);
+                  else            handleAddOptional(opt.id);
+                };
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={onClick}
+                    disabled={swapping || locked}
+                    className={`w-full text-left flex gap-3 p-3 rounded-lg border-2 transition-colors ${
+                      isSelected
+                        ? `bg-green-50 dark:bg-green-900/20 border-green-400 dark:border-green-600 ${hasProgress ? 'opacity-80' : 'hover:bg-green-100 dark:hover:bg-green-900/30'}`
+                        : cantAddMore
+                          ? 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed'
+                          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                    } disabled:cursor-default`}
+                    title={hasProgress
+                      ? 'You already have progress on this step — swap it instead of removing.'
+                      : cantAddMore
+                        ? `You've picked all ${levelOptCount} optionals for this level — deselect one first.`
+                        : undefined}
+                  >
+                    <span
+                      className={`mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs ${
+                        isSelected
+                          ? 'bg-green-500 text-white'
+                          : 'border-2 border-amber-400 text-amber-500'
+                      }`}
+                    >
+                      {isSelected ? '✓' : '+'}
+                    </span>
+                    <span
+                      className={`text-sm leading-snug whitespace-pre-line flex-1 min-w-0 ${
+                        isSelected
+                          ? 'text-gray-500 dark:text-gray-400'
+                          : 'text-gray-800 dark:text-gray-100'
+                      }`}
+                    >
+                      {opt.text}
+                    </span>
+                  </button>
+                );
+              })}
+              {optionalPool.length === 0 && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-6">
+                  No optional tasks defined for this badge.
+                </p>
+              )}
+            </div>
+          </>
+        )}
+      </Modal>
+
       {showAwardModal && taskSet && (
         <AwardCompletionModal
           taskSet={taskSet}
@@ -1739,34 +1838,25 @@ export default function UserTaskDetailPage() {
                 </div>
               )}
 
-              {/* Optional picks: show shortfall banner if below quota */}
+              {/* Optional picks: button → modal listing every optional with
+                  toggle state. Opens loading the pool on first click. */}
               {needsPicks && (
-                <div className="rounded-xl border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
-                  <p className="font-semibold text-amber-800 dark:text-amber-200 mb-1">
-                    🎯 Pick {optionalsRemaining} more optional task{optionalsRemaining === 1 ? '' : 's'}
-                  </p>
-                  <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
-                    You need to choose {levelOptCount} optional task{levelOptCount === 1 ? '' : 's'} for your level
-                    {selectedOptCount > 0 ? ` (${selectedOptCount} already picked)` : ''}. Tap one below to add it to your list.
-                  </p>
-                  {swapError && <p className="text-xs text-red-600 dark:text-red-400 mb-2">{swapError}</p>}
-                  <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
-                    {!optionalPool && (
-                      <p className="text-xs text-amber-600 dark:text-amber-400">Loading options…</p>
-                    )}
-                    {(optionalPool || []).filter((o) => !selectedOptReqIds.has(o.id)).map((opt) => (
-                      <button
-                        key={opt.id}
-                        disabled={swapping}
-                        onClick={() => handleAddOptional(opt.id)}
-                        className="w-full text-left flex gap-2.5 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 bg-white dark:bg-gray-800 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors disabled:opacity-50"
-                      >
-                        <span className="mt-0.5 text-amber-500 shrink-0">+</span>
-                        <span className="text-sm text-gray-700 dark:text-gray-200 leading-snug whitespace-pre-line">{opt.text}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  className="w-full rounded-xl border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 p-4 text-left transition-colors flex items-center gap-3"
+                >
+                  <span className="text-2xl shrink-0">🎯</span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-semibold text-amber-800 dark:text-amber-200">
+                      Pick {optionalsRemaining} more optional task{optionalsRemaining === 1 ? '' : 's'}
+                    </span>
+                    <span className="block text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                      {selectedOptCount} of {levelOptCount} selected — tap to choose
+                    </span>
+                  </span>
+                  <span className="text-amber-500 dark:text-amber-400 text-lg shrink-0">›</span>
+                </button>
               )}
 
               {/* Selected optional steps */}

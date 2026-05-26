@@ -664,6 +664,58 @@ router.post('/users/:userId/task-assignments/:taskSetId/add-optional', authentic
   }
 });
 
+// ─── POST /api/users/:userId/task-assignments/:taskSetId/remove-optional ─────
+// Remove a single optional pick from a badge task set. Used by the toggle UX
+// in the optional-picker modal — clicking an already-selected option deselects
+// it. Refuses if the underlying step already has any completions (the kid
+// would lose progress); they have to swap-out via the existing swap flow.
+const RemoveOptionalSchema = z.object({
+  removeOptionalReqId: z.number().int().positive(),
+});
+
+router.post('/users/:userId/task-assignments/:taskSetId/remove-optional', authenticate, (req, res, next) => {
+  try {
+    const targetId  = parseInt(req.params.userId,    10);
+    const taskSetId = parseInt(req.params.taskSetId, 10);
+
+    const isParent = req.user.role === 'parent';
+    const isSelf   = req.user.userId === targetId;
+    if (!isParent && !isSelf) return res.status(403).json({ error: 'Forbidden.' });
+
+    const body = RemoveOptionalSchema.parse(req.body);
+
+    const taskSet = db.prepare(
+      `SELECT ts.id, ts.badge_id, ts.family_id FROM task_sets ts WHERE ts.id = ? AND ts.is_active = 1`
+    ).get(taskSetId);
+    if (!taskSet) return res.status(404).json({ error: 'Task set not found.' });
+    if (!taskSet.badge_id) return res.status(400).json({ error: 'This task set is not a badge.' });
+    if (isParent && taskSet.family_id !== req.user.familyId) return res.status(403).json({ error: 'Forbidden.' });
+
+    const step = db.prepare(
+      `SELECT id FROM task_steps WHERE task_set_id = ? AND badge_opt_req_id = ? AND is_active = 1 AND is_optional = 1`
+    ).get(taskSetId, body.removeOptionalReqId);
+    if (!step) return res.status(404).json({ error: 'That optional is not currently selected.' });
+
+    const completed = db.prepare(
+      `SELECT COUNT(*) AS n FROM task_step_completions WHERE task_step_id = ?`
+    ).get(step.id).n;
+    if (completed > 0) {
+      return res.status(409).json({ error: 'This step has progress on it — swap it instead of removing.' });
+    }
+
+    db.prepare(`DELETE FROM task_steps WHERE id = ?`).run(step.id);
+
+    const steps = db.prepare(
+      `SELECT id, name, description, sort_order, is_optional, badge_opt_req_id, repeat_count, limit_one_per_day, require_input, input_prompt, image
+       FROM task_steps WHERE task_set_id = ? AND is_active = 1 ORDER BY sort_order ASC`
+    ).all(taskSetId);
+
+    res.json({ steps });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── Bookmarks: POST /api/users/:userId/badges/:badgeId/bookmark ──────────
 // Idempotent (INSERT OR IGNORE on the composite PK).
 router.post('/users/:userId/badges/:badgeId/bookmark', authenticate, (req, res, next) => {

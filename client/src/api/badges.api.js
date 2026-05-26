@@ -29,6 +29,11 @@ export const badgesApi = {
       addOptionalReqId,
     }).then((r) => r.data),
 
+  removeOptional:    (userId, taskSetId, removeOptionalReqId) =>
+    client.post(`/users/${userId}/task-assignments/${taskSetId}/remove-optional`, {
+      removeOptionalReqId,
+    }).then((r) => r.data),
+
   bookmark:          (userId, badgeId) =>
     client.post(`/users/${userId}/badges/${badgeId}/bookmark`).then((r) => r.data),
   unbookmark:        (userId, badgeId) =>
