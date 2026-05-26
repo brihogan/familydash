@@ -194,32 +194,56 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
             <FontAwesomeIcon icon={faCheck} />
           </span>
         )}
-        {/* Linked-award overlay — bottom-right cluster of mini badges
-            showing every AWARD that has a step linked to this badge. Lets
-            a kid see at a glance which badges contribute to the most
-            awards. Decorative only (parent button owns the click). */}
-        {Array.isArray(ts.linked_awards) && ts.linked_awards.length > 0 && (
-          <div className="absolute -bottom-1 -right-1 flex items-center pointer-events-none">
-            {ts.linked_awards.map((a, i) => (
-              <div
-                key={a.id}
-                className={`w-6 h-6 rounded-full bg-white dark:bg-gray-800 ring-2 ring-gray-400 dark:ring-gray-500 shadow-sm overflow-hidden flex items-center justify-center text-xs leading-none ${i > 0 ? '-ml-2' : ''}`}
-                title={`Counts toward ${a.name}`}
-              >
-                {a.image_file ? (
-                  <img
-                    src={`/api/uploads/badges/${a.image_file}`}
-                    alt=""
-                    className="w-full h-full object-cover"
-                    onError={(e) => { e.target.style.display = 'none'; }}
-                  />
-                ) : (
-                  <span>{a.emoji || '🏆'}</span>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Linked-award overlay — mini badges fan out around the badge's
+            bottom-right, pivoting on the badge center. So multiple awards
+            don't stack on top of each other; instead they form a small
+            arc spreading from below-right toward right. Decorative only
+            (parent button owns the click). */}
+        {Array.isArray(ts.linked_awards) && ts.linked_awards.length > 0 && (() => {
+          const miniSize  = 30;
+          const radius    = size / 2 + 6;   // mini-center sits 6px past the badge edge
+          const cx        = size / 2;
+          const cy        = size / 2;
+          const N         = ts.linked_awards.length;
+          // Fan centered on 45° (bottom-right diagonal). 35° between
+          // neighbors gives 30px circles clear separation; narrows once
+          // we get to 4+ awards so the whole fan stays inside the
+          // bottom-right quadrant.
+          const stepDeg   = Math.min(35, 90 / Math.max(N - 1, 1));
+          const startDeg  = 45 - ((N - 1) * stepDeg) / 2;
+          return (
+            <div className="absolute inset-0 pointer-events-none">
+              {ts.linked_awards.map((a, i) => {
+                const angleRad = (startDeg + i * stepDeg) * Math.PI / 180;
+                const x = cx + radius * Math.cos(angleRad);
+                const y = cy + radius * Math.sin(angleRad);
+                return (
+                  <div
+                    key={a.id}
+                    className="absolute rounded-full bg-white dark:bg-gray-800 ring-2 ring-gray-400 dark:ring-gray-500 shadow-sm overflow-hidden flex items-center justify-center text-xs leading-none"
+                    style={{
+                      width: miniSize, height: miniSize,
+                      left: x, top: y,
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                    title={`Counts toward ${a.name}`}
+                  >
+                    {a.image_file ? (
+                      <img
+                        src={`/api/uploads/badges/${a.image_file}`}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <span>{a.emoji || '🏆'}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </button>
     );
   }
