@@ -2,6 +2,11 @@
 
 ## Session Start: 2026-05-26 (morning)
 
+### 2026-05-26 — Award "tree map" view
+- New `/tasks/:userId/:taskSetId/tree` route + `AwardTreePage` component. Renders the parent award as a 140px medallion at top-center, with each badge/sub-award step as a 104px child medallion below, connected by SVG lines drawn from measured DOM positions (re-measured on resize via ResizeObserver so the connectors stay anchored when children wrap on narrow viewports).
+- Children sorted in-progress (% desc) → not-started → completed (alphabetical within bucket). Clicking a child with an enrolled `linked_task_set_id` jumps to its detail page; pure category slots ("Earn any Art badge") fall back to the parent award.
+- `faSitemap` button on `UserTaskDetailPage` directly under the back chevron — only shown when at least one step has a `linked_badge_id` / `linked_badge_category` / `linked_task_set_id`, so plain projects don't get a useless button. `*` cross-area sentinel renders as "Any badge" (not "Any * badge"); area sentinels strip the "Discover (the)" prefix.
+
 ### 2026-05-26 — Bowling badge: backfilled Level 5 reqs + 18 optionals
 - The CU Bowling page is missing the two starred Level 5 requirements (page jumps straight to item 3) and the optional pool was empty in our DB despite `level_opt_counts.level5=7`. Inserted:
   - Two `level=level5` rows: `* Do Level 4 requirements 1 & 2` and a made-up capstone `* Bowl 3 games and try to beat your personal best, OR teach someone the basics of bowling (safety, etiquette, and how to keep score).`

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } fr
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faStickyNote, faBoxArchive, faBoxOpen } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faStickyNote, faBoxArchive, faBoxOpen, faSitemap } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import Fireworks from '../components/shared/Fireworks.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
@@ -1412,13 +1412,28 @@ export default function UserTaskDetailPage() {
       {/* ── Header ── */}
       <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-start gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors mt-1"
-            aria-label="Go back"
-          >
-            <FontAwesomeIcon icon={faChevronLeft} />
-          </button>
+          <div className="flex-shrink-0 flex flex-col items-center gap-1 mt-1">
+            <button
+              onClick={() => navigate(-1)}
+              className="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              aria-label="Go back"
+            >
+              <FontAwesomeIcon icon={faChevronLeft} />
+            </button>
+            {/* Map view — sits directly under the back chevron. Only shown
+                when the task set has at least one badge / sub-award step
+                to plot, so plain projects don't get a useless button. */}
+            {steps.some((s) => s.linked_badge_id || s.linked_badge_category || s.linked_task_set_id) && (
+              <button
+                onClick={() => navigate(`/tasks/${userId}/${taskSetId}/tree`)}
+                className="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-brand-900/30 dark:hover:text-brand-300 transition-colors"
+                aria-label="Show award map"
+                title="Show award map"
+              >
+                <FontAwesomeIcon icon={faSitemap} />
+              </button>
+            )}
+          </div>
 
           {/* Large badge icon with circular progress ring — mirrors the minimal
               card style: completed arc = saturated level color, incomplete

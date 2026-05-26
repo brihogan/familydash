@@ -23,6 +23,7 @@ import KidTasksPage from './pages/KidTasksPage.jsx';
 import KidTrophiesPage from './pages/KidTrophiesPage.jsx';
 import TaskSetDetailPage from './pages/TaskSetDetailPage.jsx';
 import UserTaskDetailPage from './pages/UserTaskDetailPage.jsx';
+import AwardTreePage from './pages/AwardTreePage.jsx';
 import KidOverviewPage from './pages/KidOverviewPage.jsx';
 import FamilyActivityPage from './pages/FamilyActivityPage.jsx';
 import DisplayPage from './pages/DisplayPage.jsx';
@@ -62,6 +63,7 @@ export default function App() {
               <Route path="/tickets/:userId" element={<KidTicketsPage />} />
               <Route path="/tasks/:userId" element={<KidTasksPage />} />
               <Route path="/tasks/:userId/group/:groupKey" element={<KidGroupPage />} />
+              <Route path="/tasks/:userId/:taskSetId/tree" element={<AwardTreePage />} />
               <Route path="/tasks/:userId/:taskSetId" element={<UserTaskDetailPage />} />
               <Route path="/badges/:userId" element={<BadgeBrowserPage />} />
               <Route path="/trophies/:userId" element={<KidTrophiesPage />} />
