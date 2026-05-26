@@ -92,9 +92,25 @@ export default function KidTasksPage() {
   // type (loose tasks, badges, awards all show here when pinned). Badges
   // and awards still appear inside their folder card too — pinning just
   // adds them up here, doesn't move them.
+  // Sort: awards first, then badges, then loose; within each type
+  // in-progress → not-started → completed; alpha as final tiebreak.
+  const pinnedTypeOrder = (ts) => isAwardTs(ts) ? 0 : isBadgeTs(ts) ? 1 : 2;
+  const pinnedStatusOrder = (ts) => {
+    const total = ts.step_count || 0;
+    const done  = ts.completed_count || 0;
+    if (total > 0 && done >= total) return 2; // completed
+    if (done > 0) return 0;                   // in-progress
+    return 1;                                 // not-started
+  };
   const pinnedSets = visibleSets
     .filter((ts) => ts.is_pinned)
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => {
+      const ta = pinnedTypeOrder(a), tb = pinnedTypeOrder(b);
+      if (ta !== tb) return ta - tb;
+      const sa = pinnedStatusOrder(a), sb = pinnedStatusOrder(b);
+      if (sa !== sb) return sa - sb;
+      return a.name.localeCompare(b.name);
+    });
 
   // Loose sets excluding pinned ones (they're already rendered above) so
   // we don't double-render.
