@@ -2,6 +2,17 @@
 
 ## Session Start: 2026-05-26 (morning)
 
+### 2026-05-26 — Pin task sets to the top of the kid's lists
+- New `task_assignments.is_pinned` column (v75) + `PATCH /api/users/:userId/task-assignments/:taskSetId/pin`. UI: pin button in the chevron column on the detail page (between back chevron and tree icon), amber when active. Pinned items surface above the folder cards on `/tasks/:userId` and float above the in-progress / not-started / completed buckets inside the group pages. Pinned sort on `/tasks/:userId` itself is type-then-status (awards → badges → loose, in-progress → not-started → completed).
+
+### 2026-05-26 — Award-link mini badges on each badge medallion
+- Bulk task-assignments endpoint now attaches a `linked_awards` list to every enrolled badge — every award the kid is enrolled in whose steps point at this badge via `linked_badge_id`, `linked_task_set_id`, OR a `linked_badge_category` match (the `*` cross-area sentinel is excluded). Renders as a fan of small 26px circles (3px gray outline, 3px overlap) tucked into the badge's bottom-right with the outer edge just kissing the progress ring. So U.S. Constitution shows Liberty + Discovery, Joy shows Discovery + Fruit of the Spirit, etc.
+
+### 2026-05-26 — Responsive medallion sizing + pinned-divider polish
+- `useMedallionSize()` hook: 104px on mobile (<640px), 120px from sm+ — keeps the iPhone-12-mini layout breathable inside the page padding while letting the badges grow on wider screens. Inner disc + arc-text scale as size×0.77 / size×0.29 so they look right at both sizes. Folder cards on KidTasksPage consume the same hook for symmetry.
+- Horizontal divider after the pinned row on `/tasks/:userId` and inside the group pages so pinned reads as a deliberate "shortcuts" group. Needed `justify-self-stretch w-full` because `justify-items-center` was collapsing `col-span-full` items to width 0.
+- Bumped row-gap on the mobile 3-col grid from 4px → 20px so wrapping rows actually look like separate rows.
+
 ### 2026-05-26 — Award "tree map" view
 - New `/tasks/:userId/:taskSetId/tree` route + `AwardTreePage` component. Renders the parent award as a 140px medallion at top-center, with each badge/sub-award step as a 104px child medallion below, connected by SVG lines drawn from measured DOM positions (re-measured on resize via ResizeObserver so the connectors stay anchored when children wrap on narrow viewports).
 - Children sorted in-progress (% desc) → not-started → completed (alphabetical within bucket). Clicking a child with an enrolled `linked_task_set_id` jumps to its detail page; pure category slots ("Earn any Art badge") fall back to the parent award.
