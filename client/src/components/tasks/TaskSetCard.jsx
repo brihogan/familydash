@@ -200,12 +200,11 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
             arc spreading from below-right toward right. Decorative only
             (parent button owns the click). */}
         {Array.isArray(ts.linked_awards) && ts.linked_awards.length > 0 && (() => {
-          const miniSize  = 30;
-          // Mini-center sits inside the badge so the outer edge of the
-          // mini pokes ~5px into the progress ring (ring spans 52..60 from
-          // center for a 120px medallion). Visually anchors the minis to
-          // the badge they belong to instead of floating outside.
-          const radius    = size / 2 - 18;
+          const miniSize  = 26;
+          // Mini outer edge sits ~1px past the inner edge of the progress
+          // ring (ring spans 52..60 from center on a 120px medallion, so
+          // outer edge target = 53 → radius = 53 - miniSize/2 = 40).
+          const radius    = (size / 2 - 8 + 1) - miniSize / 2;
           const cx        = size / 2;
           const cy        = size / 2;
           const N         = ts.linked_awards.length;
@@ -224,7 +223,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
                 return (
                   <div
                     key={a.id}
-                    className="absolute rounded-full bg-white dark:bg-gray-800 ring-4 ring-gray-400 dark:ring-gray-500 shadow-sm overflow-hidden flex items-center justify-center text-xs leading-none"
+                    className="absolute rounded-full bg-white dark:bg-gray-800 ring-[3px] ring-gray-400 dark:ring-gray-500 shadow-sm overflow-hidden flex items-center justify-center text-xs leading-none"
                     style={{
                       width: miniSize, height: miniSize,
                       left: x, top: y,
