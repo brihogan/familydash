@@ -6,7 +6,7 @@ import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import KidProfilePicker from '../components/shared/KidProfilePicker.jsx';
 import Modal from '../components/shared/Modal.jsx';
 import BadgeBrowser from '../components/badges/BadgeBrowser.jsx';
-import TaskSetCard from '../components/tasks/TaskSetCard.jsx';
+import TaskSetCard, { useMedallionSize } from '../components/tasks/TaskSetCard.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
 import { familyApi } from '../api/family.api.js';
@@ -19,6 +19,7 @@ export default function KidTasksPage() {
   const navigate   = useNavigate();
   const { user }   = useAuth();
   const { useTickets, useBadges } = useFamilySettings();
+  const medallionSize = useMedallionSize();
   const isParent   = user?.role === 'parent';
 
   const [taskSets,     setTaskSets]   = useState([]);
@@ -129,8 +130,11 @@ export default function KidTasksPage() {
   const kidLevelCfg = member?.badge_level && BADGE_LEVELS[member.badge_level];
   const renderGroupCard = ({ key, label, icon, sets, color }) => {
     const c = groupCardCounts(sets);
-    const size = 104;
+    const size = medallionSize;
     const sw = 8;
+    // Inner disc / arc text scale with the badge so 104px folder cards
+    // keep the same look as 120px ones at the sm+ breakpoint.
+    const innerSize = Math.round(size * 0.77);
     const r = (size - sw) / 2; // stroke flush to button edge — no white halo
     const circ = 2 * Math.PI * r;
     const overallPct = c.totalSteps > 0 ? Math.round((c.doneSteps / c.totalSteps) * 100) : 0;
@@ -148,8 +152,8 @@ export default function KidTasksPage() {
     // upside-down issue there hides itself.)
     const cx        = size / 2;
     const cy        = size / 2;
-    const topR      = 30;
-    const botR      = 34;
+    const topR      = Math.round(size * 0.29);
+    const botR      = topR + 4;
     const topPathId = `group-arc-top-${key}`;
     const botPathId = `group-arc-bot-${key}`;
     const topPathD  = `M ${cx - topR},${cy} A ${topR},${topR} 0 0 1 ${cx + topR},${cy}`;
@@ -173,8 +177,8 @@ export default function KidTasksPage() {
           )}
         </svg>
         <span
-          className="w-20 h-20 rounded-full flex items-center justify-center text-3xl"
-          style={{ backgroundColor: `${color}1A`, color }}
+          className="rounded-full flex items-center justify-center text-3xl"
+          style={{ width: innerSize, height: innerSize, backgroundColor: `${color}1A`, color }}
         >
           <FontAwesomeIcon icon={icon} />
         </span>

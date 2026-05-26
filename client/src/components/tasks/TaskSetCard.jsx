@@ -1,8 +1,24 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTag, faXmark, faTicket, faStar, faCheck } from '@fortawesome/free-solid-svg-icons';
 import { IconDisplay } from '../shared/IconPicker.jsx';
 import { BADGE_LEVELS } from '../../constants/badgeLevels.js';
+
+// Tailwind's sm breakpoint — below this the minimal medallion shrinks so
+// 3-up rows fit inside the page padding on a 375-wide iPhone-mini; at sm+
+// we get the extra horizontal room back and the badges grow.
+const SM_BREAKPOINT = 640;
+
+export function useMedallionSize() {
+  const [vw, setVw] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1024));
+  useEffect(() => {
+    const onResize = () => setVw(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return vw < SM_BREAKPOINT ? 104 : 120;
+}
 
 // Helpers: kept inside the component file since the only consumer beyond
 // KidTasksPage is the group sub-page (which doesn't need to customize them).
@@ -62,7 +78,12 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
   const navigate = useNavigate();
   const pct  = ts.step_count > 0 ? Math.round((ts.completed_count / ts.step_count) * 100) : 0;
   const done = ts.step_count > 0 && ts.completed_count === ts.step_count;
-  const size = minimal ? 104 : 112;
+  const minimalSize = useMedallionSize();
+  const size = minimal ? minimalSize : 112;
+  // Inner disc / arc text scale proportionally with the badge so the
+  // image keeps the same ratio across breakpoints (was hard-coded w-24
+  // + textR=36 for 120, w-20 + textR=30 for 104).
+  const innerSize = Math.round(size * 0.77);
   const sw   = 8;
   // Rich card keeps its old inset radius. Minimal pushes the stroke to the
   // button edge so there's no whitespace between the ring and the shadow.
@@ -103,7 +124,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
         {!ts.badge_image_file && ts.name && (() => {
           const cx = size / 2;
           const cy = size / 2;
-          const textR = 30;
+          const textR = Math.round(size * 0.29);
           // Top arc length (radius * π) approximated against UPPERCASE width
           // (~5px per char at 7px font + 0.2 letter-spacing). If the name
           // overflows, find the most balanced word break and overflow the
@@ -167,13 +188,14 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
             <img
               src={`/api/uploads/badges/${ts.badge_image_file}`}
               alt=""
-              className="w-20 h-20 rounded-full object-cover"
+              className="rounded-full object-cover"
+              style={{ width: innerSize, height: innerSize }}
               onError={(e) => { e.target.style.display = 'none'; }}
             />
           ) : ts.badge_id ? (
             <div
-              className="w-20 h-20 rounded-full flex items-center justify-center"
-              style={{ background: 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)' }}
+              className="rounded-full flex items-center justify-center"
+              style={{ width: innerSize, height: innerSize, background: 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)' }}
             >
               <IconDisplay value={ts.emoji} fallback="🏅" />
             </div>
@@ -182,8 +204,8 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
             // so the curved title has a clean background and the icon reads
             // against a consistent inner circle.
             <div
-              className="w-20 h-20 rounded-full flex items-center justify-center"
-              style={{ background: 'radial-gradient(circle at center, #F9FAFB 0%, #D1D5DB 100%)' }}
+              className="rounded-full flex items-center justify-center"
+              style={{ width: innerSize, height: innerSize, background: 'radial-gradient(circle at center, #F9FAFB 0%, #D1D5DB 100%)' }}
             >
               <IconDisplay value={ts.emoji} fallback="📋" />
             </div>
