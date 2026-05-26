@@ -1449,9 +1449,27 @@ export default function UserTaskDetailPage() {
             >
               <FontAwesomeIcon icon={faChevronLeft} />
             </button>
-            {/* Map view — sits directly under the back chevron. Only shown
-                when the task set has at least one badge / sub-award step
-                to plot, so plain projects don't get a useless button. */}
+            {/* Pin — sits between the back chevron and the tree icon. Hidden
+                on archived sets (you can't pin something that won't show
+                in the list anyway). */}
+            {!archivedAt && (
+              <button
+                onClick={handleTogglePin}
+                disabled={pinBusy}
+                className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors disabled:opacity-50 ${
+                  isPinned
+                    ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60'
+                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+                aria-label={isPinned ? 'Unpin from top of list' : 'Pin to top of list'}
+                title={isPinned ? 'Unpin — return to normal sort' : 'Pin — float to the top of the list'}
+              >
+                <FontAwesomeIcon icon={faThumbtack} className={isPinned ? '' : 'rotate-45'} />
+              </button>
+            )}
+            {/* Map view — only shown when the task set has at least one
+                badge / sub-award step to plot, so plain projects don't get
+                a useless button. */}
             {steps.some((s) => s.linked_badge_id || s.linked_badge_category || s.linked_task_set_id) && (
               <button
                 onClick={() => navigate(`/tasks/${userId}/${taskSetId}/tree`)}
@@ -1534,34 +1552,15 @@ export default function UserTaskDetailPage() {
                 {taskSet.name}
               </h1>
               {!archivedAt && (
-                <div className="shrink-0 flex flex-col items-end gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setConfirmArchive(true)}
-                    className="text-xs font-medium px-2.5 py-1 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors flex items-center gap-1.5"
-                    title="Archive — hide from your active list"
-                  >
-                    <FontAwesomeIcon icon={faBoxArchive} className="text-[11px]" />
-                    Archive
-                  </button>
-                  {/* Pin floats this task set to the top of the kid's list
-                      (loose sets on /tasks/:userId, or top of the matching
-                      group page for badges/awards). */}
-                  <button
-                    type="button"
-                    onClick={handleTogglePin}
-                    disabled={pinBusy}
-                    className={`text-xs font-medium px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50 ${
-                      isPinned
-                        ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60'
-                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200'
-                    }`}
-                    title={isPinned ? 'Unpin — return to normal sort' : 'Pin — float to the top of the list'}
-                  >
-                    <FontAwesomeIcon icon={faThumbtack} className={`text-[11px] ${isPinned ? '' : 'rotate-45'}`} />
-                    {isPinned ? 'Pinned' : 'Pin'}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setConfirmArchive(true)}
+                  className="shrink-0 text-xs font-medium px-2.5 py-1 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors flex items-center gap-1.5"
+                  title="Archive — hide from your active list"
+                >
+                  <FontAwesomeIcon icon={faBoxArchive} className="text-[11px]" />
+                  Archive
+                </button>
               )}
             </div>{/* /flex header */}
             {taskSet.description && (

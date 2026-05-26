@@ -214,6 +214,58 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
       row.completed_count = Math.min(done, total);
     }
 
+    // ── Linked-award badges per badge ───────────────────────────────────
+    // For every BADGE task set the kid is enrolled in, find the AWARD task
+    // sets (also kid-enrolled) whose steps point at it — either via a
+    // direct linked_badge_id match, or a manual linked_task_set_id pick
+    // (v73). Surfaces in the UI as small overlay badges so a kid/parent
+    // can see at a glance which badges contribute to multiple awards.
+    // Category auto-picks are NOT included here (computed at read time;
+    // would require running the auto-pick logic per (award, category)).
+    const linkedAwardRows = db.prepare(`
+      SELECT
+        ts_badge.id              AS badge_task_set_id,
+        ts_award.id              AS award_task_set_id,
+        ts_award.name            AS award_name,
+        b_award.image_file       AS award_image_file,
+        ts_award.emoji           AS award_emoji
+      FROM task_sets ts_award
+      JOIN task_assignments ta_award
+        ON ta_award.task_set_id = ts_award.id
+       AND ta_award.user_id = ? AND ta_award.is_active = 1
+      JOIN badges b_award
+        ON b_award.id = ts_award.badge_id AND b_award.is_award = 1
+      JOIN task_steps step
+        ON step.task_set_id = ts_award.id AND step.is_active = 1
+      JOIN task_sets ts_badge
+        ON ts_badge.is_active = 1
+       AND ts_badge.badge_id IS NOT NULL
+       AND (step.linked_task_set_id = ts_badge.id
+            OR (step.linked_badge_id IS NOT NULL AND step.linked_badge_id = ts_badge.badge_id))
+      JOIN task_assignments ta_badge
+        ON ta_badge.task_set_id = ts_badge.id
+       AND ta_badge.user_id = ? AND ta_badge.is_active = 1
+      WHERE ts_award.is_active = 1
+      GROUP BY ts_badge.id, ts_award.id
+    `).all(userId, userId);
+    const linkedAwardsByBadge = new Map();
+    for (const r of linkedAwardRows) {
+      if (!linkedAwardsByBadge.has(r.badge_task_set_id)) {
+        linkedAwardsByBadge.set(r.badge_task_set_id, []);
+      }
+      linkedAwardsByBadge.get(r.badge_task_set_id).push({
+        id:         r.award_task_set_id,
+        name:       r.award_name,
+        image_file: r.award_image_file,
+        emoji:      r.award_emoji,
+      });
+    }
+    for (const row of rows) {
+      if (row.badge_id && !row.badge_is_award) {
+        row.linked_awards = linkedAwardsByBadge.get(row.id) || [];
+      }
+    }
+
     // ── Compute daily streak ──────────────────────────────────────────────
     const activityDates = db.prepare(`
       SELECT DISTINCT activity_date FROM (

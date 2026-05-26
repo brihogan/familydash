@@ -194,6 +194,32 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
             <FontAwesomeIcon icon={faCheck} />
           </span>
         )}
+        {/* Linked-award overlay — bottom-right cluster of mini badges
+            showing every AWARD that has a step linked to this badge. Lets
+            a kid see at a glance which badges contribute to the most
+            awards. Decorative only (parent button owns the click). */}
+        {Array.isArray(ts.linked_awards) && ts.linked_awards.length > 0 && (
+          <div className="absolute -bottom-1 -right-1 flex items-center pointer-events-none">
+            {ts.linked_awards.map((a, i) => (
+              <div
+                key={a.id}
+                className={`w-6 h-6 rounded-full bg-white dark:bg-gray-800 ring-2 ring-white dark:ring-gray-800 shadow-sm overflow-hidden flex items-center justify-center text-xs leading-none ${i > 0 ? '-ml-2' : ''}`}
+                title={`Counts toward ${a.name}`}
+              >
+                {a.image_file ? (
+                  <img
+                    src={`/api/uploads/badges/${a.image_file}`}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                ) : (
+                  <span>{a.emoji || '🏆'}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </button>
     );
   }
