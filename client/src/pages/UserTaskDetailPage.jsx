@@ -1606,7 +1606,7 @@ export default function UserTaskDetailPage() {
             // = track, lighter = arc).
             const isOwlLevel = detailLevelCfg?.borderColor === '#111827';
             const trackColor = isDark
-              ? (isOwlLevel ? '#1F2937' : '#374151')
+              ? (detailLevelCfg?.darkTrackColor || '#374151')
               : (detailLevelCfg?.trackColor || detailLevelCfg?.color || '#E5E7EB');
             const progressColor = isDark && isOwlLevel
               ? '#6B7280'

@@ -160,7 +160,7 @@ export default function KidTasksPage() {
     // progress arc gets a light visible shade).
     const isOwlLevel = kidLevelCfg?.borderColor === '#111827';
     const trackColor = isDark
-      ? (isOwlLevel ? '#1F2937' : '#374151')
+      ? (kidLevelCfg?.darkTrackColor || '#374151')
       : (kidLevelCfg?.trackColor || kidLevelCfg?.color || '#E5E7EB');
     const progressColor = isDark && isOwlLevel
       ? '#6B7280'

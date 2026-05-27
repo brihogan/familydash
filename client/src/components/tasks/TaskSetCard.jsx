@@ -125,7 +125,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
     // light shade so the relationship inverts cleanly.
     const isOwlLevel = levelCfg?.borderColor === '#111827';
     const trackColor = isDark
-      ? (isOwlLevel ? '#1F2937' : '#374151')        // owl: gray-800 (above page bg), others: gray-700
+      ? (levelCfg?.darkTrackColor || '#374151')     // dark hue of the level color (red-900, blue-900, etc.)
       : (levelCfg?.trackColor || levelCfg?.color || '#E5E7EB');
     const progressColor = isDark && isOwlLevel
       ? '#6B7280'                                   // gray-500 — mid-gray arc, visible but not white

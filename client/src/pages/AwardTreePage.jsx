@@ -24,7 +24,7 @@ function Medallion({ size, taskSet, step, status, pct, onClick, title, placehold
   // light shade is the visible arc.
   const isOwlLevel = levelCfg?.borderColor === '#111827';
   const trackColor = isDark
-    ? (isOwlLevel ? '#1F2937' : '#374151')
+    ? (levelCfg?.darkTrackColor || '#374151')
     : (levelCfg?.trackColor || levelCfg?.color || '#E5E7EB');
   const progressColor = status === 'completed'
     ? '#22C55E'
