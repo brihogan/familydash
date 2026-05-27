@@ -650,6 +650,13 @@ export function runMigrations(db) {
   //   keeps the pin so unarchiving restores its top-of-list position.
   try { db.exec(`ALTER TABLE task_assignments ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
 
+  // v76: per-user mobile-bottom-bar layout. JSON string `{"primary":[key,...]}`
+  //   ordered list of item keys (e.g. "dashboard", "inbox", "overview") that
+  //   occupy the primary slots in the floating menubar. NULL = use defaults
+  //   for the user's role. Self-healing: keys that no longer apply (feature
+  //   flag toggled off) just drop out of the primary list at render time.
+  try { db.exec(`ALTER TABLE users ADD COLUMN menubar_layout TEXT`); } catch (_) {}
+
   // v68: re-generate award task_steps for any enrollment that hasn't been
   //   started yet. The earlier v67 backfill used cumulative steps (all levels
   //   up through the kid's level); the corrected logic shows only the kid's

@@ -239,11 +239,27 @@ export default function Layout() {
     0,
   );
 
+  // Helper: pull the logged-in user's saved menubar_layout (JSON string in
+  // the user row) and apply it to local state. Tolerates malformed JSON.
+  const applyMenubarFromMember = (member) => {
+    if (!member?.menubar_layout) return;
+    try {
+      const parsed = typeof member.menubar_layout === 'string'
+        ? JSON.parse(member.menubar_layout)
+        : member.menubar_layout;
+      if (parsed && Array.isArray(parsed.primary)) {
+        lastSavedRef.current = JSON.stringify(parsed.primary);
+        setPrimaryKeys(parsed.primary);
+      }
+    } catch (_) { /* use defaults */ }
+  };
+
   // Check claude_access for kids (parents get it in the fetch below)
   useEffect(() => {
     if (user?.role !== 'kid') return;
     familyApi.getFamily().then((data) => {
       if (data.family?.claude_access) setClaudeAccess(true);
+      applyMenubarFromMember((data.members || []).find((m) => m.id === user.id));
     }).catch(() => {});
   }, [user?.role, user?.familyId]);
 
@@ -253,6 +269,7 @@ export default function Layout() {
     familyApi.getFamily().then((data) => {
       if (data.family?.claude_access) setClaudeAccess(true);
       const members = data.members || [];
+      applyMenubarFromMember(members.find((m) => m.id === user.id));
       // If logged-in parent has chores_enabled, default to their own ID
       const self = members.find((m) => m.id === user.id);
       if (self && self.chores_enabled) {
@@ -555,54 +572,111 @@ export default function Layout() {
   );
   };
 
-  // ── Mobile bottom-bar item lists ──
-  // Primary items live on the bottom bar (icon + tiny label). Secondary
-  // items spill into the "More" slide-up sheet. Definitions are data-driven
-  // so the bar stays slim and the sheet grows / shrinks with feature flags.
-  const mobileItems = useMemo(() => {
-    const primary = [];
-    const secondary = [];
+  // ── Mobile bottom-bar items ──
+  // Single ordered "all items" list, each tagged with a section. The
+  // primary slots (4) are an array of keys — defaults below, but the user
+  // can customize and we persist their choice. Whatever's not in primary
+  // shows up in the More sheet, grouped by section (mirrors desktop nav).
+  const { allMobileItems, defaultPrimaryKeys } = useMemo(() => {
+    const all = [];
+    let defaults = [];
     if (user?.role === 'parent') {
-      primary.push({ key: 'dashboard', icon: faHouse, label: 'Home', to: '/dashboard' });
-      primary.push({ key: 'inbox', icon: faInbox, label: 'Inbox', to: '/inbox', badge: inboxCount > 0 ? inboxCount : null });
+      all.push({ key: 'dashboard', icon: faHouse, label: 'Home', to: '/dashboard', section: 'main' });
+      all.push({ key: 'inbox', icon: faInbox, label: 'Inbox', to: '/inbox', section: 'main', badge: inboxCount > 0 ? inboxCount : null });
+      if (claudeAccess) all.push({ key: 'apps', icon: faRocket, label: 'Apps', to: '/code-apps', section: 'main' });
       if (defaultMemberId) {
-        primary.push({ key: 'overview', icon: faTachographDigital, label: 'Overview', to: `/kid/${defaultMemberId}` });
+        all.push({ key: 'overview', icon: faTachographDigital, label: 'Overview', to: `/kid/${defaultMemberId}`, section: 'individual' });
+        all.push({ key: 'kid-chores', icon: faBroom, label: choresLabel, to: `/chores/${defaultMemberId}`, section: 'individual' });
+        if (useBanking) all.push({ key: 'kid-bank', icon: faPiggyBank, label: 'Bank', to: `/bank/${defaultMemberId}`, section: 'individual' });
+        if (useTickets) all.push({ key: 'kid-tickets', icon: faTicket, label: 'Tickets', to: `/tickets/${defaultMemberId}`, section: 'individual' });
+        if (useSets) all.push({ key: 'kid-sets', icon: faMedal, label: setsStepsLabel, to: `/tasks/${defaultMemberId}`, section: 'individual' });
+        all.push({ key: 'kid-trophies', icon: faTrophy, label: 'Trophies', to: `/trophies/${defaultMemberId}`, section: 'individual' });
       }
-      primary.push({ key: 'activity', icon: faScroll, label: 'Activity', to: '/family-activity' });
-
-      if (claudeAccess) secondary.push({ key: 'apps', icon: faRocket, label: 'Apps', to: '/code-apps' });
-      if (defaultMemberId) {
-        secondary.push({ key: 'kid-chores', icon: faBroom, label: choresLabel, to: `/chores/${defaultMemberId}` });
-        if (useBanking) secondary.push({ key: 'kid-bank', icon: faPiggyBank, label: 'Bank', to: `/bank/${defaultMemberId}` });
-        if (useTickets) secondary.push({ key: 'kid-tickets', icon: faTicket, label: 'Tickets', to: `/tickets/${defaultMemberId}` });
-        if (useSets) secondary.push({ key: 'kid-sets', icon: faMedal, label: setsStepsLabel, to: `/tasks/${defaultMemberId}` });
-        secondary.push({ key: 'kid-trophies', icon: faTrophy, label: 'Trophies', to: `/trophies/${defaultMemberId}` });
-      }
-      secondary.push({ key: 'settings', icon: faGear, label: 'Settings', to: '/settings' });
-      secondary.push({ key: 'family', icon: faUsers, label: `Family & ${choresLabel}`, to: '/settings/users' });
-      if (useSets) secondary.push({ key: 'set-mgmt', icon: faClipboardCheck, label: 'Set Mgmt', to: '/settings/tasks' });
-      if (useBadges) secondary.push({ key: 'badge-lib', icon: faShieldHalved, label: 'Badge Library', to: '/settings/badges' });
-      if (useTickets) secondary.push({ key: 'rewards', icon: faTrophy, label: 'Rewards', to: '/rewards' });
-      secondary.push({ key: 'turns', icon: faArrowsRotate, label: 'Turns', to: '/settings/turns' });
-      if (user?.isAdmin) secondary.push({ key: 'admin', icon: faShieldHalved, label: 'Admin', to: '/admin' });
+      all.push({ key: 'settings', icon: faGear, label: 'Settings', to: '/settings', section: 'settings' });
+      all.push({ key: 'family', icon: faUsers, label: `Family & ${choresLabel}`, to: '/settings/users', section: 'settings' });
+      if (useSets) all.push({ key: 'set-mgmt', icon: faClipboardCheck, label: 'Set Mgmt', to: '/settings/tasks', section: 'settings' });
+      if (useBadges) all.push({ key: 'badge-lib', icon: faShieldHalved, label: 'Badge Library', to: '/settings/badges', section: 'settings' });
+      if (useTickets) all.push({ key: 'rewards', icon: faTrophy, label: 'Rewards', to: '/rewards', section: 'settings' });
+      all.push({ key: 'turns', icon: faArrowsRotate, label: 'Turns', to: '/settings/turns', section: 'settings' });
+      all.push({ key: 'activity', icon: faScroll, label: 'Activity', to: '/family-activity', section: 'settings' });
+      if (user?.isAdmin) all.push({ key: 'admin', icon: faShieldHalved, label: 'Admin', to: '/admin', section: 'admin' });
+      defaults = ['dashboard', 'inbox', defaultMemberId ? 'overview' : null, 'activity'].filter(Boolean);
     } else if (user?.role === 'kid') {
-      primary.push({ key: 'overview', icon: faTachographDigital, label: 'Home', to: `/kid/${user.id}` });
-      primary.push({
-        key: 'chores', icon: faBroom, label: choresLabel, to: `/chores/${user.id}`,
+      all.push({ key: 'overview', icon: faTachographDigital, label: 'Home', to: `/kid/${user.id}`, section: 'main' });
+      all.push({
+        key: 'chores', icon: faBroom, label: choresLabel, to: `/chores/${user.id}`, section: 'main',
         badge: kidStats?.choresRemaining > 0 ? kidStats.choresRemaining : null,
       });
-      if (useTickets) primary.push({ key: 'tickets', icon: faTicket, label: 'Tickets', to: `/tickets/${user.id}`, badge: kidStats?.ticketBalance });
-      else if (useBanking) primary.push({ key: 'bank', icon: faPiggyBank, label: 'Bank', to: `/bank/${user.id}` });
-      primary.push({ key: 'trophies', icon: faTrophy, label: 'Trophies', to: `/trophies/${user.id}` });
-
-      if (claudeAccess) secondary.push({ key: 'apps', icon: faRocket, label: 'Apps', to: '/code-apps' });
-      if (useTickets && useBanking) secondary.push({ key: 'bank', icon: faPiggyBank, label: 'My Bank', to: `/bank/${user.id}` });
-      if (useBadges) secondary.push({ key: 'badges', icon: faShieldHalved, label: 'My Badges', to: `/badges/${user.id}` });
-      if (useSets) secondary.push({ key: 'sets', icon: faMedal, label: 'My Sets', to: `/tasks/${user.id}` });
-      if (useTickets) secondary.push({ key: 'rewards', icon: faTrophy, label: 'Rewards', to: '/rewards' });
+      if (claudeAccess) all.push({ key: 'apps', icon: faRocket, label: 'Apps', to: '/code-apps', section: 'main' });
+      if (useBanking) all.push({ key: 'bank', icon: faPiggyBank, label: 'Bank', to: `/bank/${user.id}`, section: 'main' });
+      if (useTickets) all.push({ key: 'tickets', icon: faTicket, label: 'Tickets', to: `/tickets/${user.id}`, section: 'main', badge: kidStats?.ticketBalance });
+      if (useBadges) all.push({ key: 'badges', icon: faShieldHalved, label: 'My Badges', to: `/badges/${user.id}`, section: 'main' });
+      if (useSets) all.push({ key: 'sets', icon: faMedal, label: 'My Sets', to: `/tasks/${user.id}`, section: 'main' });
+      all.push({ key: 'trophies', icon: faTrophy, label: 'Trophies', to: `/trophies/${user.id}`, section: 'main' });
+      if (useTickets) all.push({ key: 'rewards', icon: faTrophy, label: 'Rewards', to: '/rewards', section: 'main' });
+      defaults = ['overview', 'chores', useTickets ? 'tickets' : (useBanking ? 'bank' : 'trophies'), 'trophies'].filter((k, i, arr) => k && arr.indexOf(k) === i).slice(0, 4);
     }
-    return { primary, secondary };
+    return { allMobileItems: all, defaultPrimaryKeys: defaults };
   }, [user, defaultMemberId, claudeAccess, inboxCount, kidStats, useBanking, useTickets, useSets, useBadges, choresLabel, setsStepsLabel]);
+
+  // ── Persisted per-user menubar layout ──
+  // Loaded from the family-members payload by applyMenubarFromMember above
+  // (the user row's `menubar_layout` TEXT column → JSON). Edits update
+  // local state immediately and a debounced effect saves to the server so
+  // it follows the user across devices.
+  const [primaryKeys, setPrimaryKeys] = useState(null);
+  // Tracks the most recently persisted JSON so we don't re-save the value
+  // that just came down from the server.
+  const lastSavedRef = useRef(null);
+  useEffect(() => {
+    if (!user || !primaryKeys) return;
+    const json = JSON.stringify(primaryKeys);
+    if (lastSavedRef.current === json) return;
+    const t = setTimeout(() => {
+      lastSavedRef.current = json;
+      familyApi.updateMenubar(user.id, primaryKeys).catch(() => { /* silent — local UI already updated */ });
+    }, 500);
+    return () => clearTimeout(t);
+  }, [primaryKeys, user?.id]);
+
+  // Resolved primary / grouped secondary derived each render.
+  const effectivePrimaryKeys = primaryKeys || defaultPrimaryKeys;
+  const mobilePrimary = effectivePrimaryKeys
+    .map((k) => allMobileItems.find((i) => i.key === k))
+    .filter(Boolean);
+  const mobileSecondary = allMobileItems.filter((i) => !effectivePrimaryKeys.includes(i.key));
+  const secondaryBySection = mobileSecondary.reduce((acc, item) => {
+    (acc[item.section] = acc[item.section] || []).push(item);
+    return acc;
+  }, {});
+
+  // Edit-mode state (lives in More sheet).
+  const [editMode, setEditMode] = useState(false);
+  const [editSelectedKey, setEditSelectedKey] = useState(null);
+  // Tap-to-swap. Selecting an item then tapping another swaps them in
+  // primaryKeys. Tapping the same item again deselects.
+  const handleEditTap = (key) => {
+    if (!editSelectedKey) { setEditSelectedKey(key); return; }
+    if (editSelectedKey === key) { setEditSelectedKey(null); return; }
+    const a = editSelectedKey;
+    const b = key;
+    const next = [...effectivePrimaryKeys];
+    const aIdx = next.indexOf(a);
+    const bIdx = next.indexOf(b);
+    if (aIdx >= 0 && bIdx >= 0) {
+      // Both in primary — reorder.
+      [next[aIdx], next[bIdx]] = [next[bIdx], next[aIdx]];
+    } else if (aIdx >= 0 && bIdx < 0) {
+      // a is primary, b is secondary — promote b, demote a.
+      next[aIdx] = b;
+    } else if (aIdx < 0 && bIdx >= 0) {
+      // a is secondary, b is primary — promote a, demote b.
+      next[bIdx] = a;
+    }
+    // (both secondary: no-op; not meaningful)
+    setPrimaryKeys(next);
+    setEditSelectedKey(null);
+  };
 
   return (
     <div className="flex h-dvh bg-gray-50 dark:bg-gray-900">
@@ -727,97 +801,193 @@ export default function Layout() {
       {/* ── Mobile floating bottom bar + More sheet ──
           Replaces the vertical aside below lg. Floats above the page with
           a small margin on all sides; safe-area-inset-bottom is honored so
-          iOS home-indicator clears it. */}
+          iOS home-indicator clears it. The More sheet sits ABOVE the bar
+          (not over it), and exposes an Edit button for swapping primary
+          slots — saved per-user so the layout follows the user across
+          devices. */}
       {isNarrow && (
         <>
+          {/* Bottom bar — z-50 so it stays on top of the More sheet (z-40)
+              and the More-sheet backdrop (z-30). */}
           <div
-            className="fixed left-2 right-2 z-30 h-14 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-[0_8px_24px_rgba(0,0,0,0.14)] flex items-stretch"
+            className="fixed left-2 right-2 z-50 h-14 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-[0_8px_24px_rgba(0,0,0,0.14)] flex items-stretch"
             style={{ bottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}
             role="navigation"
             aria-label="Primary"
           >
-            {mobileItems.primary.map((item) => (
-              <NavLink
-                key={item.key}
-                to={item.to}
-                end={item.to === '/dashboard'}
-                className={({ isActive }) => `flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 px-1 relative transition-colors ${
-                  isActive
-                    ? 'text-brand-600 dark:text-brand-400'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                }`}
-              >
-                <FontAwesomeIcon icon={item.icon} className="text-[17px]" />
-                <span className="text-[10px] font-medium leading-none truncate max-w-full px-0.5">{item.label}</span>
-                {item.badge != null && item.badge !== 0 && (
-                  <span className="absolute top-1 right-2 min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-semibold flex items-center justify-center leading-none">
-                    {item.badge}
-                  </span>
-                )}
-              </NavLink>
-            ))}
+            {mobilePrimary.map((item) => {
+              const isSelected = editMode && editSelectedKey === item.key;
+              const slotClasses = `flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 px-1 relative transition-all ${
+                isSelected ? 'bg-brand-50 dark:bg-brand-900/30 rounded-xl scale-[0.97]' : ''
+              }`;
+              const content = (
+                <>
+                  <FontAwesomeIcon icon={item.icon} className={`text-[17px] ${isSelected ? 'text-brand-600 dark:text-brand-300' : ''}`} />
+                  <span className={`text-[10px] font-medium leading-none truncate max-w-full px-0.5 ${isSelected ? 'text-brand-600 dark:text-brand-300' : ''}`}>{item.label}</span>
+                  {item.badge != null && item.badge !== 0 && (
+                    <span className="absolute top-1 right-2 min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-semibold flex items-center justify-center leading-none">
+                      {item.badge}
+                    </span>
+                  )}
+                </>
+              );
+              return editMode ? (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => handleEditTap(item.key)}
+                  className={`${slotClasses} ${isSelected ? '' : 'text-gray-500 dark:text-gray-400'}`}
+                  aria-label={`Edit slot: ${item.label}`}
+                  aria-pressed={isSelected}
+                >
+                  {content}
+                </button>
+              ) : (
+                <NavLink
+                  key={item.key}
+                  to={item.to}
+                  end={item.to === '/dashboard'}
+                  className={({ isActive }) => `${slotClasses} ${
+                    isActive
+                      ? 'text-brand-600 dark:text-brand-400'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  }`}
+                >
+                  {content}
+                </NavLink>
+              );
+            })}
             <button
               type="button"
-              onClick={() => setMoreOpen(true)}
+              onClick={() => setMoreOpen((o) => !o)}
               className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 px-1 transition-colors ${
                 moreOpen ? 'text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
               aria-label="More options"
+              aria-expanded={moreOpen}
             >
-              <FontAwesomeIcon icon={faEllipsis} className="text-[17px]" />
+              <FontAwesomeIcon icon={moreOpen ? faXmark : faEllipsis} className="text-[17px]" />
               <span className="text-[10px] font-medium leading-none">More</span>
             </button>
           </div>
 
           {moreOpen && (
             <>
+              {/* Backdrop stops above the bar so the bar stays visible &
+                  tappable. */}
               <div
-                className="fixed inset-0 z-40 bg-black/40"
-                onClick={() => setMoreOpen(false)}
+                className="fixed left-0 right-0 top-0 z-30 bg-black/40"
+                style={{ bottom: 'calc(env(safe-area-inset-bottom) + 4rem)' }}
+                onClick={() => { setMoreOpen(false); setEditMode(false); setEditSelectedKey(null); }}
                 aria-hidden="true"
               />
+              {/* Sheet sits ABOVE the bar; its bottom edge meets the bar's
+                  top edge with a small gap. */}
               <div
-                className="fixed left-0 right-0 z-50 bg-white dark:bg-gray-800 rounded-t-2xl shadow-[0_-8px_24px_rgba(0,0,0,0.2)] max-h-[80vh] overflow-y-auto"
-                style={{ bottom: 0, paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
+                className="fixed left-0 right-0 z-40 bg-white dark:bg-gray-800 rounded-t-2xl shadow-[0_-8px_24px_rgba(0,0,0,0.2)] max-h-[70vh] overflow-y-auto"
+                style={{ bottom: 'calc(env(safe-area-inset-bottom) + 4rem)' }}
                 role="dialog"
                 aria-modal="true"
                 aria-label="More menu"
               >
-                <div className="sticky top-0 bg-white dark:bg-gray-800 px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">More</h2>
-                  <button
-                    type="button"
-                    onClick={() => setMoreOpen(false)}
-                    className="p-1 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    aria-label="Close more menu"
-                  >
-                    <FontAwesomeIcon icon={faXmark} className="text-base" />
-                  </button>
+                <div className="sticky top-0 bg-white dark:bg-gray-800 px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                    {editMode ? 'Customize menubar' : 'More'}
+                  </h2>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => { setEditMode((m) => !m); setEditSelectedKey(null); }}
+                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                        editMode
+                          ? 'bg-brand-600 text-white hover:bg-brand-700'
+                          : 'text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-gray-700'
+                      }`}
+                      aria-pressed={editMode}
+                    >
+                      {editMode ? 'Done' : 'Edit'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setMoreOpen(false); setEditMode(false); setEditSelectedKey(null); }}
+                      className="p-1 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      aria-label="Close more menu"
+                    >
+                      <FontAwesomeIcon icon={faXmark} className="text-base" />
+                    </button>
+                  </div>
                 </div>
 
-                {/* Overflow nav items as a 4-column icon+label grid. */}
-                {mobileItems.secondary.length > 0 && (
-                  <div className="grid grid-cols-4 gap-1 p-3">
-                    {mobileItems.secondary.map((item) => (
-                      <NavLink
-                        key={item.key}
-                        to={item.to}
-                        onClick={() => setMoreOpen(false)}
-                        className={({ isActive }) => `flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-lg transition-colors ${
-                          isActive
-                            ? 'bg-brand-50 text-brand-700 dark:bg-gray-700 dark:text-brand-400'
-                            : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        <FontAwesomeIcon icon={item.icon} className="text-lg" />
-                        <span className="text-[11px] font-medium leading-tight text-center break-words">{item.label}</span>
-                      </NavLink>
-                    ))}
+                {editMode && (
+                  <div className="px-4 py-2 text-[12px] text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
+                    {editSelectedKey
+                      ? <>Tap another icon to <strong>swap</strong>, or tap the selected one again to cancel.</>
+                      : <>Tap any icon (on the bar below or in the grid) to start a swap.</>}
                   </div>
                 )}
 
+                {/* Overflow nav items, grouped by section. */}
+                {['main', 'individual', 'settings', 'admin'].map((sec) => {
+                  const items = secondaryBySection[sec];
+                  if (!items?.length) return null;
+                  const heading = {
+                    main: null, // ungrouped
+                    individual: 'Individual Pages',
+                    settings: 'Settings',
+                    admin: 'Admin',
+                  }[sec];
+                  return (
+                    <div key={sec}>
+                      {heading && (
+                        <div className="px-4 pt-3 pb-1 text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                          {heading}
+                        </div>
+                      )}
+                      <div className="grid grid-cols-4 gap-1 px-3 pb-2">
+                        {items.map((item) => {
+                          const isSelected = editMode && editSelectedKey === item.key;
+                          const tileClasses = `flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-lg transition-all ${
+                            isSelected
+                              ? 'bg-brand-100 dark:bg-brand-900/40 ring-2 ring-brand-400 scale-[0.97]'
+                              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          }`;
+                          const inner = (
+                            <>
+                              <FontAwesomeIcon icon={item.icon} className={`text-lg ${isSelected ? 'text-brand-600 dark:text-brand-300' : ''}`} />
+                              <span className={`text-[11px] font-medium leading-tight text-center break-words ${isSelected ? 'text-brand-700 dark:text-brand-200' : ''}`}>{item.label}</span>
+                            </>
+                          );
+                          return editMode ? (
+                            <button
+                              key={item.key}
+                              type="button"
+                              onClick={() => handleEditTap(item.key)}
+                              className={tileClasses}
+                              aria-label={`Edit: ${item.label}`}
+                              aria-pressed={isSelected}
+                            >
+                              {inner}
+                            </button>
+                          ) : (
+                            <NavLink
+                              key={item.key}
+                              to={item.to}
+                              onClick={() => setMoreOpen(false)}
+                              className={({ isActive }) => `${tileClasses} ${
+                                isActive ? 'bg-brand-50 text-brand-700 dark:bg-gray-700 dark:text-brand-400' : ''
+                              }`}
+                            >
+                              {inner}
+                            </NavLink>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+
                 {/* Pending-deposit shortcut (kid only) */}
-                {(kidStats?.pendingDepositCount || dexiePendingDepositCount) > 0 && (
+                {!editMode && (kidStats?.pendingDepositCount || dexiePendingDepositCount) > 0 && (
                   <button
                     onClick={() => { setMoreOpen(false); navigate(`/bank/${user.id}`, { state: { openReceive: true } }); }}
                     className="mx-3 mb-2 w-[calc(100%-1.5rem)] flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-sm font-semibold hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
@@ -827,42 +997,45 @@ export default function Layout() {
                   </button>
                 )}
 
-                {/* Profile / theme / sign-out */}
-                <div className="border-t border-gray-100 dark:border-gray-700 p-3 space-y-1">
-                  <button
-                    type="button"
-                    onClick={() => { setMoreOpen(false); setEmojiOpen(true); }}
-                    className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
-                  >
-                    <Avatar name={user?.name || '?'} color={user?.avatarColor || '#6366f1'} emoji={user?.avatarEmoji} size="sm" />
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-sm font-medium truncate">{user?.name}</span>
-                      <span className="block text-xs text-gray-400 dark:text-gray-500 capitalize">{user?.role}</span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={toggleTheme}
-                    className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
-                  >
-                    <span className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300">
-                      {isDark ? <SunIcon /> : <MoonIcon />}
-                    </span>
-                    <span className="text-sm font-medium">{isDark ? 'Switch to light mode' : 'Switch to dark mode'}</span>
-                  </button>
-                  {user?.role !== 'kid' && (
+                {/* Profile / theme / sign-out — hidden in edit mode to keep
+                    focus on the swap UX. */}
+                {!editMode && (
+                  <div className="border-t border-gray-100 dark:border-gray-700 p-3 space-y-1">
                     <button
                       type="button"
-                      onClick={() => { setMoreOpen(false); handleLogout(); }}
+                      onClick={() => { setMoreOpen(false); setEmojiOpen(true); }}
+                      className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
+                    >
+                      <Avatar name={user?.name || '?'} color={user?.avatarColor || '#6366f1'} emoji={user?.avatarEmoji} size="sm" />
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-sm font-medium truncate">{user?.name}</span>
+                        <span className="block text-xs text-gray-400 dark:text-gray-500 capitalize">{user?.role}</span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggleTheme}
                       className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
                     >
                       <span className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300">
-                        <FontAwesomeIcon icon={faRightFromBracket} />
+                        {isDark ? <SunIcon /> : <MoonIcon />}
                       </span>
-                      <span className="text-sm font-medium">Sign out</span>
+                      <span className="text-sm font-medium">{isDark ? 'Switch to light mode' : 'Switch to dark mode'}</span>
                     </button>
-                  )}
-                </div>
+                    {user?.role !== 'kid' && (
+                      <button
+                        type="button"
+                        onClick={() => { setMoreOpen(false); handleLogout(); }}
+                        className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
+                      >
+                        <span className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300">
+                          <FontAwesomeIcon icon={faRightFromBracket} />
+                        </span>
+                        <span className="text-sm font-medium">Sign out</span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}

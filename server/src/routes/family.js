@@ -39,7 +39,7 @@ router.get('/', authenticate, (req, res, next) => {
     const members = db.prepare(`
       SELECT u.id, u.name, u.username, u.email, u.role, u.avatar_color, u.avatar_emoji, u.ticket_balance,
              u.is_active, u.sort_order, u.show_on_dashboard, u.show_balance_on_dashboard, u.require_task_approval,
-             u.require_set_approval, u.allow_transfers, u.allow_withdraws, u.require_currency_work, u.chores_enabled, u.allow_login, u.claude_enabled, u.claude_time_limit, u.claude_model, u.public_slug, u.badge_level, u.max_active_badges, u.created_at,
+             u.require_set_approval, u.allow_transfers, u.allow_withdraws, u.require_currency_work, u.chores_enabled, u.allow_login, u.claude_enabled, u.claude_time_limit, u.claude_model, u.public_slug, u.badge_level, u.max_active_badges, u.menubar_layout, u.created_at,
              COALESCE(ct.daily_potential, 0) AS daily_ticket_potential
       FROM users u
       LEFT JOIN (
@@ -174,6 +174,33 @@ router.patch('/users/:id/color', authenticate, async (req, res, next) => {
     const { avatar_color } = ColorSchema.parse(req.body);
     db.prepare('UPDATE users SET avatar_color = ? WHERE id = ?').run(avatar_color, userId);
     res.json({ ok: true, avatar_color });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── PATCH /api/family/users/:id/menubar ──────────────────────────────────────
+// Self-or-parent: update which item keys occupy the mobile bottom-bar's
+// primary slots. Stored as JSON {"primary":[key,...]}. Server doesn't
+// validate keys against any whitelist — the client self-heals stale keys.
+
+const MenubarSchema = z.object({
+  primary: z.array(z.string().min(1).max(40)).max(8),
+});
+
+router.patch('/users/:id/menubar', authenticate, (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (req.user.role !== 'parent' && req.user.userId !== userId) {
+      return res.status(403).json({ error: 'Forbidden.' });
+    }
+    const target = db.prepare('SELECT id FROM users WHERE id = ? AND family_id = ?').get(userId, req.user.familyId);
+    if (!target) return res.status(404).json({ error: 'User not found.' });
+
+    const { primary } = MenubarSchema.parse(req.body);
+    const json = JSON.stringify({ primary });
+    db.prepare('UPDATE users SET menubar_layout = ? WHERE id = ?').run(json, userId);
+    res.json({ ok: true, menubar_layout: { primary } });
   } catch (err) {
     next(err);
   }

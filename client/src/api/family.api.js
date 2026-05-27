@@ -10,6 +10,7 @@ export const familyApi = {
   reorderUsers: (order) => client.put('/family/users/reorder', { order }).then((r) => r.data),
   updateEmoji: (id, emoji) => client.patch(`/family/users/${id}/emoji`, { avatar_emoji: emoji }).then((r) => r.data),
   updateColor: (id, color) => client.patch(`/family/users/${id}/color`, { avatar_color: color }).then((r) => r.data),
+  updateMenubar: (id, primary) => client.patch(`/family/users/${id}/menubar`, { primary }).then((r) => r.data),
   getSettings: () => client.get('/family/settings').then((r) => r.data),
   updateSettings: (data) => client.patch('/family/settings', data).then((r) => r.data),
 };
