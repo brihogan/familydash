@@ -1723,64 +1723,66 @@ export default function UserTaskDetailPage() {
               )}
             </div>{/* /flex header */}
             {taskSet.description && (
-              <>
-                <p
-                  ref={descRef}
-                  className={`text-sm text-gray-500 dark:text-gray-400 mt-1 leading-snug text-left ${
-                    descExpanded ? '' : 'line-clamp-2'
-                  }`}
-                >
-                  {taskSet.description}
-                </p>
-                {descOverflowing && (
-                  <button
-                    type="button"
-                    onClick={() => setDescExpanded((v) => !v)}
-                    className="mt-0.5 text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
-                  >
-                    {descExpanded ? 'Show less' : 'Show more…'}
-                  </button>
-                )}
-              </>
+              <p
+                ref={descRef}
+                className={`text-sm text-gray-500 dark:text-gray-400 mt-1 leading-snug text-left ${
+                  descExpanded ? '' : 'line-clamp-2'
+                }`}
+              >
+                {taskSet.description}
+              </p>
             )}
-            <div className="flex flex-wrap items-center gap-1.5 mt-2 justify-start">
-              <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full whitespace-nowrap">
-                {taskSet.type}
-              </span>
-              {taskSet.category && !taskSet.is_award && (
-                <span className="px-2 py-0.5 text-xs font-medium bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-100 border border-brand-200 dark:border-brand-500/30 rounded-full whitespace-nowrap">
-                  {taskSet.category}
+            {/* Single toggle reveals both the full description (if it
+                overflows) AND the pill row beneath. Pills are always
+                present (type / level / progress), so the toggle is always
+                rendered. */}
+            <button
+              type="button"
+              onClick={() => setDescExpanded((v) => !v)}
+              className="mt-0.5 text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
+            >
+              {descExpanded ? 'Show less' : 'Show more…'}
+            </button>
+            {descExpanded && (
+              <div className="flex flex-wrap items-center gap-1.5 mt-2 justify-start">
+                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full whitespace-nowrap">
+                  {taskSet.type}
                 </span>
-              )}
-              {Array.isArray(taskSet.tags) && taskSet.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 whitespace-nowrap"
-                >
-                  {tag}
-                </span>
-              ))}
-              {taskSet.badge_level && BADGE_LEVELS[taskSet.badge_level] && (() => {
-                const lvl = BADGE_LEVELS[taskSet.badge_level];
-                return (
-                  <span
-                    className="px-2 py-0.5 text-xs font-semibold rounded-full border whitespace-nowrap"
-                    style={{ backgroundColor: lvl.color, color: lvl.textColor, borderColor: lvl.borderColor }}
-                  >
-                    {lvl.label}
+                {taskSet.category && !taskSet.is_award && (
+                  <span className="px-2 py-0.5 text-xs font-medium bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-100 border border-brand-200 dark:border-brand-500/30 rounded-full whitespace-nowrap">
+                    {taskSet.category}
                   </span>
-                );
-              })()}
-              {totalCount > 0 && (
-                <span className={`px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${
-                  allDone
-                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-                }`}>
-                  {allDone ? '🎉 Done' : `${completedCount}/${totalCount}`}
-                </span>
-              )}
-            </div>
+                )}
+                {Array.isArray(taskSet.tags) && taskSet.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 whitespace-nowrap"
+                  >
+                    {tag}
+                  </span>
+                ))}
+                {taskSet.badge_level && BADGE_LEVELS[taskSet.badge_level] && (() => {
+                  const lvl = BADGE_LEVELS[taskSet.badge_level];
+                  return (
+                    <span
+                      className="px-2 py-0.5 text-xs font-semibold rounded-full border whitespace-nowrap"
+                      style={{ backgroundColor: lvl.color, color: lvl.textColor, borderColor: lvl.borderColor }}
+                    >
+                      {lvl.label}
+                    </span>
+                  );
+                })()}
+                {totalCount > 0 && (
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${
+                    allDone
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                  }`}>
+                    {allDone ? '🎉 Done' : `${completedCount}/${totalCount}`}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
