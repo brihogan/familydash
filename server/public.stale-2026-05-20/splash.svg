@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1170 2532">
+  <rect width="1170" height="2532" fill="#6366f1"/>
+  <!-- Icon centered -->
+  <g transform="translate(435, 966)">
+    <polygon points="150,0 300,105 0,105" fill="white"/>
+    <circle cx="90" cy="155" r="22" fill="white"/>
+    <path d="M60,225 C60,200 72,184 90,184 C108,184 120,200 120,225 Z" fill="white"/>
+    <circle cx="150" cy="162" r="17" fill="white"/>
+    <path d="M126,225 C126,205 136,192 150,192 C164,192 174,205 174,225 Z" fill="white"/>
+    <circle cx="210" cy="155" r="22" fill="white"/>
+    <path d="M180,225 C180,200 192,184 210,184 C228,184 240,200 240,225 Z" fill="white"/>
+    <rect x="40" y="225" width="220" height="12" rx="6" fill="white"/>
+  </g>
+  <!-- App name -->
+  <text x="585" y="1380" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="72" font-weight="700" fill="white">Family Dash</text>
+</svg>
