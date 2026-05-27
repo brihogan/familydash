@@ -18,9 +18,9 @@
     {
       "name": "API Server",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "server", "--", "--env-file=../.env"],
-      "port": 4000,
-      "autoPort": true
+      "runtimeArgs": ["run", "dev:envfile", "--prefix", "server"],
+      "port": 3010,
+      "autoPort": false
     }
   ]
 }

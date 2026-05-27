@@ -10,6 +10,22 @@
   ```
   Use `persistent: true` so it runs for the whole session.
 
+## Auto-start the API server when needed
+
+Before any task that hits the API (login flows, badge data, task assignments, anything calling `/api/...`), check that the server is up. If `curl -sf -m 2 http://localhost:3010/api/health` returns nothing, **immediately** start it — don't wait for the user to ask.
+
+Two equivalent ways to start it:
+
+1. **Monitor (preferred for active sessions)** — surfaces errors as real-time notifications:
+   ```
+   cd /Users/bhogan/SynologyDrive/Code/FamilyDash/server && node --watch --env-file=../.env index.js 2>&1 | grep --line-buffered -E "(error|Error|ERROR|warn|WARN|Restart|restart|\[ws\]|\[mp\]|running on port|Unhandled|uncaught|Cannot|EADDRINUSE)"
+   ```
+   With `persistent: true`.
+
+2. **One-shot helper** — `./scripts/ensure-server.sh` — idempotent, exits 0 if already up or after successfully starting in the background. Use this when you don't need Monitor notifications and just want to verify the server is running before a script call.
+
+Either way, the user shouldn't have to ask "server is down" anymore.
+
 ## Deploying kid container changes
 
 When `docker/claude-code/CLAUDE.md.template` or `docker/claude-code/Dockerfile` changes, the
