@@ -1033,6 +1033,27 @@ export default function UserTaskDetailPage() {
   const [descExpanded,     setDescExpanded]     = useState(false);
   // Info popover (tags + assigned date) anchored under the Archive button.
   const [infoOpen,         setInfoOpen]         = useState(false);
+  // Sticky compact header — appears once the big badge has scrolled
+  // offscreen. Tracks intersection of a sentinel placed at the bottom
+  // of the main badge header below.
+  const [stickyHeaderVisible, setStickyHeaderVisible] = useState(false);
+  // Use a callback ref so the observer attaches as soon as the sentinel
+  // node appears (which only happens after the loading skeleton swaps out
+  // for the real header).
+  const setHeaderSentinelRef = useCallback((node) => {
+    if (!node) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setStickyHeaderVisible(
+        !entry.isIntersecting && entry.boundingClientRect.top < 0
+      ),
+      { rootMargin: '0px', threshold: 0 },
+    );
+    obs.observe(node);
+    // Disconnect on a subsequent render that drops the node — React calls
+    // the callback ref with `null` then.
+    setHeaderSentinelRef.cleanup = () => obs.disconnect();
+  }, []);
+  useEffect(() => () => setHeaderSentinelRef.cleanup?.(), [setHeaderSentinelRef]);
   // Shared popover content — rendered next to whichever info button is
   // visible (mobile column or desktop title-row cluster).
   const infoPopover = () => (
@@ -1897,6 +1918,51 @@ export default function UserTaskDetailPage() {
               </button>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Sentinel — watched by the IntersectionObserver above. When its top
+          edge goes above the viewport, the compact sticky header fades in. */}
+      <div ref={setHeaderSentinelRef} aria-hidden="true" />
+
+      {/* ── Sticky compact header ──
+          One-row replacement for the big badge header — shows once the user
+          has scrolled the badge offscreen. Back chevron + tiny badge icon +
+          truncated title. Hidden (zero-height) when the badge is still in
+          view, so it doesn't take layout space at the top of the page. */}
+      <div
+        className={`sticky -top-4 lg:-top-6 z-20 -mx-4 lg:-mx-6 mb-4 transition-all duration-150 ${
+          stickyHeaderVisible
+            ? 'opacity-100 visible'
+            : 'opacity-0 invisible pointer-events-none -mb-4 h-0 overflow-hidden'
+        }`}
+      >
+        <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur border-b border-gray-200 dark:border-gray-700 shadow-sm flex items-center gap-2 px-3 py-2 min-h-[3rem]">
+          <button
+            type="button"
+            onClick={goBack}
+            className="shrink-0 w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            aria-label="Go back"
+          >
+            <FontAwesomeIcon icon={faChevronLeft} className="text-base" />
+          </button>
+          <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+            {taskSet.badge_image_file ? (
+              <img
+                src={`/api/uploads/badges/${taskSet.badge_image_file}`}
+                alt=""
+                className="w-full h-full object-cover dark:brightness-75 dark:contrast-110"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            ) : (
+              <span className="text-base leading-none">
+                <IconDisplay value={taskSet.emoji} fallback={taskSet.is_award ? '🏆' : '📋'} />
+              </span>
+            )}
+          </div>
+          <h2 className="flex-1 min-w-0 text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+            {taskSet.name}
+          </h2>
         </div>
       </div>
 
