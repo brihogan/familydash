@@ -73,8 +73,15 @@ function stripLevelRef(text) {
     /^Do\s+(?:Preschool|Level\s*\d+)\s+requirements?\s*(?:#\s*|number\s+)?\d+(?:\s*(?:&|and|,)\s*#?\s*\d+)*\s*[,.]?\s*/i,
     ''
   );
-  // Fragment left behind by a partial author edit ("and 2", "& 2", "but X").
+  // Fragment left behind by a partial author edit: "and 2", "& 2", "but #3"
+  // (the cross-ref fragment with a numeric reference).
   t = t.replace(/^(and|or|but|&)\s+#?\d+\s*[,.]?\s*/i, '');
+  // Conjunction fragment with a continuation word ("but identify…",
+  // "and learn…"). When CU authors write "Do Level N requirement 2,
+  // but identify at least 5 species" we want just "Identify at least 5
+  // species." after the cross-ref is stripped. Drop the conjunction and
+  // capitalize the next word.
+  t = t.replace(/^(and|but|also|or)\s+(\w)/i, (_, _conj, ch) => ch.toUpperCase());
   return t.trim();
 }
 
