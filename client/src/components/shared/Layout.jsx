@@ -350,11 +350,13 @@ export default function Layout() {
     </>
   );
 
-  const Nav = ({ collapsed = false }) => {
+  const Nav = ({ collapsed = false, horizontal = false }) => {
   const navClass = makeNavClass(collapsed);
   const kidPathClass = makeKidPathClass(collapsed);
   return (
-    <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-4 space-y-1 text-sm">
+    <nav className={horizontal
+      ? 'flex-1 min-w-0 overflow-x-auto overscroll-contain flex flex-row items-center gap-1 px-2 text-sm'
+      : 'flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-4 space-y-1 text-sm'}>
       <NavLink to="/dashboard" className={navClass} onClick={close} title="Dashboard">
         <FontAwesomeIcon icon={faHouse} className="w-4 shrink-0" />
         <Lbl>Dashboard</Lbl>
@@ -562,25 +564,33 @@ export default function Layout() {
       )}
 
       {/* ── Sidebar ──
-          Always visible. Below lg the sidebar is forced to its icon-only
-          width (replacing the old hamburger + drawer). On lg+ the user's
-          saved `sidebarCollapsed` preference controls the width.
+          On lg+ this is a vertical sidebar (icon-only when collapsed, full
+          width when expanded — controlled by the user's `sidebarCollapsed`
+          preference). Below lg it becomes a fixed bottom menubar with the
+          same icons laid out horizontally; the user's preference is ignored
+          since there's no room for labels.
           [&_[data-nav-label]]:hidden hides text labels in collapsed mode,
-          [&_[data-nav-badge]]:hidden drops the inline count chips, and
-          [&_[data-nav-divider]]:block swaps section headers for hr's. */}
+          [&_[data-nav-badge]]:hidden drops the inline count chips. The
+          divider swap only happens on lg+ (no room horizontally). */}
       <aside
         ref={asideRef}
         onMouseOver={handleSidebarMouseOver}
         onMouseOut={handleSidebarMouseOut}
-        className={`flex flex-col shrink-0 bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 shadow-sm transition-[width] duration-200 ${
-          effectiveCollapsed
-            ? 'w-14 [&_[data-nav-label]]:hidden [&_[data-nav-badge]]:hidden [&_[data-nav-divider]]:block'
-            : 'w-56'
+        className={`bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 ${
+          isNarrow
+            ? 'fixed bottom-0 left-0 right-0 z-30 h-14 w-full flex flex-row items-center border-t shadow-[0_-2px_8px_rgba(0,0,0,0.05)] [&_[data-nav-label]]:hidden [&_[data-nav-badge]]:hidden'
+            : `flex flex-col shrink-0 border-r shadow-sm transition-[width] duration-200 ${
+                sidebarCollapsed
+                  ? 'w-14 [&_[data-nav-label]]:hidden [&_[data-nav-badge]]:hidden [&_[data-nav-divider]]:block'
+                  : 'w-56'
+              }`
         }`}
+        style={isNarrow ? { paddingBottom: 'env(safe-area-inset-bottom)' } : undefined}
       >
         {/* Sidebar header — title or just the icon when collapsed, plus a
-            toggle button on the right (or stacked when collapsed). */}
-        <div className={`border-b border-gray-100 dark:border-gray-700 ${effectiveCollapsed ? 'px-2 py-3 flex flex-col items-center gap-2' : 'px-4 py-5 flex items-center justify-between'}`}>
+            toggle button on the right (or stacked when collapsed). Hidden
+            in mobile bottom-bar mode (no vertical room). */}
+        <div className={`border-b border-gray-100 dark:border-gray-700 ${isNarrow ? 'hidden' : ''} ${effectiveCollapsed ? 'px-2 py-3 flex flex-col items-center gap-2' : 'px-4 py-5 flex items-center justify-between'}`}>
           <Link
             to="/dashboard"
             className={`font-bold text-brand-600 hover:text-brand-700 ${effectiveCollapsed ? 'text-xl' : 'text-lg'}`}
@@ -611,10 +621,11 @@ export default function Layout() {
           </button>
         </div>
 
-        <Nav collapsed={effectiveCollapsed} />
+        <Nav collapsed={effectiveCollapsed} horizontal={isNarrow} />
 
-        {/* Pending deposit banner (kid only) */}
-        {(kidStats?.pendingDepositCount || dexiePendingDepositCount) > 0 && (
+        {/* Pending deposit banner (kid only). Hidden in mobile bottom-bar
+            mode — there's no room and the Bank icon already conveys it. */}
+        {!isNarrow && (kidStats?.pendingDepositCount || dexiePendingDepositCount) > 0 && (
           <button
             onClick={() => navigate(`/bank/${user.id}`, { state: { openReceive: true } })}
             className={`mx-3 mb-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-semibold hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors ${effectiveCollapsed ? 'justify-center' : ''}`}
@@ -626,8 +637,14 @@ export default function Layout() {
         )}
 
         {/* User info + theme toggle + logout — stacks when collapsed so the
-            avatar + icons keep the same touch targets. */}
-        <div className={`border-t border-gray-100 dark:border-gray-700 ${effectiveCollapsed ? 'px-2 py-3 flex flex-col items-center gap-2' : 'px-4 py-4 flex items-center gap-3'}`}>
+            avatar + icons keep the same touch targets. In mobile bottom-bar
+            mode this becomes a small cluster on the right end of the bar
+            (avatar + theme; logout dropped to save room). */}
+        <div className={`border-gray-100 dark:border-gray-700 ${
+          isNarrow
+            ? 'shrink-0 border-l px-2 h-full flex flex-row items-center gap-1'
+            : `border-t ${effectiveCollapsed ? 'px-2 py-3 flex flex-col items-center gap-2' : 'px-4 py-4 flex items-center gap-3'}`
+        }`}>
           <button
             type="button"
             onClick={() => setEmojiOpen(true)}
@@ -734,7 +751,14 @@ export default function Layout() {
         </header>
 
         {/* Page content */}
-        <main className={`flex-1 overflow-x-hidden overflow-y-auto p-4 lg:p-6 ${bottomPanelOpen ? 'overflow-hidden' : ''}`} style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+        <main
+          className={`flex-1 overflow-x-hidden overflow-y-auto p-4 lg:p-6 ${bottomPanelOpen ? 'overflow-hidden' : ''}`}
+          // On mobile the sidebar lives at the bottom as a 56px menubar, so
+          // pad the scroll area so its last bit of content clears the bar.
+          style={{ paddingBottom: isNarrow
+            ? 'calc(3.5rem + 1rem + env(safe-area-inset-bottom))'
+            : 'max(1rem, env(safe-area-inset-bottom))' }}
+        >
           <div className="max-w-6xl mx-auto">
             <Outlet />
           </div>
