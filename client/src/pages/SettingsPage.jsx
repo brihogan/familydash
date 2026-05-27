@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faGear, faUsers, faClipboardCheck, faTrophy, faArrowsRotate } from '@fortawesome/free-solid-svg-icons';
+import { faGear, faUsers, faClipboardCheck, faTrophy, faArrowsRotate, faShieldHalved } from '@fortawesome/free-solid-svg-icons';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { familyApi } from '../api/family.api.js';
 
@@ -18,6 +18,12 @@ function buildSettingsCards(choresLabel) {
     icon:        faClipboardCheck,
     label:       'Set Management',
     description: 'Create and assign task sets and awards.',
+  },
+  {
+    to:          '/settings/badges',
+    icon:        faShieldHalved,
+    label:       'Badge Library',
+    description: 'Browse and manage the Curiosity Untamed badge library.',
   },
   {
     to:          '/rewards',
@@ -106,6 +112,35 @@ export default function SettingsPage() {
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           Manage your family dashboard configuration.
         </p>
+      </div>
+
+      {/* ── Section links ──
+          Up top so the main settings sub-pages are one tap away when a
+          parent lands on /settings. The feature toggles + labels live
+          below for occasional configuration. */}
+      <div className="mb-6 space-y-3">
+        <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Sections</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {SETTINGS_CARDS
+            .filter(({ to }) => (useTickets || to !== '/rewards')
+              && (useSets || to !== '/settings/tasks')
+              && (useBadges || to !== '/settings/badges'))
+            .map(({ to, icon, label, description }) => (
+              <button
+                key={to}
+                onClick={() => navigate(to)}
+                className="text-left p-5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-brand-300 dark:hover:border-brand-500/50 hover:shadow-sm transition-all"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-500/20 flex items-center justify-center text-brand-600 dark:text-brand-400">
+                    <FontAwesomeIcon icon={icon} />
+                  </span>
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">{label}</h3>
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
+              </button>
+            ))}
+        </div>
       </div>
 
       {/* ── Feature toggles ── */}
@@ -232,27 +267,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* ── Section links ── */}
-      <div className="space-y-3">
-        <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Sections</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {SETTINGS_CARDS.filter(({ to }) => (useTickets || to !== '/rewards') && (useSets || to !== '/settings/tasks')).map(({ to, icon, label, description }) => (
-            <button
-              key={to}
-              onClick={() => navigate(to)}
-              className="text-left p-5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-brand-300 dark:hover:border-brand-500/50 hover:shadow-sm transition-all"
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <span className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-500/20 flex items-center justify-center text-brand-600 dark:text-brand-400">
-                  <FontAwesomeIcon icon={icon} />
-                </span>
-                <h3 className="font-semibold text-gray-900 dark:text-gray-100">{label}</h3>
-              </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

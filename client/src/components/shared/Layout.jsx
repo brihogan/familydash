@@ -5,7 +5,7 @@ import {
   faHouse, faTrophy, faTachographDigital, faBroom,
   faPiggyBank, faTicket, faUsers, faScroll, faRightFromBracket,
   faMedal, faClipboardCheck, faGear, faInbox, faMoneyBillWave, faPeopleRoof, faShieldHalved,
-  faArrowsRotate, faRocket, faAnglesLeft, faAnglesRight, faEllipsis, faXmark,
+  faArrowsRotate, faRocket, faAnglesLeft, faAnglesRight, faEllipsis, faXmark, faPlus,
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
@@ -94,6 +94,9 @@ export default function Layout() {
   // Mobile bottom-bar "More" sheet — overflow nav items + profile/theme/
   // sign-out. Closes on navigation, item-tap, or backdrop tap.
   const [moreOpen, setMoreOpen] = useState(false);
+  // Quick-actions modal (the old FAB lives on as a controlled modal now,
+  // with trigger buttons in the desktop sidebar + mobile More sheet).
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
 
   // Custom hover tooltip for the collapsed sidebar — appears instantly (no
   // 500ms native dwell) and is a bit larger than the OS tooltip. Implemented
@@ -474,6 +477,18 @@ export default function Layout() {
             <FontAwesomeIcon icon={faScroll} className="w-4 shrink-0" />
             <Lbl>Family Activity</Lbl>
           </NavLink>
+          {/* Quick-add — opens the same dialog as the old floating FAB.
+              Sits at the bottom of the Settings group so it's always
+              one click away regardless of which page you're on. */}
+          <button
+            type="button"
+            onClick={() => { close(); setQuickActionsOpen(true); }}
+            className={navClass({ isActive: false })}
+            title="Quick add"
+          >
+            <FontAwesomeIcon icon={faPlus} className="w-4 shrink-0" />
+            <Lbl>Add</Lbl>
+          </button>
 
           {user?.isAdmin && (
             <>
@@ -599,6 +614,10 @@ export default function Layout() {
       if (useTickets) all.push({ key: 'rewards', icon: faTrophy, label: 'Rewards', to: '/rewards', section: 'settings' });
       all.push({ key: 'turns', icon: faArrowsRotate, label: 'Turns', to: '/settings/turns', section: 'settings' });
       all.push({ key: 'activity', icon: faScroll, label: 'Activity', to: '/family-activity', section: 'settings' });
+      // Quick-add — non-nav action item. Opens the QuickActions modal.
+      // Sits at the bottom of the Settings group, matching the desktop
+      // sidebar placement.
+      all.push({ key: 'add', icon: faPlus, label: 'Add', action: 'quick-add', section: 'settings' });
       if (user?.isAdmin) all.push({ key: 'admin', icon: faShieldHalved, label: 'Admin', to: '/admin', section: 'admin' });
       defaults = ['dashboard', 'inbox', defaultMemberId ? 'overview' : null, 'activity'].filter(Boolean);
     } else if (user?.role === 'kid') {
@@ -817,58 +836,89 @@ export default function Layout() {
           >
             {mobilePrimary.map((item) => {
               const isSelected = editMode && editSelectedKey === item.key;
-              const slotClasses = `flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 px-1 relative transition-all ${
-                isSelected ? 'bg-brand-50 dark:bg-brand-900/30 rounded-xl scale-[0.97]' : ''
-              }`;
+              // Match the desktop sidebar's active pill: rounded background
+              // + colored icon/text. `my-1 mx-0.5` insets the pill so it
+              // doesn't fill the entire 56px slot edge-to-edge.
+              const baseSlot = 'flex-1 min-w-0 my-1 mx-0.5 flex flex-col items-center justify-center gap-0.5 px-1 relative rounded-xl transition-colors';
+              const selectedBg = 'bg-brand-50 dark:bg-gray-700 text-brand-700 dark:text-brand-400';
               const content = (
                 <>
-                  <FontAwesomeIcon icon={item.icon} className={`text-[17px] ${isSelected ? 'text-brand-600 dark:text-brand-300' : ''}`} />
-                  <span className={`text-[10px] font-medium leading-none truncate max-w-full px-0.5 ${isSelected ? 'text-brand-600 dark:text-brand-300' : ''}`}>{item.label}</span>
+                  <FontAwesomeIcon icon={item.icon} className="text-[17px]" />
+                  <span className="text-[10px] font-medium leading-none truncate max-w-full px-0.5">{item.label}</span>
                   {item.badge != null && item.badge !== 0 && (
-                    <span className="absolute top-1 right-2 min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-semibold flex items-center justify-center leading-none">
+                    <span className="absolute top-0.5 right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-semibold flex items-center justify-center leading-none">
                       {item.badge}
                     </span>
                   )}
                 </>
               );
-              return editMode ? (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => handleEditTap(item.key)}
-                  className={`${slotClasses} ${isSelected ? '' : 'text-gray-500 dark:text-gray-400'}`}
-                  aria-label={`Edit slot: ${item.label}`}
-                  aria-pressed={isSelected}
-                >
-                  {content}
-                </button>
-              ) : (
+              if (editMode) {
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => handleEditTap(item.key)}
+                    className={`${baseSlot} ${isSelected ? `${selectedBg} ring-2 ring-brand-400` : 'text-gray-500 dark:text-gray-400'}`}
+                    aria-label={`Edit slot: ${item.label}`}
+                    aria-pressed={isSelected}
+                  >
+                    {content}
+                  </button>
+                );
+              }
+              if (item.action === 'quick-add') {
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setQuickActionsOpen(true)}
+                    className={`${baseSlot} text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50`}
+                  >
+                    {content}
+                  </button>
+                );
+              }
+              return (
                 <NavLink
                   key={item.key}
                   to={item.to}
                   end={item.to === '/dashboard'}
-                  className={({ isActive }) => `${slotClasses} ${
-                    isActive
-                      ? 'text-brand-600 dark:text-brand-400'
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  className={({ isActive }) => `${baseSlot} ${
+                    isActive ? selectedBg : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                   }`}
                 >
                   {content}
                 </NavLink>
               );
             })}
-            <button
-              type="button"
-              onClick={() => setMoreOpen((o) => !o)}
-              className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 px-1 transition-colors ${
-                moreOpen ? 'text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-              }`}
-              aria-label="More options"
-              aria-expanded={moreOpen}
-            >
-              <FontAwesomeIcon icon={moreOpen ? faXmark : faEllipsis} className="text-[17px]" />
-              <span className="text-[10px] font-medium leading-none">More</span>
-            </button>
+            {(() => {
+              // Roll up any counters from items that live in the "More"
+              // sheet so the user sees them without opening it. Numeric only
+              // — skips $ formatted strings (Bank balance, etc.).
+              const moreBadge = mobileSecondary.reduce((sum, it) => {
+                if (typeof it.badge === 'number' && it.badge > 0) return sum + it.badge;
+                return sum;
+              }, 0);
+              return (
+                <button
+                  type="button"
+                  onClick={() => setMoreOpen((o) => !o)}
+                  className={`flex-1 min-w-0 my-1 mx-0.5 flex flex-col items-center justify-center gap-0.5 px-1 relative rounded-xl transition-colors ${
+                    moreOpen ? 'bg-brand-50 dark:bg-gray-700 text-brand-700 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                  }`}
+                  aria-label="More options"
+                  aria-expanded={moreOpen}
+                >
+                  <FontAwesomeIcon icon={moreOpen ? faXmark : faEllipsis} className="text-[17px]" />
+                  <span className="text-[10px] font-medium leading-none">More</span>
+                  {moreBadge > 0 && !moreOpen && (
+                    <span className="absolute top-0.5 right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-semibold flex items-center justify-center leading-none">
+                      {moreBadge}
+                    </span>
+                  )}
+                </button>
+              );
+            })()}
           </div>
 
           {moreOpen && (
@@ -957,18 +1007,35 @@ export default function Layout() {
                               <span className={`text-[11px] font-medium leading-tight text-center break-words ${isSelected ? 'text-brand-700 dark:text-brand-200' : ''}`}>{item.label}</span>
                             </>
                           );
-                          return editMode ? (
-                            <button
-                              key={item.key}
-                              type="button"
-                              onClick={() => handleEditTap(item.key)}
-                              className={tileClasses}
-                              aria-label={`Edit: ${item.label}`}
-                              aria-pressed={isSelected}
-                            >
-                              {inner}
-                            </button>
-                          ) : (
+                          if (editMode) {
+                            return (
+                              <button
+                                key={item.key}
+                                type="button"
+                                onClick={() => handleEditTap(item.key)}
+                                className={tileClasses}
+                                aria-label={`Edit: ${item.label}`}
+                                aria-pressed={isSelected}
+                              >
+                                {inner}
+                              </button>
+                            );
+                          }
+                          if (item.action === 'quick-add') {
+                            // Non-nav: opens the QuickActions modal instead
+                            // of routing somewhere.
+                            return (
+                              <button
+                                key={item.key}
+                                type="button"
+                                onClick={() => { setMoreOpen(false); setQuickActionsOpen(true); }}
+                                className={tileClasses}
+                              >
+                                {inner}
+                              </button>
+                            );
+                          }
+                          return (
                             <NavLink
                               key={item.key}
                               to={item.to}
@@ -1130,7 +1197,7 @@ export default function Layout() {
         </main>
 
         <InstallPrompt />
-        <QuickActionsFab />
+        <QuickActionsFab open={quickActionsOpen} onClose={() => setQuickActionsOpen(false)} />
 
         {/* ── Slide-in side panel (mobile only) ──
             Disabled now that the sidebar is always visible. Left in the tree

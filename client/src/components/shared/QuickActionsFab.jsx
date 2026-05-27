@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faDollarSign, faTicket, faClock, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { faDollarSign, faTicket, faClock, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useFamilySettings } from '../../context/FamilySettingsContext.jsx';
 import { familyApi } from '../../api/family.api.js';
@@ -11,20 +11,20 @@ import UnifiedBankDialog from '../bank/UnifiedBankDialog.jsx';
 import QuickTicketAdjust from '../dashboard/QuickTicketAdjust.jsx';
 
 /**
- * Floating action button for parent quick actions — pick a kid, then:
+ * Quick actions modal for parents — pick a kid, then:
  * - Money (opens UnifiedBankDialog)
  * - Tickets (opens QuickTicketAdjust)
  * - App Time (grants bonus Claude Code time)
  *
- * Mounted globally in Layout so it appears on every page.
- * The full-screen terminal/workspace has a higher z-index and covers it.
+ * Fully controlled: the parent (Layout) owns the open state and renders
+ * its own trigger button(s) (in the desktop sidebar + the mobile More
+ * sheet). The legacy floating button has been removed.
  */
-export default function QuickActionsFab() {
+export default function QuickActionsFab({ open, onClose }) {
   const { user } = useAuth();
   const { useBanking, useTickets } = useFamilySettings();
   const isParent = user?.role === 'parent';
 
-  const [fabOpen, setFabOpen] = useState(false);
   const [fabKid, setFabKid] = useState(null);
   const [fabView, setFabView] = useState('menu');
   const [grantFeedback, setGrantFeedback] = useState('');
@@ -43,13 +43,23 @@ export default function QuickActionsFab() {
     }).catch(() => {});
   }, [isParent]);
 
-  if (!isParent || allKids.length === 0) return null;
+  // Reset the inner kid-picker/feedback state whenever the modal opens, so
+  // a second visit doesn't show stale "Gave Daniel +30 min" text.
+  useEffect(() => {
+    if (!open) {
+      setFabKid(null);
+      setFabView('menu');
+      setGrantFeedback('');
+    }
+  }, [open]);
+
+  if (!isParent) return null;
 
   const closeFab = () => {
-    setFabOpen(false);
     setFabKid(null);
     setFabView('menu');
     setGrantFeedback('');
+    onClose?.();
   };
 
   const handleGrantTime = async (minutes) => {
@@ -78,18 +88,7 @@ export default function QuickActionsFab() {
 
   return (
     <>
-      <button
-        onClick={() => { setFabOpen(true); setFabKid(null); setFabView('menu'); }}
-        // Mobile: lift above the floating bottom menubar — its top edge sits
-        // at `bottom = safe-area + 0.5rem + 3.5rem`; we add a 0.75rem gap.
-        // lg+: original corner position.
-        className="fixed right-6 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+1.25rem)] lg:bottom-6 w-14 h-14 rounded-full bg-brand-600 hover:bg-brand-700 text-white shadow-lg flex items-center justify-center z-40 transition-transform hover:scale-105"
-        title="Quick actions"
-      >
-        <FontAwesomeIcon icon={faPlus} className="text-xl" />
-      </button>
-
-      <Modal open={fabOpen} onClose={closeFab} title="Quick Actions">
+      <Modal open={!!open} onClose={closeFab} title="Quick Actions">
         {grantFeedback ? (
           <div className="py-6 text-center text-gray-700 dark:text-gray-300">{grantFeedback}</div>
         ) : !fabKid ? (
