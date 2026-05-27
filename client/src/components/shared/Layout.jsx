@@ -76,6 +76,21 @@ export default function Layout() {
     try { localStorage.setItem('sidebarCollapsed', sidebarCollapsed ? '1' : '0'); } catch {}
   }, [sidebarCollapsed]);
 
+  // Below the lg breakpoint we always show the sidebar in its minimized
+  // (icon-only) form instead of the old hamburger + drawer pattern. The
+  // user's saved `sidebarCollapsed` preference still applies on desktop.
+  const [isNarrow, setIsNarrow] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 1023.98px)').matches
+  ));
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 1023.98px)');
+    const handler = (e) => setIsNarrow(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  const effectiveCollapsed = isNarrow || sidebarCollapsed;
+
   // Custom hover tooltip for the collapsed sidebar — appears instantly (no
   // 500ms native dwell) and is a bit larger than the OS tooltip. Implemented
   // via event delegation on the aside + direct DOM mutation on a tooltip
@@ -113,7 +128,7 @@ export default function Layout() {
   };
 
   const handleSidebarMouseOver = (e) => {
-    if (!sidebarCollapsed) return;
+    if (!effectiveCollapsed) return;
     const el = e.target.closest('[data-tip-label], a[title], button[title]');
     if (!el || !asideRef.current?.contains(el)) return;
     if (tipTargetRef.current === el) return;
@@ -128,8 +143,8 @@ export default function Layout() {
   };
 
   useEffect(() => {
-    if (!sidebarCollapsed) hideTip();
-  }, [sidebarCollapsed]);
+    if (!effectiveCollapsed) hideTip();
+  }, [effectiveCollapsed]);
 
   // While the sidebar is collapsed, suppress native `title` tooltips inside
   // the aside by moving them to `data-tip-label`. Use a MutationObserver to
@@ -137,7 +152,7 @@ export default function Layout() {
   // component is recreated on every Layout render, so its DOM nodes remount).
   useEffect(() => {
     const aside = asideRef.current;
-    if (!aside || !sidebarCollapsed) return;
+    if (!aside || !effectiveCollapsed) return;
     const stripAll = () => {
       aside.querySelectorAll('[title]').forEach((el) => {
         const t = el.getAttribute('title');
@@ -162,7 +177,7 @@ export default function Layout() {
         delete el.dataset.tipLabel;
       });
     };
-  }, [sidebarCollapsed]);
+  }, [effectiveCollapsed]);
   useScrollLock(bottomPanelOpen);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [defaultMemberId, setDefaultMemberId] = useState(null);
@@ -535,39 +550,43 @@ export default function Layout() {
   return (
     <div className="flex h-dvh bg-gray-50 dark:bg-gray-900">
 
-      {/* ── Bottom panel backdrop (mobile) ── */}
+      {/* ── Bottom panel backdrop (mobile) ──
+          Inert now that the drawer is disabled; bottomPanelOpen never flips
+          true since the hamburger is gone. */}
       {bottomPanelOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/40 hidden"
           onClick={close}
           aria-hidden="true"
         />
       )}
 
-      {/* ── Sidebar (desktop only) ──
-          When collapsed: width drops to 14 (icons only). The
-          [&_[data-nav-label]]:hidden selector hides every <span data-nav-label>
-          inside the aside without a per-link edit, and [&_[data-nav-badge]]:hidden
-          drops the inline count chips so the icon row stays clean. */}
+      {/* ── Sidebar ──
+          Always visible. Below lg the sidebar is forced to its icon-only
+          width (replacing the old hamburger + drawer). On lg+ the user's
+          saved `sidebarCollapsed` preference controls the width.
+          [&_[data-nav-label]]:hidden hides text labels in collapsed mode,
+          [&_[data-nav-badge]]:hidden drops the inline count chips, and
+          [&_[data-nav-divider]]:block swaps section headers for hr's. */}
       <aside
         ref={asideRef}
         onMouseOver={handleSidebarMouseOver}
         onMouseOut={handleSidebarMouseOut}
-        className={`hidden lg:flex lg:flex-col lg:shrink-0 bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 shadow-sm transition-[width] duration-200 ${
-          sidebarCollapsed
-            ? 'lg:w-14 [&_[data-nav-label]]:hidden [&_[data-nav-badge]]:hidden [&_[data-nav-divider]]:block'
-            : 'lg:w-56'
+        className={`flex flex-col shrink-0 bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 shadow-sm transition-[width] duration-200 ${
+          effectiveCollapsed
+            ? 'w-14 [&_[data-nav-label]]:hidden [&_[data-nav-badge]]:hidden [&_[data-nav-divider]]:block'
+            : 'w-56'
         }`}
       >
         {/* Sidebar header — title or just the icon when collapsed, plus a
             toggle button on the right (or stacked when collapsed). */}
-        <div className={`border-b border-gray-100 dark:border-gray-700 ${sidebarCollapsed ? 'px-2 py-3 flex flex-col items-center gap-2' : 'px-4 py-5 flex items-center justify-between'}`}>
+        <div className={`border-b border-gray-100 dark:border-gray-700 ${effectiveCollapsed ? 'px-2 py-3 flex flex-col items-center gap-2' : 'px-4 py-5 flex items-center justify-between'}`}>
           <Link
             to="/dashboard"
-            className={`font-bold text-brand-600 hover:text-brand-700 ${sidebarCollapsed ? 'text-xl' : 'text-lg'}`}
-            title={sidebarCollapsed ? 'Family Dash · Dashboard' : undefined}
+            className={`font-bold text-brand-600 hover:text-brand-700 ${effectiveCollapsed ? 'text-xl' : 'text-lg'}`}
+            title={effectiveCollapsed ? 'Family Dash · Dashboard' : undefined}
           >
-            <FontAwesomeIcon icon={faPeopleRoof} className={sidebarCollapsed ? '' : 'mr-2'} />
+            <FontAwesomeIcon icon={faPeopleRoof} className={effectiveCollapsed ? '' : 'mr-2'} />
             <span data-nav-label>Family Dash</span>
           </Link>
           {!isOnline && (
@@ -579,10 +598,12 @@ export default function Layout() {
               Offline{pendingCount > 0 ? ` · ${pendingCount}` : ''}
             </span>
           )}
+          {/* Expand/collapse toggle — desktop only. Below lg the sidebar is
+              always minimized, so giving the user a toggle would lie. */}
           <button
             type="button"
             onClick={() => setSidebarCollapsed((v) => !v)}
-            className="p-1 rounded-md text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+            className="hidden lg:block p-1 rounded-md text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
             title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
@@ -590,13 +611,13 @@ export default function Layout() {
           </button>
         </div>
 
-        <Nav collapsed={sidebarCollapsed} />
+        <Nav collapsed={effectiveCollapsed} />
 
         {/* Pending deposit banner (kid only) */}
         {(kidStats?.pendingDepositCount || dexiePendingDepositCount) > 0 && (
           <button
             onClick={() => navigate(`/bank/${user.id}`, { state: { openReceive: true } })}
-            className={`mx-3 mb-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-semibold hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors ${sidebarCollapsed ? 'justify-center' : ''}`}
+            className={`mx-3 mb-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-semibold hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors ${effectiveCollapsed ? 'justify-center' : ''}`}
             title="Money to receive"
           >
             <FontAwesomeIcon icon={faMoneyBillWave} className="text-[11px]" />
@@ -606,7 +627,7 @@ export default function Layout() {
 
         {/* User info + theme toggle + logout — stacks when collapsed so the
             avatar + icons keep the same touch targets. */}
-        <div className={`border-t border-gray-100 dark:border-gray-700 ${sidebarCollapsed ? 'px-2 py-3 flex flex-col items-center gap-2' : 'px-4 py-4 flex items-center gap-3'}`}>
+        <div className={`border-t border-gray-100 dark:border-gray-700 ${effectiveCollapsed ? 'px-2 py-3 flex flex-col items-center gap-2' : 'px-4 py-4 flex items-center gap-3'}`}>
           <button
             type="button"
             onClick={() => setEmojiOpen(true)}
@@ -638,11 +659,13 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* Custom instant tooltip for the collapsed sidebar. Always rendered
-          when collapsed (with display:none initially) and updated imperatively
-          via tipElRef so hovering doesn't re-render Layout and remount the
-          NavLinks mid-click. */}
-      {sidebarCollapsed && (
+      {/* Custom instant tooltip for the collapsed sidebar. Rendered whenever
+          the sidebar is in collapsed form (desktop user-collapsed OR forced
+          narrow-viewport collapse). Updated imperatively via tipElRef so
+          hovering doesn't re-render Layout and remount the NavLinks. The
+          `lg:block` cap leaves it off touch-screen-only widths where a hover
+          tooltip makes no sense. */}
+      {effectiveCollapsed && (
         <div
           ref={tipElRef}
           className="hidden lg:block fixed z-50 px-3 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white text-[15px] font-medium shadow-xl ring-1 ring-black/10 pointer-events-none whitespace-nowrap"
@@ -665,8 +688,10 @@ export default function Layout() {
       {/* ── Main area ── */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
 
-        {/* Mobile top bar */}
-        <header className="lg:hidden sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3 shadow-sm" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
+        {/* Mobile top bar — kept in the tree for the hamburger + drawer code
+            paths but never displayed now that the sidebar is always visible
+            in icon-only form below lg. */}
+        <header className="hidden sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3 shadow-sm" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
           <button
             onClick={() => setBottomPanelOpen((o) => !o)}
             className="relative p-1 -ml-1 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
@@ -718,9 +743,12 @@ export default function Layout() {
         <InstallPrompt />
         <QuickActionsFab />
 
-        {/* ── Slide-in side panel (mobile only) ── */}
+        {/* ── Slide-in side panel (mobile only) ──
+            Disabled now that the sidebar is always visible. Left in the tree
+            (with `hidden` instead of `lg:hidden`) until we strip the
+            associated state cleanly. */}
         <div
-          className="lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 shadow-2xl flex flex-col"
+          className="hidden fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 shadow-2xl flex flex-col"
           style={{
             transform: bottomPanelOpen ? 'translateX(0)' : 'translateX(-100%)',
             transition: 'transform 300ms ease-in-out',
