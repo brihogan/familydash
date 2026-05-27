@@ -80,9 +80,10 @@ export default function QuickActionsFab() {
     <>
       <button
         onClick={() => { setFabOpen(true); setFabKid(null); setFabView('menu'); }}
-        // Mobile: lift above the 56px bottom menubar (the sidebar's mobile
-        // form) + the device safe-area inset. lg+: original corner position.
-        className="fixed right-6 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+1rem)] lg:bottom-6 w-14 h-14 rounded-full bg-brand-600 hover:bg-brand-700 text-white shadow-lg flex items-center justify-center z-40 transition-transform hover:scale-105"
+        // Mobile: lift above the floating bottom menubar — its top edge sits
+        // at `bottom = safe-area + 0.5rem + 3.5rem`; we add a 0.75rem gap.
+        // lg+: original corner position.
+        className="fixed right-6 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+1.25rem)] lg:bottom-6 w-14 h-14 rounded-full bg-brand-600 hover:bg-brand-700 text-white shadow-lg flex items-center justify-center z-40 transition-transform hover:scale-105"
         title="Quick actions"
       >
         <FontAwesomeIcon icon={faPlus} className="text-xl" />

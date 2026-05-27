@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faHouse, faTrophy, faTachographDigital, faBroom,
   faPiggyBank, faTicket, faUsers, faScroll, faRightFromBracket,
   faMedal, faClipboardCheck, faGear, faInbox, faMoneyBillWave, faPeopleRoof, faShieldHalved,
-  faArrowsRotate, faRocket, faAnglesLeft, faAnglesRight,
+  faArrowsRotate, faRocket, faAnglesLeft, faAnglesRight, faEllipsis, faXmark,
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
@@ -91,6 +91,10 @@ export default function Layout() {
   }, []);
   const effectiveCollapsed = isNarrow || sidebarCollapsed;
 
+  // Mobile bottom-bar "More" sheet — overflow nav items + profile/theme/
+  // sign-out. Closes on navigation, item-tap, or backdrop tap.
+  const [moreOpen, setMoreOpen] = useState(false);
+
   // Custom hover tooltip for the collapsed sidebar — appears instantly (no
   // 500ms native dwell) and is a bit larger than the OS tooltip. Implemented
   // via event delegation on the aside + direct DOM mutation on a tooltip
@@ -146,13 +150,15 @@ export default function Layout() {
     if (!effectiveCollapsed) hideTip();
   }, [effectiveCollapsed]);
 
-  // While the sidebar is collapsed, suppress native `title` tooltips inside
-  // the aside by moving them to `data-tip-label`. Use a MutationObserver to
-  // keep re-stripping titles as React re-renders the nav (the inner Nav
-  // component is recreated on every Layout render, so its DOM nodes remount).
+  // While the (lg+) sidebar is collapsed, suppress native `title` tooltips
+  // inside the aside by moving them to `data-tip-label`. Use a
+  // MutationObserver to keep re-stripping titles as React re-renders the
+  // nav (the inner Nav component is recreated on every Layout render).
+  // `isNarrow` is in the deps because the aside re-mounts when crossing
+  // the lg breakpoint, and the ref points at a new node.
   useEffect(() => {
     const aside = asideRef.current;
-    if (!aside || !effectiveCollapsed) return;
+    if (!aside || !effectiveCollapsed || isNarrow) return;
     const stripAll = () => {
       aside.querySelectorAll('[title]').forEach((el) => {
         const t = el.getAttribute('title');
@@ -177,7 +183,7 @@ export default function Layout() {
         delete el.dataset.tipLabel;
       });
     };
-  }, [effectiveCollapsed]);
+  }, [effectiveCollapsed, isNarrow]);
   useScrollLock(bottomPanelOpen);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [defaultMemberId, setDefaultMemberId] = useState(null);
@@ -549,6 +555,55 @@ export default function Layout() {
   );
   };
 
+  // ── Mobile bottom-bar item lists ──
+  // Primary items live on the bottom bar (icon + tiny label). Secondary
+  // items spill into the "More" slide-up sheet. Definitions are data-driven
+  // so the bar stays slim and the sheet grows / shrinks with feature flags.
+  const mobileItems = useMemo(() => {
+    const primary = [];
+    const secondary = [];
+    if (user?.role === 'parent') {
+      primary.push({ key: 'dashboard', icon: faHouse, label: 'Home', to: '/dashboard' });
+      primary.push({ key: 'inbox', icon: faInbox, label: 'Inbox', to: '/inbox', badge: inboxCount > 0 ? inboxCount : null });
+      if (defaultMemberId) {
+        primary.push({ key: 'overview', icon: faTachographDigital, label: 'Overview', to: `/kid/${defaultMemberId}` });
+      }
+      primary.push({ key: 'activity', icon: faScroll, label: 'Activity', to: '/family-activity' });
+
+      if (claudeAccess) secondary.push({ key: 'apps', icon: faRocket, label: 'Apps', to: '/code-apps' });
+      if (defaultMemberId) {
+        secondary.push({ key: 'kid-chores', icon: faBroom, label: choresLabel, to: `/chores/${defaultMemberId}` });
+        if (useBanking) secondary.push({ key: 'kid-bank', icon: faPiggyBank, label: 'Bank', to: `/bank/${defaultMemberId}` });
+        if (useTickets) secondary.push({ key: 'kid-tickets', icon: faTicket, label: 'Tickets', to: `/tickets/${defaultMemberId}` });
+        if (useSets) secondary.push({ key: 'kid-sets', icon: faMedal, label: setsStepsLabel, to: `/tasks/${defaultMemberId}` });
+        secondary.push({ key: 'kid-trophies', icon: faTrophy, label: 'Trophies', to: `/trophies/${defaultMemberId}` });
+      }
+      secondary.push({ key: 'settings', icon: faGear, label: 'Settings', to: '/settings' });
+      secondary.push({ key: 'family', icon: faUsers, label: `Family & ${choresLabel}`, to: '/settings/users' });
+      if (useSets) secondary.push({ key: 'set-mgmt', icon: faClipboardCheck, label: 'Set Mgmt', to: '/settings/tasks' });
+      if (useBadges) secondary.push({ key: 'badge-lib', icon: faShieldHalved, label: 'Badge Library', to: '/settings/badges' });
+      if (useTickets) secondary.push({ key: 'rewards', icon: faTrophy, label: 'Rewards', to: '/rewards' });
+      secondary.push({ key: 'turns', icon: faArrowsRotate, label: 'Turns', to: '/settings/turns' });
+      if (user?.isAdmin) secondary.push({ key: 'admin', icon: faShieldHalved, label: 'Admin', to: '/admin' });
+    } else if (user?.role === 'kid') {
+      primary.push({ key: 'overview', icon: faTachographDigital, label: 'Home', to: `/kid/${user.id}` });
+      primary.push({
+        key: 'chores', icon: faBroom, label: choresLabel, to: `/chores/${user.id}`,
+        badge: kidStats?.choresRemaining > 0 ? kidStats.choresRemaining : null,
+      });
+      if (useTickets) primary.push({ key: 'tickets', icon: faTicket, label: 'Tickets', to: `/tickets/${user.id}`, badge: kidStats?.ticketBalance });
+      else if (useBanking) primary.push({ key: 'bank', icon: faPiggyBank, label: 'Bank', to: `/bank/${user.id}` });
+      primary.push({ key: 'trophies', icon: faTrophy, label: 'Trophies', to: `/trophies/${user.id}` });
+
+      if (claudeAccess) secondary.push({ key: 'apps', icon: faRocket, label: 'Apps', to: '/code-apps' });
+      if (useTickets && useBanking) secondary.push({ key: 'bank', icon: faPiggyBank, label: 'My Bank', to: `/bank/${user.id}` });
+      if (useBadges) secondary.push({ key: 'badges', icon: faShieldHalved, label: 'My Badges', to: `/badges/${user.id}` });
+      if (useSets) secondary.push({ key: 'sets', icon: faMedal, label: 'My Sets', to: `/tasks/${user.id}` });
+      if (useTickets) secondary.push({ key: 'rewards', icon: faTrophy, label: 'Rewards', to: '/rewards' });
+    }
+    return { primary, secondary };
+  }, [user, defaultMemberId, claudeAccess, inboxCount, kidStats, useBanking, useTickets, useSets, useBadges, choresLabel, setsStepsLabel]);
+
   return (
     <div className="flex h-dvh bg-gray-50 dark:bg-gray-900">
 
@@ -563,29 +618,21 @@ export default function Layout() {
         />
       )}
 
-      {/* ── Sidebar ──
+      {/* ── Sidebar (lg+ only) ──
           On lg+ this is a vertical sidebar (icon-only when collapsed, full
           width when expanded — controlled by the user's `sidebarCollapsed`
-          preference). Below lg it becomes a fixed bottom menubar with the
-          same icons laid out horizontally; the user's preference is ignored
-          since there's no room for labels.
-          [&_[data-nav-label]]:hidden hides text labels in collapsed mode,
-          [&_[data-nav-badge]]:hidden drops the inline count chips. The
-          divider swap only happens on lg+ (no room horizontally). */}
+          preference). Below lg it's replaced by the floating mobile bottom
+          bar rendered further down. */}
+      {!isNarrow && (
       <aside
         ref={asideRef}
         onMouseOver={handleSidebarMouseOver}
         onMouseOut={handleSidebarMouseOut}
-        className={`bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 ${
-          isNarrow
-            ? 'fixed bottom-0 left-0 right-0 z-30 h-14 w-full flex flex-row items-center border-t shadow-[0_-2px_8px_rgba(0,0,0,0.05)] [&_[data-nav-label]]:hidden [&_[data-nav-badge]]:hidden'
-            : `flex flex-col shrink-0 border-r shadow-sm transition-[width] duration-200 ${
-                sidebarCollapsed
-                  ? 'w-14 [&_[data-nav-label]]:hidden [&_[data-nav-badge]]:hidden [&_[data-nav-divider]]:block'
-                  : 'w-56'
-              }`
+        className={`flex flex-col shrink-0 bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 shadow-sm transition-[width] duration-200 ${
+          sidebarCollapsed
+            ? 'w-14 [&_[data-nav-label]]:hidden [&_[data-nav-badge]]:hidden [&_[data-nav-divider]]:block'
+            : 'w-56'
         }`}
-        style={isNarrow ? { paddingBottom: 'env(safe-area-inset-bottom)' } : undefined}
       >
         {/* Sidebar header — title or just the icon when collapsed, plus a
             toggle button on the right (or stacked when collapsed). Hidden
@@ -675,14 +722,158 @@ export default function Layout() {
           )}
         </div>
       </aside>
+      )}
 
-      {/* Custom instant tooltip for the collapsed sidebar. Rendered whenever
-          the sidebar is in collapsed form (desktop user-collapsed OR forced
-          narrow-viewport collapse). Updated imperatively via tipElRef so
-          hovering doesn't re-render Layout and remount the NavLinks. The
-          `lg:block` cap leaves it off touch-screen-only widths where a hover
-          tooltip makes no sense. */}
-      {effectiveCollapsed && (
+      {/* ── Mobile floating bottom bar + More sheet ──
+          Replaces the vertical aside below lg. Floats above the page with
+          a small margin on all sides; safe-area-inset-bottom is honored so
+          iOS home-indicator clears it. */}
+      {isNarrow && (
+        <>
+          <div
+            className="fixed left-2 right-2 z-30 h-14 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-[0_8px_24px_rgba(0,0,0,0.14)] flex items-stretch"
+            style={{ bottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}
+            role="navigation"
+            aria-label="Primary"
+          >
+            {mobileItems.primary.map((item) => (
+              <NavLink
+                key={item.key}
+                to={item.to}
+                end={item.to === '/dashboard'}
+                className={({ isActive }) => `flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 px-1 relative transition-colors ${
+                  isActive
+                    ? 'text-brand-600 dark:text-brand-400'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                <FontAwesomeIcon icon={item.icon} className="text-[17px]" />
+                <span className="text-[10px] font-medium leading-none truncate max-w-full px-0.5">{item.label}</span>
+                {item.badge != null && item.badge !== 0 && (
+                  <span className="absolute top-1 right-2 min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-semibold flex items-center justify-center leading-none">
+                    {item.badge}
+                  </span>
+                )}
+              </NavLink>
+            ))}
+            <button
+              type="button"
+              onClick={() => setMoreOpen(true)}
+              className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 px-1 transition-colors ${
+                moreOpen ? 'text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+              }`}
+              aria-label="More options"
+            >
+              <FontAwesomeIcon icon={faEllipsis} className="text-[17px]" />
+              <span className="text-[10px] font-medium leading-none">More</span>
+            </button>
+          </div>
+
+          {moreOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-40 bg-black/40"
+                onClick={() => setMoreOpen(false)}
+                aria-hidden="true"
+              />
+              <div
+                className="fixed left-0 right-0 z-50 bg-white dark:bg-gray-800 rounded-t-2xl shadow-[0_-8px_24px_rgba(0,0,0,0.2)] max-h-[80vh] overflow-y-auto"
+                style={{ bottom: 0, paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
+                role="dialog"
+                aria-modal="true"
+                aria-label="More menu"
+              >
+                <div className="sticky top-0 bg-white dark:bg-gray-800 px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">More</h2>
+                  <button
+                    type="button"
+                    onClick={() => setMoreOpen(false)}
+                    className="p-1 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    aria-label="Close more menu"
+                  >
+                    <FontAwesomeIcon icon={faXmark} className="text-base" />
+                  </button>
+                </div>
+
+                {/* Overflow nav items as a 4-column icon+label grid. */}
+                {mobileItems.secondary.length > 0 && (
+                  <div className="grid grid-cols-4 gap-1 p-3">
+                    {mobileItems.secondary.map((item) => (
+                      <NavLink
+                        key={item.key}
+                        to={item.to}
+                        onClick={() => setMoreOpen(false)}
+                        className={({ isActive }) => `flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-lg transition-colors ${
+                          isActive
+                            ? 'bg-brand-50 text-brand-700 dark:bg-gray-700 dark:text-brand-400'
+                            : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        <FontAwesomeIcon icon={item.icon} className="text-lg" />
+                        <span className="text-[11px] font-medium leading-tight text-center break-words">{item.label}</span>
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+
+                {/* Pending-deposit shortcut (kid only) */}
+                {(kidStats?.pendingDepositCount || dexiePendingDepositCount) > 0 && (
+                  <button
+                    onClick={() => { setMoreOpen(false); navigate(`/bank/${user.id}`, { state: { openReceive: true } }); }}
+                    className="mx-3 mb-2 w-[calc(100%-1.5rem)] flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-sm font-semibold hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faMoneyBillWave} />
+                    Money to receive!
+                  </button>
+                )}
+
+                {/* Profile / theme / sign-out */}
+                <div className="border-t border-gray-100 dark:border-gray-700 p-3 space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => { setMoreOpen(false); setEmojiOpen(true); }}
+                    className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
+                  >
+                    <Avatar name={user?.name || '?'} color={user?.avatarColor || '#6366f1'} emoji={user?.avatarEmoji} size="sm" />
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm font-medium truncate">{user?.name}</span>
+                      <span className="block text-xs text-gray-400 dark:text-gray-500 capitalize">{user?.role}</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleTheme}
+                    className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
+                  >
+                    <span className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300">
+                      {isDark ? <SunIcon /> : <MoonIcon />}
+                    </span>
+                    <span className="text-sm font-medium">{isDark ? 'Switch to light mode' : 'Switch to dark mode'}</span>
+                  </button>
+                  {user?.role !== 'kid' && (
+                    <button
+                      type="button"
+                      onClick={() => { setMoreOpen(false); handleLogout(); }}
+                      className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"
+                    >
+                      <span className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300">
+                        <FontAwesomeIcon icon={faRightFromBracket} />
+                      </span>
+                      <span className="text-sm font-medium">Sign out</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {/* Custom instant tooltip for the collapsed desktop sidebar. Updated
+          imperatively via tipElRef so hovering doesn't re-render Layout and
+          remount the NavLinks. Mobile uses labeled icons on the bottom bar
+          so no hover tooltip is needed there. */}
+      {!isNarrow && sidebarCollapsed && (
         <div
           ref={tipElRef}
           className="hidden lg:block fixed z-50 px-3 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white text-[15px] font-medium shadow-xl ring-1 ring-black/10 pointer-events-none whitespace-nowrap"
@@ -753,10 +944,11 @@ export default function Layout() {
         {/* Page content */}
         <main
           className={`flex-1 overflow-x-hidden overflow-y-auto p-4 lg:p-6 ${bottomPanelOpen ? 'overflow-hidden' : ''}`}
-          // On mobile the sidebar lives at the bottom as a 56px menubar, so
-          // pad the scroll area so its last bit of content clears the bar.
+          // On mobile the menubar floats at `bottom = safe-area + 0.5rem` with
+          // a 56px (h-14) height, so the scroll area needs that much padding
+          // plus a small gap so the last content row sits comfortably above.
           style={{ paddingBottom: isNarrow
-            ? 'calc(3.5rem + 1rem + env(safe-area-inset-bottom))'
+            ? 'calc(3.5rem + env(safe-area-inset-bottom) + 1.5rem)'
             : 'max(1rem, env(safe-area-inset-bottom))' }}
         >
           <div className="max-w-6xl mx-auto">
