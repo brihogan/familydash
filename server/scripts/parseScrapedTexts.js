@@ -80,8 +80,19 @@ export function normalize(text) {
   // Newline before each level / preschool / optional section header. Headers
   // may use ":", " – ", " — ", " - ", or no separator before "_____" (Optional
   // sometimes has none). We just need to spot the section name so the line
-  // parser can take it from there.
-  t = t.replace(/(?<!\n)(\s)(Preschool\s*[:–—-]|Level\s*[1-5]\s*[:–—-]|Optional Requirements?\s*[:–—-]?(?=\s|_))/g, '\n$2');
+  // parser can take it from there. SKIP if the match falls inside an open
+  // parenthetical — "Level 2 – 3" inside "(Level 2 – 3, Level 3 – 4)" is
+  // continuation prose, not a section header.
+  t = t.replace(
+    /(?<!\n)(\s)(Preschool\s*[:–—-]|Level\s*[1-5]\s*[:–—-]|Optional Requirements?\s*[:–—-]?(?=\s|_))/g,
+    (match, _sp, hdr, offset, full) => {
+      const before = full.slice(0, offset);
+      const opens  = (before.match(/\(/g) || []).length;
+      const closes = (before.match(/\)/g) || []).length;
+      if (opens > closes) return match;  // still inside parens — leave it
+      return '\n' + hdr;
+    }
+  );
   // Newline before each category mention so it stands alone
   for (const c of CATEGORIES) {
     const esc = c.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -194,8 +205,13 @@ export function parseLevels(text) {
       // after. Always accept it as a header so the rest of the section can
       // be routed to the optional pool.
       const isOptionalHeader = /^Optional/i.test(rawName);
+      // The verb check requires the verb at the START of the tail (not
+      // anywhere in the first 30 chars). Previously "Try to choose" in
+      // continuation prose like "). Try to choose from women..." was
+      // falsely accepted as a header because "Choose" appeared in the
+      // first 30 chars — even though it was mid-sentence.
       const looksLikeHeader = tail === '' || matched || /^\s*$/.test(tail) ||
-                              /\b(Do|Choose|Complete)\b/i.test(tail.slice(0, 30)) ||
+                              /^\s*(?:the\s+)?(?:Do|Choose|Complete)\s+/i.test(tail) ||
                               isOptionalHeader;
       // If the regex matched the header pattern but the surrounding text
       // doesn't actually look like a header (e.g. continuation line like

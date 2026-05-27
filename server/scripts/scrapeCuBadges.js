@@ -68,14 +68,9 @@ const MODE     = args.mode || 'missing';
 const DRY_RUN  = !!args.dry;
 const SLUG_ARG = (args.slugs || '').split(',').map(s => s.trim()).filter(Boolean);
 
-if (!process.env.CU_COOKIE && !DRY_RUN) {
-  console.error('error: CU_COOKIE env var required (use --dry to test without it).');
-  console.error("Hint: export CU_COOKIE='wordpress_logged_in_…=…; wp-…=…'");
-  process.exit(1);
-}
-
-if (!existsSync(RAW_DIR))    mkdirSync(RAW_DIR,    { recursive: true });
-if (!existsSync(IMAGES_DIR)) mkdirSync(IMAGES_DIR, { recursive: true });
+// Side-effect guards live in main() so the module stays importable from
+// sibling scripts without requiring CU_COOKIE / mkdir-ing CU dirs at
+// import time.
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
@@ -116,7 +111,7 @@ async function fetchBadgeHtml(slug) {
 // The exact CU markup isn't known until we see an authenticated page. This
 // parser is structured so each field is independent — if a heuristic misses,
 // the rest of the badge still imports usefully and we can refine later.
-function parseBadgeHtml(slug, html) {
+export function parseBadgeHtml(slug, html) {
   const out = {
     name: null,
     slug,
@@ -172,13 +167,54 @@ function parseBadgeHtml(slug, html) {
   // <li>-based heuristic in this file missed every single one of them.
   const contentMatch = html.match(/<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>([\s\S]*?)<\/article>/i)
                     || html.match(/<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i);
-  const contentHtml = contentMatch?.[1] || html;
+  // Try to scope down to the post body. Elementor pages (most newer CU
+  // badges) use `theme-post-content` widget; older pages use entry-content.
+  // Fall back to full HTML if neither matches.
+  const contentHtml = contentMatch?.[1]
+    || html.match(/<div[^>]*theme-post-content[^>]*>([\s\S]*?)<footer/i)?.[1]
+    || html.match(/<main[^>]*>([\s\S]*?)<\/main>/i)?.[1]
+    || html;
   const contentText = htmlToText(contentHtml);
   const { levels, optionalRequirements } = parseLevels(normalize(contentText));
+  // Post-process: strip any boilerplate the continuation logic absorbed
+  // into the LAST requirement of each level + the LAST optional. Footer
+  // chrome (Disclaimer, Copyright, Contact Us, JS snippets) tends to
+  // follow the badge content with no clean DOM boundary on Elementor
+  // pages, so we clip at the first sentinel.
+  const clipFooter = (text) => clipAtSentinel(text || '');
+  for (const lv of Object.values(levels)) {
+    for (const r of lv.requirements || []) r.text = clipFooter(r.text);
+  }
+  for (const o of optionalRequirements) o.text = clipFooter(o.text);
   out.levels = levels;
   out.optionalRequirements = optionalRequirements;
 
   return out;
+}
+
+// Trim a string at the first occurrence of a footer-chrome sentinel.
+// These markers appear at the bottom of every CU badge page and the
+// continuation-append logic was greedily absorbing them into the last
+// req's text. Trim returns the substring before the sentinel.
+const FOOTER_SENTINELS = [
+  /\n\s*Disclaimer\s*:/i,
+  /\n\s*Copyright\s+©/i,
+  /\n\s*BADGE TRACKING/i,
+  /\n\s*Quick Links/i,
+  /\n\s*Contact Us\s*$/im,
+  /\n\s*Curiosity Untamed LLC/i,
+  /\n\s*Curious about our badges/i,
+  /\n\s*Designed with a love/i,
+  /\n\s*Ask Anything, Explore Everything/i,
+  /\n\s*const lazyloadRunObserver/, // inline JS
+];
+function clipAtSentinel(text) {
+  let cutAt = text.length;
+  for (const re of FOOTER_SENTINELS) {
+    const m = text.match(re);
+    if (m && m.index < cutAt) cutAt = m.index;
+  }
+  return text.slice(0, cutAt).trim();
 }
 
 // Convert a chunk of HTML to a plain-text stream the way a browser's
@@ -247,6 +283,13 @@ async function resolveTargetSlugs() {
 // ─── Main ─────────────────────────────────────────────────────────────────
 
 async function main() {
+  if (!process.env.CU_COOKIE && !DRY_RUN) {
+    console.error('error: CU_COOKIE env var required (use --dry to test without it).');
+    console.error("Hint: export CU_COOKIE='wordpress_logged_in_…=…; wp-…=…'");
+    process.exit(1);
+  }
+  if (!existsSync(RAW_DIR))    mkdirSync(RAW_DIR,    { recursive: true });
+  if (!existsSync(IMAGES_DIR)) mkdirSync(IMAGES_DIR, { recursive: true });
   console.log(`mode=${MODE}  dry=${DRY_RUN}`);
   const slugs = await resolveTargetSlugs();
   console.log(`targets: ${slugs.length}`);
@@ -318,4 +361,9 @@ async function main() {
   console.log(`\nDone. ok=${ok} fail=${fail}. Now run: node server/scripts/importBadges.js`);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+// Only run main() when invoked directly as a CLI — keeps parseBadgeHtml
+// safe to import from sibling scripts (e.g. reparseFromCache.js).
+const IS_CLI = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+if (IS_CLI) {
+  main().catch((e) => { console.error(e); process.exit(1); });
+}
