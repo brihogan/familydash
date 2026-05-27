@@ -5,7 +5,7 @@ import {
   faHouse, faTrophy, faTachographDigital, faBroom,
   faPiggyBank, faTicket, faUsers, faScroll, faRightFromBracket,
   faMedal, faClipboardCheck, faGear, faInbox, faMoneyBillWave, faPeopleRoof, faShieldHalved,
-  faArrowsRotate, faRocket,
+  faArrowsRotate, faRocket, faAnglesLeft, faAnglesRight,
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
@@ -65,6 +65,16 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
+  // Desktop sidebar collapse — persisted across sessions. Collapsed shows
+  // only the icons so the kid can still navigate without the full panel
+  // eating space on wider work-area views.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof localStorage === 'undefined') return false;
+    return localStorage.getItem('sidebarCollapsed') === '1';
+  });
+  useEffect(() => {
+    try { localStorage.setItem('sidebarCollapsed', sidebarCollapsed ? '1' : '0'); } catch {}
+  }, [sidebarCollapsed]);
   useScrollLock(bottomPanelOpen);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [defaultMemberId, setDefaultMemberId] = useState(null);
@@ -197,9 +207,12 @@ export default function Layout() {
   }, [bottomPanelOpen]);
 
 
-  // NavLink base class
+  // NavLink base class. When the sidebar is collapsed (icon-only), center
+  // the icon in the link instead of left-aligning. The transition-colors
+  // works at any width.
+  const navAlignClass = sidebarCollapsed ? 'justify-center px-2' : 'px-3';
   const navClass = ({ isActive }) =>
-    `flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
+    `flex items-center gap-2 ${navAlignClass} py-2 rounded-md transition-colors ${
       isActive
         ? 'bg-brand-50 text-brand-700 font-medium dark:bg-gray-700 dark:text-brand-500'
         : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
@@ -207,121 +220,128 @@ export default function Layout() {
 
   // Active class for kid-path links that match any /:base/:id
   const kidPathClass = (base) =>
-    `flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
+    `flex items-center gap-2 ${navAlignClass} py-2 rounded-md transition-colors ${
       location.pathname.startsWith(base + '/')
         ? 'bg-brand-50 text-brand-700 font-medium dark:bg-gray-700 dark:text-brand-500'
         : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
     }`;
 
+  // Helpers — wrap a text label so it can be hidden by the sidebar's
+  // [&_[data-nav-label]]:hidden when collapsed. Section dividers use
+  // the same data-nav-label so the whole row disappears.
+  const Lbl  = ({ children }) => <span data-nav-label>{children}</span>;
+  const Badge = ({ className, children }) => (
+    <span data-nav-badge className={className}>{children}</span>
+  );
+  const SectionHeader = ({ children }) => (
+    <div data-nav-label className="pt-2 pb-1 px-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+      {children}
+    </div>
+  );
+
   const Nav = () => (
     <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-4 space-y-1 text-sm">
-      <NavLink to="/dashboard" className={navClass} onClick={close}>
+      <NavLink to="/dashboard" className={navClass} onClick={close} title="Dashboard">
         <FontAwesomeIcon icon={faHouse} className="w-4 shrink-0" />
-        Dashboard
+        <Lbl>Dashboard</Lbl>
       </NavLink>
 
       {user?.role === 'parent' && (
         <>
-          <NavLink to="/inbox" className={navClass} onClick={close}>
+          <NavLink to="/inbox" className={navClass} onClick={close} title="Inbox">
             <FontAwesomeIcon icon={faInbox} className="w-4 shrink-0" />
-            Inbox
+            <Lbl>Inbox</Lbl>
             {inboxCount > 0 && (
-              <span className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400">
+              <Badge className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400">
                 {inboxCount}
-              </span>
+              </Badge>
             )}
           </NavLink>
           {claudeAccess && (
-            <NavLink to="/code-apps" className={navClass} onClick={close}>
+            <NavLink to="/code-apps" className={navClass} onClick={close} title="Apps">
               <FontAwesomeIcon icon={faRocket} className="w-4 shrink-0" />
-              Apps
+              <Lbl>Apps</Lbl>
             </NavLink>
           )}
 
           {defaultMemberId && (
             <>
-              <div className="pt-2 pb-1 px-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                Individual Pages
-              </div>
-              <NavLink to={`/kid/${defaultMemberId}`} className={() => kidPathClass('/kid')} onClick={close}>
+              <SectionHeader>Individual Pages</SectionHeader>
+              <NavLink to={`/kid/${defaultMemberId}`} className={() => kidPathClass('/kid')} onClick={close} title="Overview">
                 <FontAwesomeIcon icon={faTachographDigital} className="w-4 shrink-0" />
-                Overview
+                <Lbl>Overview</Lbl>
               </NavLink>
-              <NavLink to={`/chores/${defaultMemberId}`} className={() => kidPathClass('/chores')} onClick={close}>
+              <NavLink to={`/chores/${defaultMemberId}`} className={() => kidPathClass('/chores')} onClick={close} title={choresLabel}>
                 <FontAwesomeIcon icon={faBroom} className="w-4 shrink-0" />
-                {choresLabel}
+                <Lbl>{choresLabel}</Lbl>
               </NavLink>
               {useBanking && (
-                <NavLink to={`/bank/${defaultMemberId}`} className={() => kidPathClass('/bank')} onClick={close}>
+                <NavLink to={`/bank/${defaultMemberId}`} className={() => kidPathClass('/bank')} onClick={close} title="Bank">
                   <FontAwesomeIcon icon={faPiggyBank} className="w-4 shrink-0" />
-                  Bank
+                  <Lbl>Bank</Lbl>
                 </NavLink>
               )}
               {useTickets && (
-                <NavLink to={`/tickets/${defaultMemberId}`} className={() => kidPathClass('/tickets')} onClick={close}>
+                <NavLink to={`/tickets/${defaultMemberId}`} className={() => kidPathClass('/tickets')} onClick={close} title="Tickets">
                   <FontAwesomeIcon icon={faTicket} className="w-4 shrink-0" />
-                  Tickets
+                  <Lbl>Tickets</Lbl>
                 </NavLink>
               )}
               {useSets && (
-                <NavLink to={`/tasks/${defaultMemberId}`} className={() => kidPathClass('/tasks')} onClick={close}>
+                <NavLink to={`/tasks/${defaultMemberId}`} className={() => kidPathClass('/tasks')} onClick={close} title={setsStepsLabel}>
                   <FontAwesomeIcon icon={faMedal} className="w-4 shrink-0" />
-                  {setsStepsLabel}
+                  <Lbl>{setsStepsLabel}</Lbl>
                 </NavLink>
               )}
-              <NavLink to={`/trophies/${defaultMemberId}`} className={() => kidPathClass('/trophies')} onClick={close}>
+              <NavLink to={`/trophies/${defaultMemberId}`} className={() => kidPathClass('/trophies')} onClick={close} title="Trophies">
                 <FontAwesomeIcon icon={faTrophy} className="w-4 shrink-0" />
-                Trophies
+                <Lbl>Trophies</Lbl>
               </NavLink>
             </>
           )}
 
-          <div className="pt-2 pb-1 px-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-            Settings
-          </div>
-          <NavLink to="/settings" end className={navClass} onClick={close}>
+          <SectionHeader>Settings</SectionHeader>
+          <NavLink to="/settings" end className={navClass} onClick={close} title="Settings">
             <FontAwesomeIcon icon={faGear} className="w-4 shrink-0" />
-            Settings
+            <Lbl>Settings</Lbl>
           </NavLink>
-          <NavLink to="/settings/users" className={navClass} onClick={close}>
+          <NavLink to="/settings/users" className={navClass} onClick={close} title={`Family & ${choresLabel}`}>
             <FontAwesomeIcon icon={faUsers} className="w-4 shrink-0" />
-            Family &amp; {choresLabel}
+            <Lbl>Family &amp; {choresLabel}</Lbl>
           </NavLink>
           {useSets && (
-            <NavLink to="/settings/tasks" className={navClass} onClick={close}>
+            <NavLink to="/settings/tasks" className={navClass} onClick={close} title="Set Management">
               <FontAwesomeIcon icon={faClipboardCheck} className="w-4 shrink-0" />
-              Set Management
+              <Lbl>Set Management</Lbl>
             </NavLink>
           )}
           {useBadges && (
-            <NavLink to="/settings/badges" className={navClass} onClick={close}>
+            <NavLink to="/settings/badges" className={navClass} onClick={close} title="Badge Library">
               <FontAwesomeIcon icon={faShieldHalved} className="w-4 shrink-0" />
-              Badge Library
+              <Lbl>Badge Library</Lbl>
             </NavLink>
           )}
           {useTickets && (
-            <NavLink to="/rewards" className={navClass} onClick={close}>
+            <NavLink to="/rewards" className={navClass} onClick={close} title="Rewards">
               <FontAwesomeIcon icon={faTrophy} className="w-4 shrink-0" />
-              Rewards
+              <Lbl>Rewards</Lbl>
             </NavLink>
           )}
-          <NavLink to="/settings/turns" className={navClass} onClick={close}>
+          <NavLink to="/settings/turns" className={navClass} onClick={close} title="Turns">
             <FontAwesomeIcon icon={faArrowsRotate} className="w-4 shrink-0" />
-            Turns
+            <Lbl>Turns</Lbl>
           </NavLink>
-          <NavLink to="/family-activity" className={navClass} onClick={close}>
+          <NavLink to="/family-activity" className={navClass} onClick={close} title="Family Activity">
             <FontAwesomeIcon icon={faScroll} className="w-4 shrink-0" />
-            Family Activity
+            <Lbl>Family Activity</Lbl>
           </NavLink>
 
           {user?.isAdmin && (
             <>
-              <div className="pt-2 pb-1 px-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                Admin
-              </div>
-              <NavLink to="/admin" className={navClass} onClick={close}>
+              <SectionHeader>Admin</SectionHeader>
+              <NavLink to="/admin" className={navClass} onClick={close} title="Admin Dashboard">
                 <FontAwesomeIcon icon={faShieldHalved} className="w-4 shrink-0" />
-                Admin Dashboard
+                <Lbl>Admin Dashboard</Lbl>
               </NavLink>
             </>
           )}
@@ -331,80 +351,80 @@ export default function Layout() {
       {user?.role === 'kid' && (
         <>
           {claudeAccess && (
-            <NavLink to="/code-apps" className={navClass} onClick={close}>
+            <NavLink to="/code-apps" className={navClass} onClick={close} title="Apps">
               <FontAwesomeIcon icon={faRocket} className="w-4 shrink-0" />
-              Apps
+              <Lbl>Apps</Lbl>
             </NavLink>
           )}
-          <NavLink to={`/kid/${user.id}`} className={navClass} onClick={close}>
+          <NavLink to={`/kid/${user.id}`} className={navClass} onClick={close} title="My Overview">
             <FontAwesomeIcon icon={faTachographDigital} className="w-4 shrink-0" />
-            My Overview
+            <Lbl>My Overview</Lbl>
           </NavLink>
-          <NavLink to={`/chores/${user.id}`} className={navClass} onClick={close}>
+          <NavLink to={`/chores/${user.id}`} className={navClass} onClick={close} title={`My ${choresLabel}`}>
             <FontAwesomeIcon icon={faBroom} className="w-4 shrink-0" />
-            My {choresLabel}
+            <Lbl>My {choresLabel}</Lbl>
             {kidStats && (
-              <span className={`ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight ${
+              <Badge className={`ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight ${
                 kidStats.choresRemaining > 0
                   ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-gray-400'
                   : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-gray-400'
               }`}>
                 {kidStats.choresRemaining > 0 ? kidStats.choresRemaining : '✓'}
-              </span>
+              </Badge>
             )}
           </NavLink>
           {useBanking && (
-            <NavLink to={`/bank/${user.id}`} className={navClass} onClick={close}>
+            <NavLink to={`/bank/${user.id}`} className={navClass} onClick={close} title="My Bank">
               <FontAwesomeIcon icon={faPiggyBank} className="w-4 shrink-0" />
-              My Bank
+              <Lbl>My Bank</Lbl>
               {kidStats && (
-                <span className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                <Badge className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
                   {formatCents(kidStats.mainBalanceCents)}
-                </span>
+                </Badge>
               )}
             </NavLink>
           )}
           {useTickets && (
-            <NavLink to={`/tickets/${user.id}`} className={navClass} onClick={close}>
+            <NavLink to={`/tickets/${user.id}`} className={navClass} onClick={close} title="My Tickets">
               <FontAwesomeIcon icon={faTicket} className="w-4 shrink-0" />
-              My Tickets
+              <Lbl>My Tickets</Lbl>
               {kidStats && (
-                <span className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-brand-50 dark:bg-brand-500/20 text-brand-700 dark:text-gray-400">
+                <Badge className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-brand-50 dark:bg-brand-500/20 text-brand-700 dark:text-gray-400">
                   {kidStats.ticketBalance}
-                </span>
+                </Badge>
               )}
             </NavLink>
           )}
           {useBadges && (
-            <NavLink to={`/badges/${user.id}`} className={navClass} onClick={close}>
+            <NavLink to={`/badges/${user.id}`} className={navClass} onClick={close} title="My Badges">
               <FontAwesomeIcon icon={faShieldHalved} className="w-4 shrink-0" />
-              My Badges
+              <Lbl>My Badges</Lbl>
             </NavLink>
           )}
           {useSets && (
-            <NavLink to={`/tasks/${user.id}`} className={navClass} onClick={close}>
+            <NavLink to={`/tasks/${user.id}`} className={navClass} onClick={close} title="My Sets">
               <FontAwesomeIcon icon={faMedal} className="w-4 shrink-0" />
-              My Sets
+              <Lbl>My Sets</Lbl>
               {kidStats && (
-                <span className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-brand-50 dark:bg-brand-500/20 text-brand-700 dark:text-gray-400">
+                <Badge className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-brand-50 dark:bg-brand-500/20 text-brand-700 dark:text-gray-400">
                   {kidStats.taskSetsCount}
-                </span>
+                </Badge>
               )}
             </NavLink>
           )}
-          <NavLink to={`/trophies/${user.id}`} className={navClass} onClick={close}>
+          <NavLink to={`/trophies/${user.id}`} className={navClass} onClick={close} title="My Trophies">
             <FontAwesomeIcon icon={faTrophy} className="w-4 shrink-0" />
-            My Trophies
+            <Lbl>My Trophies</Lbl>
             {kidStats && kidStats.completedTaskSetsCount > 0 && (
-              <span className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-gray-400">
+              <Badge className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-gray-400">
                 {kidStats.completedTaskSetsCount}
-              </span>
+              </Badge>
             )}
           </NavLink>
           {useTickets && (
-            <NavLink to="/rewards" className={navClass} onClick={close}>
+            <NavLink to="/rewards" className={navClass} onClick={close} title="Rewards">
               <FontAwesomeIcon icon={faTrophy} className="w-4 shrink-0" />
-              Rewards
+              <Lbl>Rewards</Lbl>
             </NavLink>
           )}
         </>
@@ -424,13 +444,31 @@ export default function Layout() {
         />
       )}
 
-      {/* ── Sidebar (desktop only) ── */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-56 lg:shrink-0 bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 shadow-sm">
-        {/* Sidebar header */}
-        <div className="px-4 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-          <Link to="/dashboard" className="text-lg font-bold text-brand-600 hover:text-brand-700"><FontAwesomeIcon icon={faPeopleRoof} className="mr-2" />Family Dash</Link>
+      {/* ── Sidebar (desktop only) ──
+          When collapsed: width drops to 14 (icons only). The
+          [&_[data-nav-label]]:hidden selector hides every <span data-nav-label>
+          inside the aside without a per-link edit, and [&_[data-nav-badge]]:hidden
+          drops the inline count chips so the icon row stays clean. */}
+      <aside
+        className={`hidden lg:flex lg:flex-col lg:shrink-0 bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 shadow-sm transition-[width] duration-200 ${
+          sidebarCollapsed
+            ? 'lg:w-14 [&_[data-nav-label]]:hidden [&_[data-nav-badge]]:hidden'
+            : 'lg:w-56'
+        }`}
+      >
+        {/* Sidebar header — title or just the icon when collapsed, plus a
+            toggle button on the right (or stacked when collapsed). */}
+        <div className={`border-b border-gray-100 dark:border-gray-700 ${sidebarCollapsed ? 'px-2 py-3 flex flex-col items-center gap-2' : 'px-4 py-5 flex items-center justify-between'}`}>
+          <Link
+            to="/dashboard"
+            className={`font-bold text-brand-600 hover:text-brand-700 ${sidebarCollapsed ? 'text-xl' : 'text-lg'}`}
+            title={sidebarCollapsed ? 'Family Dash · Dashboard' : undefined}
+          >
+            <FontAwesomeIcon icon={faPeopleRoof} className={sidebarCollapsed ? '' : 'mr-2'} />
+            <span data-nav-label>Family Dash</span>
+          </Link>
           {!isOnline && (
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+            <span data-nav-badge className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
               pendingCount > 0
                 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
@@ -438,6 +476,15 @@ export default function Layout() {
               Offline{pendingCount > 0 ? ` · ${pendingCount}` : ''}
             </span>
           )}
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed((v) => !v)}
+            className="p-1 rounded-md text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <FontAwesomeIcon icon={sidebarCollapsed ? faAnglesRight : faAnglesLeft} className="text-sm" />
+          </button>
         </div>
 
         <Nav />
@@ -446,15 +493,17 @@ export default function Layout() {
         {(kidStats?.pendingDepositCount || dexiePendingDepositCount) > 0 && (
           <button
             onClick={() => navigate(`/bank/${user.id}`, { state: { openReceive: true } })}
-            className="mx-3 mb-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-semibold hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
+            className={`mx-3 mb-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-semibold hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors ${sidebarCollapsed ? 'justify-center' : ''}`}
+            title="Money to receive"
           >
             <FontAwesomeIcon icon={faMoneyBillWave} className="text-[11px]" />
-            Money to receive!
+            <span data-nav-label>Money to receive!</span>
           </button>
         )}
 
-        {/* User info + theme toggle + logout */}
-        <div className="px-4 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center gap-3">
+        {/* User info + theme toggle + logout — stacks when collapsed so the
+            avatar + icons keep the same touch targets. */}
+        <div className={`border-t border-gray-100 dark:border-gray-700 ${sidebarCollapsed ? 'px-2 py-3 flex flex-col items-center gap-2' : 'px-4 py-4 flex items-center gap-3'}`}>
           <button
             type="button"
             onClick={() => setEmojiOpen(true)}
@@ -463,7 +512,7 @@ export default function Layout() {
           >
             <Avatar name={user?.name || '?'} color={user?.avatarColor || '#6366f1'} emoji={user?.avatarEmoji} size="sm" />
           </button>
-          <div className="flex-1 min-w-0">
+          <div data-nav-label className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{user?.name}</p>
             <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">{user?.role}</p>
           </div>
