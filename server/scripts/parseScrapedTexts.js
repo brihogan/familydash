@@ -197,38 +197,46 @@ export function parseLevels(text) {
       const looksLikeHeader = tail === '' || matched || /^\s*$/.test(tail) ||
                               /\b(Do|Choose|Complete)\b/i.test(tail.slice(0, 30)) ||
                               isOptionalHeader;
-      if (!looksLikeHeader) continue;
-
-      // A new section header arrived — flush any in-progress requirement
-      // before we switch contexts.
-      flushPending();
-      if (/Optional/i.test(rawName)) {
-        // Optionals are global; the shared queue is irrelevant past here.
-        sharedQueue.length = 0;
-        currentSection = '_optional';
-        currentTotal = null;
-        currentStarred = null;
-      } else {
-        // If we're transitioning between level headers and the previous one
-        // received zero requirements, treat it as "shared" — keep accruing
-        // until reqs actually arrive (or until Optional starts).
-        if (currentSection && currentSection !== '_optional' &&
-            (out.levels[currentSection]?.requirements?.length ?? 0) === 0 &&
-            !sharedQueue.includes(currentSection)) {
-          sharedQueue.push(currentSection);
+      // If the regex matched the header pattern but the surrounding text
+      // doesn't actually look like a header (e.g. continuation line like
+      // "Level 3 – 4," inside a multi-line parenthetical), FALL THROUGH
+      // to the req-marker / continuation-append handling below instead
+      // of skipping the line. Skipping would drop the line silently and
+      // truncate the pending requirement's text — the Women in Science
+      // bug.
+      if (looksLikeHeader) {
+        // A new section header arrived — flush any in-progress requirement
+        // before we switch contexts.
+        flushPending();
+        if (/Optional/i.test(rawName)) {
+          // Optionals are global; the shared queue is irrelevant past here.
+          sharedQueue.length = 0;
+          currentSection = '_optional';
+          currentTotal = null;
+          currentStarred = null;
+        } else {
+          // If we're transitioning between level headers and the previous
+          // one received zero requirements, treat it as "shared" — keep
+          // accruing until reqs actually arrive (or until Optional starts).
+          if (currentSection && currentSection !== '_optional' &&
+              (out.levels[currentSection]?.requirements?.length ?? 0) === 0 &&
+              !sharedQueue.includes(currentSection)) {
+            sharedQueue.push(currentSection);
+          }
+          currentSection = LEVEL_KEY[rawName] || null;
+          currentTotal   = totalCount;
+          currentStarred = starredCount;
+          if (currentSection) {
+            out.levels[currentSection] = {
+              totalRequired: currentTotal,
+              starredCount: currentStarred,
+              requirements: [],
+            };
+          }
         }
-        currentSection = LEVEL_KEY[rawName] || null;
-        currentTotal   = totalCount;
-        currentStarred = starredCount;
-        if (currentSection) {
-          out.levels[currentSection] = {
-            totalRequired: currentTotal,
-            starredCount: currentStarred,
-            requirements: [],
-          };
-        }
+        continue;
       }
-      continue;
+      // else: fall through to req-marker + continuation handling
     }
 
     // Requirement starter: line begins with at least two underscores. Flush
