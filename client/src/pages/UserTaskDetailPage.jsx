@@ -1009,6 +1009,7 @@ export default function UserTaskDetailPage() {
   const [swapError,        setSwapError]        = useState('');
   const [imageLightbox,    setImageLightbox]    = useState(false);
   const [descExpanded,     setDescExpanded]     = useState(false);
+  const [tagsExpanded,     setTagsExpanded]     = useState(false);
   // Opens BadgePreviewModal when a kid clicks a linked-badge step they haven't enrolled in yet.
   const [previewBadge,     setPreviewBadge]     = useState(null);
   // Opens the BadgeBrowser modal pre-filtered to an Area of Discovery when a
@@ -1732,18 +1733,29 @@ export default function UserTaskDetailPage() {
                 {taskSet.description}
               </p>
             )}
-            {/* Single toggle reveals both the full description (if it
-                overflows) AND the pill row beneath. Pills are always
-                present (type / level / progress), so the toggle is always
-                rendered. */}
-            <button
-              type="button"
-              onClick={() => setDescExpanded((v) => !v)}
-              className="mt-0.5 text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
-            >
-              {descExpanded ? 'Show less' : 'Show more…'}
-            </button>
-            {descExpanded && (
+            {/* Two independent toggles: "Show more…" expands the description
+                (only when it overflows two lines); "Show tags" reveals the
+                pill row beneath. Pills are always present (type / progress
+                at minimum) so the tags toggle is always available. */}
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+              {descOverflowing && (
+                <button
+                  type="button"
+                  onClick={() => setDescExpanded((v) => !v)}
+                  className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
+                >
+                  {descExpanded ? 'Show less' : 'Show more…'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setTagsExpanded((v) => !v)}
+                className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
+              >
+                {tagsExpanded ? 'Hide tags' : 'Show tags'}
+              </button>
+            </div>
+            {tagsExpanded && (
               <div className="flex flex-wrap items-center gap-1.5 mt-2 justify-start">
                 <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full whitespace-nowrap">
                   {taskSet.type}
