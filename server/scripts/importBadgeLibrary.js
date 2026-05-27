@@ -91,6 +91,26 @@ const insertOptReq = db.prepare(
   'INSERT INTO badge_optional_requirements (badge_id, req_number, text, level) VALUES (?, ?, ?, ?)'
 );
 
+// Snapshot the current optional-req IDs by (badge_id, normalized text)
+// BEFORE we clear them. task_steps.badge_opt_req_id rows on the live DB
+// point at these IDs — once we wipe + re-insert, the new IDs differ and
+// every kid's "Your Picks" list would be orphaned. We rebuild the
+// mapping post-insert and rewrite task_steps to the new IDs so existing
+// enrollments stay coherent.
+const normalizeText = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+const oldOptRows = db.prepare(
+  'SELECT id, badge_id, text, level FROM badge_optional_requirements'
+).all();
+const oldByKey = new Map();
+for (const r of oldOptRows) {
+  const key = `${r.badge_id}|${r.level || ''}|${normalizeText(r.text)}`;
+  oldByKey.set(key, r.id);
+}
+
+const updateTaskStepOptRef = db.prepare(
+  'UPDATE task_steps SET badge_opt_req_id = ? WHERE badge_opt_req_id = ?'
+);
+
 const run = db.transaction(() => {
   let upserts = 0;
   for (const b of snapshot.badges || []) {
@@ -112,12 +132,80 @@ const run = db.transaction(() => {
     orCount++;
   }
 
+  // Build new-ID map and rewrite task_steps.badge_opt_req_id so existing
+  // optional picks still resolve. Only updates rows whose old ID maps to
+  // a new row (matched by badge_id + level + normalized text); rows that
+  // no longer have a matching opt req keep their stale ID (rare — only
+  // happens if a badge's optional was removed between exports).
+  const newOptRows = db.prepare(
+    'SELECT id, badge_id, text, level FROM badge_optional_requirements'
+  ).all();
+  const newByKey = new Map();
+  for (const r of newOptRows) {
+    const key = `${r.badge_id}|${r.level || ''}|${normalizeText(r.text)}`;
+    newByKey.set(key, r.id);
+  }
+  let remapped = 0;
+  for (const [key, oldId] of oldByKey) {
+    const newId = newByKey.get(key);
+    if (newId && newId !== oldId) {
+      const res = updateTaskStepOptRef.run(newId, oldId);
+      remapped += res.changes;
+    }
+  }
+
   console.log(`Upserted ${upserts} badges`);
   console.log(`Inserted ${lrCount} level requirements`);
   console.log(`Inserted ${orCount} optional requirements`);
+  console.log(`Remapped ${remapped} task_step badge_opt_req_id refs to new IDs`);
 });
 
 run();
+
+// ─── Repair: task_steps with stale badge_opt_req_id ──────────────────────
+// Heals damage from previous imports that ran BEFORE the in-transaction
+// remap above. Any optional task_step whose badge_opt_req_id no longer
+// resolves gets re-pointed via name match against the badge's current
+// optional pool. Step.name was set to opt.text at addOptional time, so a
+// normalized name + badge_id lookup recovers the right new ID.
+const orphanedSteps = db.prepare(`
+  SELECT s.id, s.name, s.badge_opt_req_id, ts.badge_id
+  FROM task_steps s
+  JOIN task_sets ts ON ts.id = s.task_set_id
+  WHERE s.is_optional = 1
+    AND s.is_active = 1
+    AND s.badge_opt_req_id IS NOT NULL
+    AND ts.badge_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM badge_optional_requirements o WHERE o.id = s.badge_opt_req_id
+    )
+`).all();
+if (orphanedSteps.length > 0) {
+  const normalizeText = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const allOpts = db.prepare(
+    'SELECT id, badge_id, text FROM badge_optional_requirements'
+  ).all();
+  const optByKey = new Map();
+  for (const o of allOpts) {
+    optByKey.set(`${o.badge_id}|${normalizeText(o.text)}`, o.id);
+  }
+  const updateRef = db.prepare('UPDATE task_steps SET badge_opt_req_id = ? WHERE id = ?');
+  let healed = 0, unhealed = 0;
+  const healTxn = db.transaction(() => {
+    for (const s of orphanedSteps) {
+      const newId = optByKey.get(`${s.badge_id}|${normalizeText(s.name)}`);
+      if (newId) {
+        updateRef.run(newId, s.id);
+        healed++;
+      } else {
+        unhealed++;
+      }
+    }
+  });
+  healTxn();
+  console.log(`Repair: re-linked ${healed} orphaned task_steps to current optional IDs` +
+              (unhealed > 0 ? ` (${unhealed} could not be matched by name — manual review)` : ''));
+}
 
 // Final sanity counts post-import
 const counts = {
