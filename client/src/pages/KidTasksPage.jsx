@@ -316,7 +316,7 @@ export default function KidTasksPage() {
           compact
           onEnrolled={(taskSetId) => {
             setBadgesOpen(false);
-            navigate(`/tasks/${userId}/${taskSetId}`, { state: { from: location.pathname + location.search } });
+            navigate(`/tasks/${userId}/${taskSetId}`, { state: { chain: [...(location.state?.chain || []), location.pathname + location.search] } });
           }}
         />
       </Modal>

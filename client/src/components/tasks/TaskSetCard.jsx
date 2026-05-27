@@ -92,10 +92,9 @@ function filterDotColor(value) {
 export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, onFlip, onPillFilter, useTickets, minimal = false }) {
   const navigate = useNavigate();
   const location = useLocation();
-  // Record where the user opened the detail page FROM, so the detail's back
-  // chevron can return them there instead of always going to the group
-  // folder. Includes search/query so filtered views are preserved.
-  const navState = { state: { from: location.pathname + location.search } };
+  // Append the current page to the back-nav chain so the detail's back
+  // chevron walks the user back through the exact pages they came through.
+  const navState = { state: { chain: [...(location.state?.chain || []), location.pathname + location.search] } };
   const pct  = ts.step_count > 0 ? Math.round((ts.completed_count / ts.step_count) * 100) : 0;
   const done = ts.step_count > 0 && ts.completed_count === ts.step_count;
   const minimalSize = useMedallionSize();

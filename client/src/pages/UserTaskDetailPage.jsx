@@ -641,7 +641,7 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
           )}
           <Link
             to={`/tasks/${userId || ''}/${step.linked_task_set_id}`}
-            state={{ from: location.pathname + location.search }}
+            state={{ chain: [...(location.state?.chain || []), location.pathname + location.search] }}
             onClick={(e) => e.stopPropagation()}
             className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
             title={`${step.linked_completed_count}/${step.linked_step_count} steps — open ${step.linked_badge_name}`}
@@ -1220,14 +1220,19 @@ export default function UserTaskDetailPage() {
     }
   };
 
-  // Back chevron target: prefer the explicit `from` passed via location
-  // state by whoever navigated here (kid task page, awards folder, dashboard
-  // row, etc.) so we land where the user actually came from. Falls back to
-  // the matching group page when the tag is known, then to the kid's tasks
-  // page. Never uses navigate(-1) — that loops with the tree view.
+  // Back chevron target: pop one step off the `chain` carried in location
+  // state. Every forward step (kid tasks → award, award → linked badge,
+  // detail → tree, etc.) appends the current path to the chain, so popping
+  // walks the user back through the exact pages they came through —
+  // surviving multi-step back trips that a single `from` field can't.
+  // Falls back to the matching group page when there's no chain (deep
+  // links, fresh loads), then to the kid's tasks page.
   const goBack = () => {
-    const from = location.state?.from;
-    if (from) return navigate(from);
+    const chain = location.state?.chain;
+    if (Array.isArray(chain) && chain.length > 0) {
+      const last = chain[chain.length - 1];
+      return navigate(last, { state: { chain: chain.slice(0, -1) } });
+    }
     const tags = taskSet?.tags;
     if (Array.isArray(tags)) {
       if (tags.includes('Award')) return navigate(`/tasks/${userId}/group/awards`);
@@ -1585,7 +1590,7 @@ export default function UserTaskDetailPage() {
                 a useless button. */}
             {steps.some((s) => s.linked_badge_id || s.linked_badge_category || s.linked_task_set_id) && (
               <button
-                onClick={() => navigate(`/tasks/${userId}/${taskSetId}/tree`, { state: { from: location.state?.from } })}
+                onClick={() => navigate(`/tasks/${userId}/${taskSetId}/tree`, { state: { chain: [...(location.state?.chain || []), location.pathname + location.search] } })}
                 className="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-brand-900/30 dark:hover:text-brand-300 transition-colors"
                 aria-label="Show award map"
                 title="Show award map"

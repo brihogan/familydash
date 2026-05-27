@@ -270,7 +270,7 @@ export default function KidGroupPage() {
           initialType={isAwards ? 'award' : 'badge'}
           onEnrolled={(taskSetId) => {
             setBrowserOpen(false);
-            navigate(`/tasks/${userId}/${taskSetId}`, { state: { from: location.pathname + location.search } });
+            navigate(`/tasks/${userId}/${taskSetId}`, { state: { chain: [...(location.state?.chain || []), location.pathname + location.search] } });
           }}
         />
       </Modal>

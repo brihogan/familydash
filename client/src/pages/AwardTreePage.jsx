@@ -85,11 +85,13 @@ export default function AwardTreePage() {
   const { userId, taskSetId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  // Preserve the original `from` (whatever opened the award detail) so a
-  // tree → detail → back trip lands on the true origin instead of the
-  // group folder. Used for both the back chevron and the linked-child
-  // navigations below.
-  const backToDetailState = { state: { from: location.state?.from } };
+  // Pop the incoming chain when going back to the parent detail (the tree
+  // was the last step appended). Used by both the back chevron and the
+  // "click the center medallion" interaction below. Linked-child clicks
+  // push the tree onto the chain instead (those are forward navigations).
+  const incomingChain = location.state?.chain || [];
+  const popChainState = { state: { chain: incomingChain.slice(0, -1) } };
+  const pushChainState = { state: { chain: [...incomingChain, location.pathname + location.search] } };
   const [taskSet, setTaskSet] = useState(null);
   const [steps, setSteps]     = useState([]);
   const [loading, setLoading] = useState(true);
@@ -241,7 +243,7 @@ export default function AwardTreePage() {
     return (
       <div>
         <button
-          onClick={() => navigate(`/tasks/${userId}/${taskSetId}`, backToDetailState)}
+          onClick={() => navigate(`/tasks/${userId}/${taskSetId}`, popChainState)}
           className="mb-4 flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors"
         >
           <FontAwesomeIcon icon={faChevronLeft} className="text-xs" /> Back
@@ -255,7 +257,7 @@ export default function AwardTreePage() {
     return (
       <div>
         <button
-          onClick={() => navigate(`/tasks/${userId}/${taskSetId}`, backToDetailState)}
+          onClick={() => navigate(`/tasks/${userId}/${taskSetId}`, popChainState)}
           className="mb-4 flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors"
         >
           <FontAwesomeIcon icon={faChevronLeft} className="text-xs" /> Back
@@ -273,7 +275,7 @@ export default function AwardTreePage() {
     <div>
       <div className="mb-4 flex items-center gap-2">
         <button
-          onClick={() => navigate(`/tasks/${userId}/${taskSetId}`, backToDetailState)}
+          onClick={() => navigate(`/tasks/${userId}/${taskSetId}`, popChainState)}
           className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           aria-label="Back to award"
         >
@@ -362,8 +364,8 @@ export default function AwardTreePage() {
                   placeholderEmoji={isGeneric ? '📝' : (unlinked ? '❓' : '🏅')}
                   title={`${c.label}${c.total > 0 ? ` — ${c.completed}/${c.total}` : ''}`}
                   onClick={isGeneric || !c.step.linked_task_set_id
-                    ? () => navigate(`/tasks/${userId}/${taskSetId}`, backToDetailState)
-                    : () => navigate(`/tasks/${userId}/${c.step.linked_task_set_id}`, { state: { from: location.pathname } })}
+                    ? () => navigate(`/tasks/${userId}/${taskSetId}`, popChainState)
+                    : () => navigate(`/tasks/${userId}/${c.step.linked_task_set_id}`, pushChainState)}
                 />
               </div>
             );

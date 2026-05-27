@@ -133,7 +133,7 @@ export default function DashboardRow({ member, onRefresh, readOnly = false, mask
                       done={pct === 100}
                       size={27}
                       title={ts.name}
-                      onClick={statsClickable ? (e) => { e.stopPropagation(); navigate(`/tasks/${member.id}/${ts.id}`, { state: { from: location.pathname + location.search } }); } : undefined}
+                      onClick={statsClickable ? (e) => { e.stopPropagation(); navigate(`/tasks/${member.id}/${ts.id}`, { state: { chain: [...(location.state?.chain || []), location.pathname + location.search] } }); } : undefined}
                     >
                       {ts.badgeImageFile ? (
                         <img

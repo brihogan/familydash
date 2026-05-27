@@ -218,7 +218,7 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, onPi
   const handleEnrolled = (taskSetId) => {
     setPreviewBadge(null);
     if (onEnrolled) onEnrolled(taskSetId);
-    else navigate(`/tasks/${targetId}/${taskSetId}`, { state: { from: location.pathname + location.search } });
+    else navigate(`/tasks/${targetId}/${taskSetId}`, { state: { chain: [...(location.state?.chain || []), location.pathname + location.search] } });
   };
 
   return (
