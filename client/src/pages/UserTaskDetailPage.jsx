@@ -1556,10 +1556,14 @@ export default function UserTaskDetailPage() {
         </div>
       )}
 
-      {/* ── Header ── */}
+      {/* ── Header ──
+          Below 600px viewport: stacks vertically with the badge centered,
+          title centered below it, then description and pills left-justified.
+          At 600px+ keeps the side-by-side layout (back/pin/map column,
+          badge, then title/desc/pills column). */}
       <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-start gap-3">
-          <div className="flex-shrink-0 flex flex-col items-center gap-1 mt-1">
+        <div className="flex flex-col min-[600px]:flex-row items-stretch min-[600px]:items-start gap-3">
+          <div className="flex flex-row min-[600px]:flex-col items-center gap-1 min-[600px]:flex-shrink-0 min-[600px]:mt-1 self-start min-[600px]:self-auto">
             <button
               onClick={goBack}
               className="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -1623,7 +1627,7 @@ export default function UserTaskDetailPage() {
               ? '#6B7280'
               : (detailLevelCfg?.borderColor || (allDone ? '#22C55E' : '#6366F1'));
             return (
-              <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+              <div className="relative flex-shrink-0 self-center min-[600px]:self-auto" style={{ width: size, height: size }}>
                 <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
                   <circle
                     cx={size / 2} cy={size / 2} r={r}
@@ -1671,10 +1675,12 @@ export default function UserTaskDetailPage() {
             );
           })()}
 
-          {/* Title + description + pills below */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight flex-1 min-w-0">
+          {/* Title + description + pills below. On mobile (<600px): title
+              centered, archive button stacks below it; description and pills
+              are still left-justified. */}
+          <div className="flex-1 min-w-0 w-full">
+            <div className="flex flex-col items-center min-[600px]:flex-row min-[600px]:items-start min-[600px]:justify-between gap-2">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight min-[600px]:flex-1 min-w-0 text-center min-[600px]:text-left">
                 {taskSet.name}
               </h1>
               {!archivedAt && (
@@ -1693,7 +1699,7 @@ export default function UserTaskDetailPage() {
               <>
                 <p
                   ref={descRef}
-                  className={`text-sm text-gray-500 dark:text-gray-400 mt-1 leading-snug ${
+                  className={`text-sm text-gray-500 dark:text-gray-400 mt-1 leading-snug text-left ${
                     descExpanded ? '' : 'line-clamp-2'
                   }`}
                 >
@@ -1710,7 +1716,7 @@ export default function UserTaskDetailPage() {
                 )}
               </>
             )}
-            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            <div className="flex flex-wrap items-center gap-1.5 mt-2 justify-start">
               <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full whitespace-nowrap">
                 {taskSet.type}
               </span>
