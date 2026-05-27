@@ -119,11 +119,17 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
     // saturated borderColor. In dark mode the pastel tracks were way too
     // bright against the dark surroundings; swap to a neutral dark gray
     // (gray-700) so the arc reads as the accent. Progress arc stays the
-    // saturated level color for visibility.
-    const trackColor    = isDark
-      ? '#374151'  // gray-700 — subtle against dark backgrounds
-      : (levelCfg?.trackColor  || levelCfg?.color || '#E5E7EB');
-    const progressColor = levelCfg?.borderColor || '#6366F1';                    // brand fallback
+    // saturated level color for visibility — EXCEPT Owl/Level 5, whose
+    // borderColor is gray-900 (#111827) and disappears on a dark page;
+    // for that case track gets the very dark shade and progress gets the
+    // light shade so the relationship inverts cleanly.
+    const isOwlLevel = levelCfg?.borderColor === '#111827';
+    const trackColor = isDark
+      ? (isOwlLevel ? '#111827' : '#374151')        // owl: gray-900, others: gray-700
+      : (levelCfg?.trackColor || levelCfg?.color || '#E5E7EB');
+    const progressColor = isDark && isOwlLevel
+      ? '#D1D5DB'                                   // gray-300 — light arc on dark track
+      : (levelCfg?.borderColor || '#6366F1');
     return (
       <button
         type="button"

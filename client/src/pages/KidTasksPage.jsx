@@ -155,10 +155,16 @@ export default function KidTasksPage() {
     const r = (size - sw) / 2; // stroke flush to button edge — no white halo
     const circ = 2 * Math.PI * r;
     const overallPct = c.totalSteps > 0 ? Math.round((c.doneSteps / c.totalSteps) * 100) : 0;
-    const trackColor    = isDark
-      ? '#374151'
+    // Owl/Level 5 borderColor is gray-900 — invisible on a dark bg, so we
+    // invert the relationship for that level (track gets the darkest shade,
+    // progress arc gets a light visible shade).
+    const isOwlLevel = kidLevelCfg?.borderColor === '#111827';
+    const trackColor = isDark
+      ? (isOwlLevel ? '#111827' : '#374151')
       : (kidLevelCfg?.trackColor || kidLevelCfg?.color || '#E5E7EB');
-    const progressColor = kidLevelCfg?.borderColor || '#6366F1';
+    const progressColor = isDark && isOwlLevel
+      ? '#D1D5DB'
+      : (kidLevelCfg?.borderColor || '#6366F1');
 
     // Curved title — uppercase label across the top arc, "FOLDER" across the
     // bottom arc. Both arcs sit INSIDE the colored inner disc (r=32), tucked

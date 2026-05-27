@@ -1601,10 +1601,16 @@ export default function UserTaskDetailPage() {
             const r    = (size - sw) / 2;
             const circ = 2 * Math.PI * r;
             const detailLevelCfg = taskSet.badge_level && BADGE_LEVELS[taskSet.badge_level];
-            const trackColor    = isDark
-              ? '#374151'
+            // Owl/Level 5's borderColor is gray-900 — invisible on a dark
+            // bg. Flip the relationship for Owl in dark mode (darkest shade
+            // = track, lighter = arc).
+            const isOwlLevel = detailLevelCfg?.borderColor === '#111827';
+            const trackColor = isDark
+              ? (isOwlLevel ? '#111827' : '#374151')
               : (detailLevelCfg?.trackColor || detailLevelCfg?.color || '#E5E7EB');
-            const progressColor = detailLevelCfg?.borderColor || (allDone ? '#22C55E' : '#6366F1');
+            const progressColor = isDark && isOwlLevel
+              ? '#D1D5DB'
+              : (detailLevelCfg?.borderColor || (allDone ? '#22C55E' : '#6366F1'));
             return (
               <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
                 <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>

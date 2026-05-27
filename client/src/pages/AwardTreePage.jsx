@@ -19,13 +19,16 @@ function Medallion({ size, taskSet, step, status, pct, onClick, title, placehold
   const levelCfg = (taskSet?.badge_level && BADGE_LEVELS[taskSet.badge_level])
                 || (step?.linked_badge_level && BADGE_LEVELS[step.linked_badge_level]);
   // Dark mode: pastel tracks are too bright; use a neutral gray-700 so the
-  // progress arc reads as the accent.
-  const trackColor    = isDark
-    ? '#374151'
+  // progress arc reads as the accent. Owl/Level 5's borderColor (gray-900)
+  // disappears on a dark bg — flip the relationship for that level so the
+  // light shade is the visible arc.
+  const isOwlLevel = levelCfg?.borderColor === '#111827';
+  const trackColor = isDark
+    ? (isOwlLevel ? '#111827' : '#374151')
     : (levelCfg?.trackColor || levelCfg?.color || '#E5E7EB');
   const progressColor = status === 'completed'
     ? '#22C55E'
-    : (levelCfg?.borderColor || '#6366F1');
+    : (isDark && isOwlLevel ? '#D1D5DB' : (levelCfg?.borderColor || '#6366F1'));
   const innerSize = Math.round(size * 0.78);
   const imageFile = isGeneric ? null : (taskSet?.badge_image_file || step?.linked_badge_image);
   const emoji     = isGeneric
