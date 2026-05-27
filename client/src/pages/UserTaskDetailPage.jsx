@@ -1569,10 +1569,10 @@ export default function UserTaskDetailPage() {
           <div className="flex flex-col items-center gap-1 flex-shrink-0 mt-1">
             <button
               onClick={goBack}
-              className="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="w-10 h-10 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               aria-label="Go back"
             >
-              <FontAwesomeIcon icon={faChevronLeft} />
+              <FontAwesomeIcon icon={faChevronLeft} className="text-lg" />
             </button>
             {/* Pin — sits between the back chevron and the tree icon. Hidden
                 on archived sets (you can't pin something that won't show
@@ -1581,7 +1581,7 @@ export default function UserTaskDetailPage() {
               <button
                 onClick={handleTogglePin}
                 disabled={pinBusy}
-                className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors disabled:opacity-50 ${
+                className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors disabled:opacity-50 ${
                   isPinned
                     ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60'
                     : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -1589,7 +1589,7 @@ export default function UserTaskDetailPage() {
                 aria-label={isPinned ? 'Unpin from top of list' : 'Pin to top of list'}
                 title={isPinned ? 'Unpin — return to normal sort' : 'Pin — float to the top of the list'}
               >
-                <FontAwesomeIcon icon={faThumbtack} className={isPinned ? '' : 'rotate-45'} />
+                <FontAwesomeIcon icon={faThumbtack} className={`text-lg ${isPinned ? '' : 'rotate-45'}`} />
               </button>
             )}
             {/* Map view — only shown when the task set has at least one
@@ -1598,11 +1598,11 @@ export default function UserTaskDetailPage() {
             {steps.some((s) => s.linked_badge_id || s.linked_badge_category || s.linked_task_set_id) && (
               <button
                 onClick={() => navigate(`/tasks/${userId}/${taskSetId}/tree`, { state: { chain: [...(location.state?.chain || []), location.pathname + location.search] } })}
-                className="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-brand-900/30 dark:hover:text-brand-300 transition-colors"
+                className="w-10 h-10 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-brand-900/30 dark:hover:text-brand-300 transition-colors"
                 aria-label="Show award map"
                 title="Show award map"
               >
-                <FontAwesomeIcon icon={faSitemap} />
+                <FontAwesomeIcon icon={faSitemap} className="text-lg" />
               </button>
             )}
           </div>
@@ -1690,11 +1690,11 @@ export default function UserTaskDetailPage() {
             <button
               type="button"
               onClick={() => setConfirmArchive(true)}
-              className="shrink-0 mt-1 w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors min-[600px]:hidden"
+              className="shrink-0 mt-1 w-10 h-10 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors min-[600px]:hidden"
               aria-label="Archive"
               title="Archive — hide from your active list"
             >
-              <FontAwesomeIcon icon={faBoxArchive} className="text-xs" />
+              <FontAwesomeIcon icon={faBoxArchive} className="text-base" />
             </button>
           )}
 
