@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faTrophy } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
@@ -84,6 +84,12 @@ function Medallion({ size, taskSet, step, status, pct, onClick, title, placehold
 export default function AwardTreePage() {
   const { userId, taskSetId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Preserve the original `from` (whatever opened the award detail) so a
+  // tree → detail → back trip lands on the true origin instead of the
+  // group folder. Used for both the back chevron and the linked-child
+  // navigations below.
+  const backToDetailState = { state: { from: location.state?.from } };
   const [taskSet, setTaskSet] = useState(null);
   const [steps, setSteps]     = useState([]);
   const [loading, setLoading] = useState(true);
@@ -235,7 +241,7 @@ export default function AwardTreePage() {
     return (
       <div>
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate(`/tasks/${userId}/${taskSetId}`, backToDetailState)}
           className="mb-4 flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors"
         >
           <FontAwesomeIcon icon={faChevronLeft} className="text-xs" /> Back
@@ -249,7 +255,7 @@ export default function AwardTreePage() {
     return (
       <div>
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate(`/tasks/${userId}/${taskSetId}`, backToDetailState)}
           className="mb-4 flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors"
         >
           <FontAwesomeIcon icon={faChevronLeft} className="text-xs" /> Back
@@ -267,7 +273,7 @@ export default function AwardTreePage() {
     <div>
       <div className="mb-4 flex items-center gap-2">
         <button
-          onClick={() => navigate(`/tasks/${userId}/${taskSetId}`)}
+          onClick={() => navigate(`/tasks/${userId}/${taskSetId}`, backToDetailState)}
           className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           aria-label="Back to award"
         >
@@ -356,8 +362,8 @@ export default function AwardTreePage() {
                   placeholderEmoji={isGeneric ? '📝' : (unlinked ? '❓' : '🏅')}
                   title={`${c.label}${c.total > 0 ? ` — ${c.completed}/${c.total}` : ''}`}
                   onClick={isGeneric || !c.step.linked_task_set_id
-                    ? () => navigate(`/tasks/${userId}/${taskSetId}`)
-                    : () => navigate(`/tasks/${userId}/${c.step.linked_task_set_id}`)}
+                    ? () => navigate(`/tasks/${userId}/${taskSetId}`, backToDetailState)
+                    : () => navigate(`/tasks/${userId}/${c.step.linked_task_set_id}`, { state: { from: location.pathname } })}
                 />
               </div>
             );

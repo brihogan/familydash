@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBroom, faCrown } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -14,6 +14,7 @@ import { formatCents } from '../../utils/formatCents.js';
 export default function DashboardRow({ member, onRefresh, readOnly = false, maskPrivateData = false }) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { useBanking, useSets, useTickets, choresLabel } = useFamilySettings();
   const isParent = user?.role === 'parent';
   const isOwnRow = member.id === user?.id;
@@ -132,7 +133,7 @@ export default function DashboardRow({ member, onRefresh, readOnly = false, mask
                       done={pct === 100}
                       size={27}
                       title={ts.name}
-                      onClick={statsClickable ? (e) => { e.stopPropagation(); navigate(`/tasks/${member.id}/${ts.id}`); } : undefined}
+                      onClick={statsClickable ? (e) => { e.stopPropagation(); navigate(`/tasks/${member.id}/${ts.id}`, { state: { from: location.pathname + location.search } }); } : undefined}
                     >
                       {ts.badgeImageFile ? (
                         <img

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { useIsDark } from '../components/tasks/TaskSetCard.jsx';
 import { createPortal } from 'react-dom';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faStickyNote, faBoxArchive, faBoxOpen, faSitemap, faThumbtack } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
@@ -977,6 +977,7 @@ function CompletedStepItem({ step, onUndo, canUndo, disabled }) {
 export default function UserTaskDetailPage() {
   const { userId, taskSetId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { useTickets } = useFamilySettings();
   const isDark = useIsDark();
 
@@ -1217,11 +1218,14 @@ export default function UserTaskDetailPage() {
     }
   };
 
-  // Back chevron target: explicit (not history-based) so that going to the
-  // tree view and then hitting back doesn't bounce us right back into the
-  // tree. Routes to the matching group page when we know the type, falls
-  // back to the kid's task page.
+  // Back chevron target: prefer the explicit `from` passed via location
+  // state by whoever navigated here (kid task page, awards folder, dashboard
+  // row, etc.) so we land where the user actually came from. Falls back to
+  // the matching group page when the tag is known, then to the kid's tasks
+  // page. Never uses navigate(-1) — that loops with the tree view.
   const goBack = () => {
+    const from = location.state?.from;
+    if (from) return navigate(from);
     const tags = taskSet?.tags;
     if (Array.isArray(tags)) {
       if (tags.includes('Award')) return navigate(`/tasks/${userId}/group/awards`);
@@ -1579,7 +1583,7 @@ export default function UserTaskDetailPage() {
                 a useless button. */}
             {steps.some((s) => s.linked_badge_id || s.linked_badge_category || s.linked_task_set_id) && (
               <button
-                onClick={() => navigate(`/tasks/${userId}/${taskSetId}/tree`)}
+                onClick={() => navigate(`/tasks/${userId}/${taskSetId}/tree`, { state: { from: location.state?.from } })}
                 className="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-brand-900/30 dark:hover:text-brand-300 transition-colors"
                 aria-label="Show award map"
                 title="Show award map"

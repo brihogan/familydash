@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faShieldHalved, faTrophy } from '@fortawesome/free-solid-svg-icons';
 import { taskSetsApi } from '../api/taskSets.api.js';
@@ -48,6 +48,7 @@ const STATUS_OPTIONS = [
 export default function KidGroupPage() {
   const { userId, groupKey } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { useTickets } = useFamilySettings();
 
   const [taskSets,        setTaskSets]        = useState([]);
@@ -269,7 +270,7 @@ export default function KidGroupPage() {
           initialType={isAwards ? 'award' : 'badge'}
           onEnrolled={(taskSetId) => {
             setBrowserOpen(false);
-            navigate(`/tasks/${userId}/${taskSetId}`);
+            navigate(`/tasks/${userId}/${taskSetId}`, { state: { from: location.pathname + location.search } });
           }}
         />
       </Modal>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faShieldHalved, faBookmark } from '@fortawesome/free-solid-svg-icons';
 import { faBookmark as faBookmarkOutline } from '@fortawesome/free-regular-svg-icons';
@@ -82,6 +82,7 @@ function BadgeImage({ imageFile, emoji, name, size = 64 }) {
 export default function BadgeBrowser({ userId, compact = false, onEnrolled, onPickEnrolled, initialType = 'badge', initialCategory = '' }) {
   const { user }    = useAuth();
   const navigate    = useNavigate();
+  const location    = useLocation();
   const isParent    = user?.role === 'parent';
   const targetId    = typeof userId === 'string' ? parseInt(userId, 10) : userId;
 
@@ -217,7 +218,7 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, onPi
   const handleEnrolled = (taskSetId) => {
     setPreviewBadge(null);
     if (onEnrolled) onEnrolled(taskSetId);
-    else navigate(`/tasks/${targetId}/${taskSetId}`);
+    else navigate(`/tasks/${targetId}/${taskSetId}`, { state: { from: location.pathname + location.search } });
   };
 
   return (

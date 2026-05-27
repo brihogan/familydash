@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faMedal, faTag, faXmark, faTicket, faStar, faCheck, faShieldHalved, faTrophy, faChevronRight, faFolder } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
@@ -17,6 +17,7 @@ import { BADGE_LEVELS } from '../constants/badgeLevels.js';
 export default function KidTasksPage() {
   const { userId } = useParams();
   const navigate   = useNavigate();
+  const location   = useLocation();
   const { user }   = useAuth();
   const { useTickets, useBadges } = useFamilySettings();
   const medallionSize = useMedallionSize();
@@ -315,7 +316,7 @@ export default function KidTasksPage() {
           compact
           onEnrolled={(taskSetId) => {
             setBadgesOpen(false);
-            navigate(`/tasks/${userId}/${taskSetId}`);
+            navigate(`/tasks/${userId}/${taskSetId}`, { state: { from: location.pathname + location.search } });
           }}
         />
       </Modal>

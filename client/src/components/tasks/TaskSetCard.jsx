@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTag, faXmark, faTicket, faStar, faCheck } from '@fortawesome/free-solid-svg-icons';
 import { IconDisplay } from '../shared/IconPicker.jsx';
@@ -91,6 +91,11 @@ function filterDotColor(value) {
  */
 export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, onFlip, onPillFilter, useTickets, minimal = false }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Record where the user opened the detail page FROM, so the detail's back
+  // chevron can return them there instead of always going to the group
+  // folder. Includes search/query so filtered views are preserved.
+  const navState = { state: { from: location.pathname + location.search } };
   const pct  = ts.step_count > 0 ? Math.round((ts.completed_count / ts.step_count) * 100) : 0;
   const done = ts.step_count > 0 && ts.completed_count === ts.step_count;
   const minimalSize = useMedallionSize();
@@ -133,7 +138,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
     return (
       <button
         type="button"
-        onClick={() => navigate(`/tasks/${userId}/${ts.id}`)}
+        onClick={() => navigate(`/tasks/${userId}/${ts.id}`, navState)}
         className="relative flex items-center justify-center rounded-full shadow-md hover:shadow-lg hover:opacity-90 transition-all"
         style={{ width: size, height: size }}
         title={`${ts.name}${levelCfg ? ` · ${levelCfg.label}` : ''}${ts.step_count ? ` · ${ts.completed_count}/${ts.step_count}` : ''}`}
@@ -335,7 +340,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
       >
         {/* ── FRONT ─────────────────────────────────────────── */}
         <div
-          onClick={() => !isFlipped && navigate(`/tasks/${userId}/${ts.id}`)}
+          onClick={() => !isFlipped && navigate(`/tasks/${userId}/${ts.id}`, navState)}
           style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', ...(cardStyle || {}) }}
           className={`relative h-full flex flex-col items-center p-4 pt-12 ${useLevelTint ? 'bg-white dark:bg-gray-800' : 'bg-gradient-to-b from-gray-50 to-white dark:from-gray-700/40 dark:to-gray-800'} border rounded-2xl shadow-md hover:shadow-lg cursor-pointer transition-all ${borderClass} hover:border-brand-300/70 dark:hover:border-brand-500/40`}
         >
