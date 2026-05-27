@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
+import { useIsDark } from '../components/tasks/TaskSetCard.jsx';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -347,7 +348,7 @@ function AwardCompletionModal({ taskSet, userId, assignedAt, completedAt, pendin
               <img
                 src={`/api/uploads/badges/${taskSet.badge_image_file}`}
                 alt=""
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover dark:brightness-75 dark:contrast-110"
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
             ) : (
@@ -657,7 +658,7 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
                 <img
                   src={`/api/uploads/badges/${step.linked_badge_image}`}
                   alt=""
-                  className="w-full h-full rounded-full object-cover"
+                  className="w-full h-full rounded-full object-cover dark:brightness-75 dark:contrast-110"
                   onError={(e) => { e.target.style.display = 'none'; }}
                 />
               ) : (
@@ -694,7 +695,7 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
             <img
               src={`/api/uploads/badges/${step.linked_badge_image}`}
               alt=""
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover dark:brightness-75 dark:contrast-110"
               onError={(e) => { e.target.style.display = 'none'; }}
             />
           ) : (
@@ -977,6 +978,7 @@ export default function UserTaskDetailPage() {
   const { userId, taskSetId } = useParams();
   const navigate = useNavigate();
   const { useTickets } = useFamilySettings();
+  const isDark = useIsDark();
 
   const [taskSet,       setTaskSet]       = useState(null);
   const [steps,         setSteps]         = useState([]);
@@ -1599,7 +1601,9 @@ export default function UserTaskDetailPage() {
             const r    = (size - sw) / 2;
             const circ = 2 * Math.PI * r;
             const detailLevelCfg = taskSet.badge_level && BADGE_LEVELS[taskSet.badge_level];
-            const trackColor    = detailLevelCfg?.trackColor  || detailLevelCfg?.color || '#E5E7EB';
+            const trackColor    = isDark
+              ? '#374151'
+              : (detailLevelCfg?.trackColor || detailLevelCfg?.color || '#E5E7EB');
             const progressColor = detailLevelCfg?.borderColor || (allDone ? '#22C55E' : '#6366F1');
             return (
               <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
@@ -1629,7 +1633,7 @@ export default function UserTaskDetailPage() {
                       <img
                         src={`/api/uploads/badges/${taskSet.badge_image_file}`}
                         alt=""
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover dark:brightness-75 dark:contrast-110"
                         onError={(e) => { e.target.style.display = 'none'; }}
                       />
                     </button>

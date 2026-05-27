@@ -6,7 +6,7 @@ import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import KidProfilePicker from '../components/shared/KidProfilePicker.jsx';
 import Modal from '../components/shared/Modal.jsx';
 import BadgeBrowser from '../components/badges/BadgeBrowser.jsx';
-import TaskSetCard, { useMedallionSize } from '../components/tasks/TaskSetCard.jsx';
+import TaskSetCard, { useMedallionSize, useIsDark } from '../components/tasks/TaskSetCard.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
 import { familyApi } from '../api/family.api.js';
@@ -20,6 +20,7 @@ export default function KidTasksPage() {
   const { user }   = useAuth();
   const { useTickets, useBadges } = useFamilySettings();
   const medallionSize = useMedallionSize();
+  const isDark = useIsDark();
   const isParent   = user?.role === 'parent';
 
   const [taskSets,     setTaskSets]   = useState([]);
@@ -154,7 +155,9 @@ export default function KidTasksPage() {
     const r = (size - sw) / 2; // stroke flush to button edge — no white halo
     const circ = 2 * Math.PI * r;
     const overallPct = c.totalSteps > 0 ? Math.round((c.doneSteps / c.totalSteps) * 100) : 0;
-    const trackColor    = kidLevelCfg?.trackColor  || kidLevelCfg?.color || '#E5E7EB';
+    const trackColor    = isDark
+      ? '#374151'
+      : (kidLevelCfg?.trackColor || kidLevelCfg?.color || '#E5E7EB');
     const progressColor = kidLevelCfg?.borderColor || '#6366F1';
 
     // Curved title — uppercase label across the top arc, "FOLDER" across the

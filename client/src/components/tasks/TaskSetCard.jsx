@@ -20,6 +20,21 @@ export function useMedallionSize() {
   return vw < SM_BREAKPOINT ? 104 : 120;
 }
 
+// Tailwind's class-based dark mode — observe <html> for the .dark class.
+export function useIsDark() {
+  const [isDark, setIsDark] = useState(() =>
+    typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  );
+  useEffect(() => {
+    const obs = new MutationObserver(() =>
+      setIsDark(document.documentElement.classList.contains('dark'))
+    );
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
+  return isDark;
+}
+
 // Helpers: kept inside the component file since the only consumer beyond
 // KidTasksPage is the group sub-page (which doesn't need to customize them).
 
@@ -79,6 +94,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
   const pct  = ts.step_count > 0 ? Math.round((ts.completed_count / ts.step_count) * 100) : 0;
   const done = ts.step_count > 0 && ts.completed_count === ts.step_count;
   const minimalSize = useMedallionSize();
+  const isDark = useIsDark();
   const size = minimal ? minimalSize : 112;
   // Inner disc / arc text scale proportionally with the badge so the
   // image keeps the same ratio across breakpoints (was hard-coded w-24
@@ -99,7 +115,14 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
     // Ring colors: the "uncompleted" portion (track) is the lighter shade,
     // the "completed" portion (arc) is the saturated level color. Non-level
     // sets fall back to brand-blue track + brand-blue arc.
-    const trackColor    = levelCfg?.trackColor  || levelCfg?.color || '#E5E7EB'; // gray-200 fallback
+    // In light mode, track = soft pastel of the level color, progress arc =
+    // saturated borderColor. In dark mode the pastel tracks were way too
+    // bright against the dark surroundings; swap to a neutral dark gray
+    // (gray-700) so the arc reads as the accent. Progress arc stays the
+    // saturated level color for visibility.
+    const trackColor    = isDark
+      ? '#374151'  // gray-700 — subtle against dark backgrounds
+      : (levelCfg?.trackColor  || levelCfg?.color || '#E5E7EB');
     const progressColor = levelCfg?.borderColor || '#6366F1';                    // brand fallback
     return (
       <button
@@ -188,7 +211,7 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
             <img
               src={`/api/uploads/badges/${ts.badge_image_file}`}
               alt=""
-              className="rounded-full object-cover"
+              className="rounded-full object-cover dark:brightness-75 dark:contrast-110"
               style={{ width: innerSize, height: innerSize }}
               onError={(e) => { e.target.style.display = 'none'; }}
             />
@@ -205,7 +228,12 @@ export default function TaskSetCard({ taskSet: ts, userId, member, isFlipped, on
             // against a consistent inner circle.
             <div
               className="rounded-full flex items-center justify-center"
-              style={{ width: innerSize, height: innerSize, background: 'radial-gradient(circle at center, #F9FAFB 0%, #D1D5DB 100%)' }}
+              style={{
+                width: innerSize, height: innerSize,
+                background: isDark
+                  ? 'radial-gradient(circle at center, #374151 0%, #1F2937 100%)'  // gray-700 → gray-800
+                  : 'radial-gradient(circle at center, #F9FAFB 0%, #D1D5DB 100%)', // gray-50 → gray-300
+              }}
             >
               <IconDisplay value={ts.emoji} fallback="📋" />
             </div>

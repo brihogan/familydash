@@ -5,18 +5,24 @@ import { faChevronLeft, faTrophy } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
 import { BADGE_LEVELS } from '../constants/badgeLevels.js';
+import { useIsDark } from '../components/tasks/TaskSetCard.jsx';
 
 // Circular medallion in the TaskSetCard "minimal" style: progress ring +
 // level-tinted track + center disc with image or emoji. No label — the
 // tree view leans on iconography (the badge images already carry the
 // name on their artwork in the CU library).
 function Medallion({ size, taskSet, step, status, pct, onClick, title, placeholderEmoji = '🏅', isGeneric = false }) {
+  const isDark = useIsDark();
   const sw = Math.max(6, Math.round(size * 0.08));
   const r  = (size - sw) / 2;
   const circ = 2 * Math.PI * r;
   const levelCfg = (taskSet?.badge_level && BADGE_LEVELS[taskSet.badge_level])
                 || (step?.linked_badge_level && BADGE_LEVELS[step.linked_badge_level]);
-  const trackColor    = levelCfg?.trackColor  || levelCfg?.color || '#E5E7EB';
+  // Dark mode: pastel tracks are too bright; use a neutral gray-700 so the
+  // progress arc reads as the accent.
+  const trackColor    = isDark
+    ? '#374151'
+    : (levelCfg?.trackColor || levelCfg?.color || '#E5E7EB');
   const progressColor = status === 'completed'
     ? '#22C55E'
     : (levelCfg?.borderColor || '#6366F1');
@@ -51,7 +57,7 @@ function Medallion({ size, taskSet, step, status, pct, onClick, title, placehold
           <img
             src={`/api/uploads/badges/${imageFile}`}
             alt=""
-            className="rounded-full object-cover"
+            className="rounded-full object-cover dark:brightness-75 dark:contrast-110"
             style={{ width: innerSize, height: innerSize }}
             onError={(e) => { e.target.style.display = 'none'; }}
           />
