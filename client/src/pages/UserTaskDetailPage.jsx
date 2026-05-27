@@ -1042,11 +1042,16 @@ export default function UserTaskDetailPage() {
   // for the real header).
   const setHeaderSentinelRef = useCallback((node) => {
     if (!node) return;
+    // rootMargin negative-top shrinks the effective root from the top, so
+    // the sentinel "exits" earlier — the sticky header pops in when the
+    // badge is roughly half-scrolled instead of fully past. The threshold
+    // (~120px) is half a typical badge header.
+    const TRIGGER_OFFSET = 120;
     const obs = new IntersectionObserver(
       ([entry]) => setStickyHeaderVisible(
-        !entry.isIntersecting && entry.boundingClientRect.top < 0
+        !entry.isIntersecting && entry.boundingClientRect.top < TRIGGER_OFFSET
       ),
-      { rootMargin: '0px', threshold: 0 },
+      { rootMargin: `-${TRIGGER_OFFSET}px 0px 0px 0px`, threshold: 0 },
     );
     obs.observe(node);
     // Disconnect on a subsequent render that drops the node — React calls
@@ -1699,7 +1704,7 @@ export default function UserTaskDetailPage() {
           centered, description and pills left-justified.
           At 600px+ the title/desc/pills column un-wraps next to the badge
           and the archive button switches to its full text variant. */}
-      <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex flex-wrap min-[600px]:flex-nowrap items-start gap-2 min-[600px]:gap-3">
           <div className="flex flex-col items-center gap-1 flex-shrink-0 mt-1">
             <button
@@ -1946,20 +1951,52 @@ export default function UserTaskDetailPage() {
           >
             <FontAwesomeIcon icon={faChevronLeft} className="text-base" />
           </button>
-          <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-            {taskSet.badge_image_file ? (
-              <img
-                src={`/api/uploads/badges/${taskSet.badge_image_file}`}
-                alt=""
-                className="w-full h-full object-cover dark:brightness-75 dark:contrast-110"
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
-            ) : (
-              <span className="text-base leading-none">
-                <IconDisplay value={taskSet.emoji} fallback={taskSet.is_award ? '🏆' : '📋'} />
-              </span>
-            )}
-          </div>
+          {/* Tiny progress ring + badge image, mirroring the main header. */}
+          {(() => {
+            const sz = 36;
+            const sw = 3;
+            const r  = (sz - sw) / 2;
+            const c  = 2 * Math.PI * r;
+            const lvlCfg = taskSet.badge_level && BADGE_LEVELS[taskSet.badge_level];
+            const isOwl  = lvlCfg?.borderColor === '#111827';
+            const track  = isDark
+              ? (lvlCfg?.darkTrackColor || '#374151')
+              : (lvlCfg?.trackColor || lvlCfg?.color || '#E5E7EB');
+            const arc    = isDark && isOwl ? '#6B7280'
+                         : (lvlCfg?.borderColor || (allDone ? '#22C55E' : '#6366F1'));
+            return (
+              <div className="relative shrink-0" style={{ width: sz, height: sz }}>
+                <svg width={sz} height={sz} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
+                  <circle cx={sz / 2} cy={sz / 2} r={r} fill="none" stroke={track} strokeWidth={sw} />
+                  {totalCount > 0 && (
+                    <circle
+                      cx={sz / 2} cy={sz / 2} r={r}
+                      fill="none" stroke={arc} strokeWidth={sw}
+                      strokeDasharray={c}
+                      strokeDashoffset={c - (pct / 100) * c}
+                      strokeLinecap="round"
+                    />
+                  )}
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center p-1">
+                  <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                    {taskSet.badge_image_file ? (
+                      <img
+                        src={`/api/uploads/badges/${taskSet.badge_image_file}`}
+                        alt=""
+                        className="w-full h-full object-cover dark:brightness-75 dark:contrast-110"
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <span className="text-xs leading-none">
+                        <IconDisplay value={taskSet.emoji} fallback={taskSet.is_award ? '🏆' : '📋'} />
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           <h2 className="flex-1 min-w-0 text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
             {taskSet.name}
           </h2>
