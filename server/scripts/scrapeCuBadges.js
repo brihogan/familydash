@@ -39,6 +39,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
+import { parseLevels, normalize } from './parseScrapedTexts.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CU_DIR       = join(__dirname, '../../../CuriosityUntamed');
@@ -162,27 +163,48 @@ function parseBadgeHtml(slug, html) {
               || html.match(/Posted by[^>]*>\s*([^<]+)/i)?.[1];
   if (author) out.author = author.trim();
 
-  // Levels: scan the entry-content for "Level 1:" / "Preschool:" headings
-  // and capture the <ol> or <ul> that follows. This is the most likely place
-  // for the parser to need a refinement once we see a real page.
+  // Levels + optionals: extract the entry-content, convert to a flat plain-
+  // text dump (preserving line breaks so each <p>_____N. row lands on its
+  // own line), then hand off to parseScrapedTexts.parseLevels which already
+  // handles starred markers, multi-line continuations, the "Optional
+  // Requirements;" section header, and the cross-area sentinel logic.
+  // CU pages render each requirement as `<p>_____N.* text</p>` — the old
+  // <li>-based heuristic in this file missed every single one of them.
   const contentMatch = html.match(/<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>([\s\S]*?)<\/article>/i)
                     || html.match(/<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i);
-  const content = contentMatch?.[1] || html;
-  const levelHeadingPattern = /<(?:h[1-6]|strong|p)[^>]*>\s*(?:<[^>]+>)?\s*(Preschool|Level [1-5])\s*:?\s*(?:<\/[^>]+>)?\s*<\/(?:h[1-6]|strong|p)>([\s\S]*?)(?=<(?:h[1-6]|strong|p)[^>]*>\s*(?:<[^>]+>)?\s*(?:Preschool|Level [1-5])|<\/article>|$)/gi;
-  const LEVEL_KEY = { 'Preschool': 'preschool', 'Level 1': 'level1', 'Level 2': 'level2', 'Level 3': 'level3', 'Level 4': 'level4', 'Level 5': 'level5' };
-  for (const m of content.matchAll(levelHeadingPattern)) {
-    const key  = LEVEL_KEY[m[1]];
-    const body = m[2];
-    if (!key) continue;
-    const items = [...body.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)].map(li => li[1].replace(/<[^>]+>/g, '').trim()).filter(Boolean);
-    out.levels[key] = {
-      totalRequired: items.length,
-      starredCount:  items.length, // refine once we see how * markers render
-      requirements: items.map((text, i) => ({ number: i + 1, starred: true, text })),
-    };
-  }
+  const contentHtml = contentMatch?.[1] || html;
+  const contentText = htmlToText(contentHtml);
+  const { levels, optionalRequirements } = parseLevels(normalize(contentText));
+  out.levels = levels;
+  out.optionalRequirements = optionalRequirements;
 
   return out;
+}
+
+// Convert a chunk of HTML to a plain-text stream the way a browser's
+// innerText would — block elements become newlines, inline whitespace
+// collapses. Just enough to feed parseLevels which expects each row to
+// be on its own line.
+function htmlToText(html) {
+  return html
+    // Block elements → leading newline
+    .replace(/<\/?(p|div|li|ul|ol|h[1-6]|br)[^>]*>/gi, '\n')
+    // Drop all other tags
+    .replace(/<[^>]+>/g, '')
+    // Common entities
+    .replace(/&amp;/g, '&')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#8211;/g, '–')
+    .replace(/&#8212;/g, '—')
+    .replace(/&#8217;/g, '’')
+    .replace(/&#8220;|&#8221;/g, '"')
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    // Collapse runs of whitespace inside lines (but keep newlines)
+    .split('\n').map(l => l.replace(/[ \t]+/g, ' ').trim()).join('\n')
+    // Collapse blank line runs
+    .replace(/\n{3,}/g, '\n\n');
 }
 
 async function downloadImage(slug, imageUrl) {
@@ -255,6 +277,18 @@ async function main() {
           if (parsed[k] && !existing[k]) existing[k] = parsed[k];
         }
         if (parsed.imageFile) existing.imageFile = parsed.imageFile;
+        // optionalRequirements / levels: replace existing only when it
+        // looks empty/short and the new parse found more. Don't clobber
+        // anything else.
+        const existingOpt = Array.isArray(existing.optionalRequirements) ? existing.optionalRequirements.length : 0;
+        if (existingOpt === 0 && parsed.optionalRequirements.length > 0) {
+          existing.optionalRequirements = parsed.optionalRequirements;
+        }
+        const existingLevels = Object.values(existing.levels || {});
+        const existingHasAnyReq = existingLevels.some((lv) => (lv?.requirements?.length || 0) > 0);
+        if (!existingHasAnyReq && Object.keys(parsed.levels).length > 0) {
+          existing.levels = parsed.levels;
+        }
       } else {
         cu.badges.push(parsed);
         bySlug.set(slug, parsed);

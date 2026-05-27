@@ -22,11 +22,17 @@
  */
 
 import { readFileSync, writeFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+
+// Run as CLI when invoked directly (`node parseScrapedTexts.js …`);
+// importable as a library too (used by scrapeCuBadges.js for parseLevels +
+// normalize). Module-level CLI behaviour gated below.
+const IS_CLI = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 
 const inFile  = process.argv[2] || '/tmp/cu-scrape-raw-texts.json';
 const outFile = process.argv[3] || '/tmp/cu-parsed-badges.json';
 
-const raws = JSON.parse(readFileSync(inFile, 'utf8'));
+const raws = IS_CLI ? JSON.parse(readFileSync(inFile, 'utf8')) : {};
 
 const LEVEL_KEY = {
   'Preschool': 'preschool',
@@ -60,7 +66,7 @@ const CATEGORIES = [
   'Discover the World',
 ];
 
-function normalize(text) {
+export function normalize(text) {
   // The browser's innerText smashes together lines that should be separate.
   // Re-insert newlines before each structural marker so the parser can split
   // cleanly. Order matters: insert before headers + requirements + optional
@@ -98,7 +104,7 @@ function parseRequirement(raw) {
   return { number, starred, text: m[2].trim() };
 }
 
-function parseLevels(text) {
+export function parseLevels(text) {
   // Walk the text and find each level section + the lines inside.
   //
   // Some badges (e.g. Marshmallow) use a "shared starred requirements"
@@ -183,8 +189,14 @@ function parseLevels(text) {
       // plain "Level 1:" line that just happens to start with a section name.
       // Only count this as a section header if the section name is followed
       // by either nothing meaningful OR a recognized count phrase.
+      // EXCEPTION: "Optional Requirements" — CU pages often render this as
+      // `<p><strong>Optional Requirements;</strong></p>` with just a semicolon
+      // after. Always accept it as a header so the rest of the section can
+      // be routed to the optional pool.
+      const isOptionalHeader = /^Optional/i.test(rawName);
       const looksLikeHeader = tail === '' || matched || /^\s*$/.test(tail) ||
-                              /\b(Do|Choose|Complete)\b/i.test(tail.slice(0, 30));
+                              /\b(Do|Choose|Complete)\b/i.test(tail.slice(0, 30)) ||
+                              isOptionalHeader;
       if (!looksLikeHeader) continue;
 
       // A new section header arrived — flush any in-progress requirement
@@ -356,34 +368,36 @@ function parseBadge(slug, raw) {
   };
 }
 
-const parsed = {};
-for (const [slug, raw] of Object.entries(raws)) {
-  if (raw.error) { parsed[slug] = { slug, error: raw.error }; continue; }
-  parsed[slug] = parseBadge(slug, raw);
-}
+if (IS_CLI) {
+  const parsed = {};
+  for (const [slug, raw] of Object.entries(raws)) {
+    if (raw.error) { parsed[slug] = { slug, error: raw.error }; continue; }
+    parsed[slug] = parseBadge(slug, raw);
+  }
 
-writeFileSync(outFile, JSON.stringify(Object.values(parsed), null, 2));
+  writeFileSync(outFile, JSON.stringify(Object.values(parsed), null, 2));
 
-// Print a summary so we can see what the parser caught vs missed
-const stats = {
-  total:        Object.keys(parsed).length,
-  withImage:    0,
-  withCategory: 0,
-  withAuthor:   0,
-  withLevels:   0,
-  withOptional: 0,
-  levelCounts: { preschool: 0, level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 },
-  noLevels: [],
-};
-for (const b of Object.values(parsed)) {
-  if (b.error) continue;
-  if (b.imageUrl)             stats.withImage++;
-  if (b.category)             stats.withCategory++;
-  if (b.author)               stats.withAuthor++;
-  if (Object.keys(b.levels).length) stats.withLevels++; else stats.noLevels.push(b.slug);
-  if (b.optionalRequirements?.length) stats.withOptional++;
-  for (const k of Object.keys(b.levels || {})) stats.levelCounts[k]++;
+  // Print a summary so we can see what the parser caught vs missed
+  const stats = {
+    total:        Object.keys(parsed).length,
+    withImage:    0,
+    withCategory: 0,
+    withAuthor:   0,
+    withLevels:   0,
+    withOptional: 0,
+    levelCounts: { preschool: 0, level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 },
+    noLevels: [],
+  };
+  for (const b of Object.values(parsed)) {
+    if (b.error) continue;
+    if (b.imageUrl)             stats.withImage++;
+    if (b.category)             stats.withCategory++;
+    if (b.author)               stats.withAuthor++;
+    if (Object.keys(b.levels).length) stats.withLevels++; else stats.noLevels.push(b.slug);
+    if (b.optionalRequirements?.length) stats.withOptional++;
+    for (const k of Object.keys(b.levels || {})) stats.levelCounts[k]++;
+  }
+  console.log('Summary:');
+  console.log(JSON.stringify(stats, null, 2));
+  console.log(`Wrote ${outFile}`);
 }
-console.log('Summary:');
-console.log(JSON.stringify(stats, null, 2));
-console.log(`Wrote ${outFile}`);
