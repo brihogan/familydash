@@ -20,13 +20,17 @@
  * Safe to run repeatedly. Read-only — touches nothing.
  */
 
+import { existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DB_PATH   = join(__dirname, '../../data/family.db');
-const AS_JSON   = process.argv.includes('--json');
+// Mirror importBadgeLibrary's path logic so this works in both dev and the
+// prod container (where the DB is at /data/family.db, not under /app).
+const DB_PATH = process.env.DATABASE_PATH
+  || (existsSync('/data/family.db') ? '/data/family.db' : join(__dirname, '../../data/family.db'));
+const AS_JSON = process.argv.includes('--json');
 
 const db = new Database(DB_PATH, { readonly: true });
 
