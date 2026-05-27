@@ -1755,3 +1755,19 @@
 - `family-dashboard/client/public/splash-*.png` (7 new files)
 
 ---
+
+## Session Start: 2026-05-27 evening
+
+### 2026-05-27 — Collapsed-sidebar custom tooltips
+
+**What was done:**
+- Added an instant, larger custom tooltip for the desktop sidebar when collapsed (Layout.jsx). Uses event delegation on the aside + a single fixed-position tooltip element so no per-NavLink edits are needed.
+- A MutationObserver moves `title` → `data-tip-label` on all aside descendants while collapsed (and restores them on expand), which suppresses the native OS tooltip — `Nav` is recreated each render so re-mounts are handled.
+- Added thin `<hr>` group separators that show only when the sidebar is collapsed (replacing the hidden section-header text labels) so Individual Pages and Settings stay visually grouped in icon-only mode.
+- Switched the custom tooltip from React state to imperative DOM mutation via a ref — `Nav` is recreated on every Layout render, so a state-driven re-render was unmounting/remounting NavLinks between `mousedown` and `mouseup`, silently swallowing real clicks. Now hovering doesn't re-render.
+- Parameterized `<Nav collapsed />` so the mobile drawer keeps full-width left-aligned links regardless of the desktop sidebar's collapsed state.
+- Bumped divider spacing with `!mt-3 !mb-3` to win against the parent `space-y-1` cascade.
+- Made the dark-mode hover visible on nav links: `dark:hover:bg-gray-700` (was `gray-800`, same as the aside's own bg).
+
+**Files changed:**
+- `client/src/components/shared/Layout.jsx`

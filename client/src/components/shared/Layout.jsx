@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -74,6 +74,94 @@ export default function Layout() {
   });
   useEffect(() => {
     try { localStorage.setItem('sidebarCollapsed', sidebarCollapsed ? '1' : '0'); } catch {}
+  }, [sidebarCollapsed]);
+
+  // Custom hover tooltip for the collapsed sidebar — appears instantly (no
+  // 500ms native dwell) and is a bit larger than the OS tooltip. Implemented
+  // via event delegation on the aside + direct DOM mutation on a tooltip
+  // element (no React state) because the inner Nav component is recreated on
+  // every Layout render — using setState here would force NavLinks to remount
+  // mid-click, breaking real mouse clicks (mousedown + mouseup land on
+  // different DOM nodes, so the browser swallows the click).
+  const asideRef = useRef(null);
+  const tipElRef = useRef(null);
+  const tipTargetRef = useRef(null);
+
+  const showTip = (el) => {
+    const tipEl = tipElRef.current;
+    if (!tipEl) return;
+    const label = el.dataset.tipLabel || el.getAttribute('title');
+    if (!label) {
+      tipEl.style.display = 'none';
+      tipTargetRef.current = null;
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    tipEl.textContent = label;
+    tipEl.style.top = `${rect.top + rect.height / 2}px`;
+    tipEl.style.left = `${rect.right + 10}px`;
+    // Clear the inline `display: none` so the Tailwind `hidden lg:block`
+    // class controls visibility — keeps the tooltip off mobile/narrow widths
+    // even after a prior desktop hover.
+    tipEl.style.display = '';
+    tipTargetRef.current = el;
+  };
+
+  const hideTip = () => {
+    if (tipElRef.current) tipElRef.current.style.display = 'none';
+    tipTargetRef.current = null;
+  };
+
+  const handleSidebarMouseOver = (e) => {
+    if (!sidebarCollapsed) return;
+    const el = e.target.closest('[data-tip-label], a[title], button[title]');
+    if (!el || !asideRef.current?.contains(el)) return;
+    if (tipTargetRef.current === el) return;
+    showTip(el);
+  };
+
+  const handleSidebarMouseOut = (e) => {
+    if (!tipTargetRef.current) return;
+    const related = e.relatedTarget;
+    if (related && tipTargetRef.current.contains && tipTargetRef.current.contains(related)) return;
+    hideTip();
+  };
+
+  useEffect(() => {
+    if (!sidebarCollapsed) hideTip();
+  }, [sidebarCollapsed]);
+
+  // While the sidebar is collapsed, suppress native `title` tooltips inside
+  // the aside by moving them to `data-tip-label`. Use a MutationObserver to
+  // keep re-stripping titles as React re-renders the nav (the inner Nav
+  // component is recreated on every Layout render, so its DOM nodes remount).
+  useEffect(() => {
+    const aside = asideRef.current;
+    if (!aside || !sidebarCollapsed) return;
+    const stripAll = () => {
+      aside.querySelectorAll('[title]').forEach((el) => {
+        const t = el.getAttribute('title');
+        if (t) {
+          el.dataset.tipLabel = t;
+          el.removeAttribute('title');
+        }
+      });
+    };
+    stripAll();
+    const obs = new MutationObserver(stripAll);
+    obs.observe(aside, {
+      attributes: true,
+      attributeFilter: ['title'],
+      subtree: true,
+      childList: true,
+    });
+    return () => {
+      obs.disconnect();
+      aside.querySelectorAll('[data-tip-label]').forEach((el) => {
+        el.setAttribute('title', el.dataset.tipLabel);
+        delete el.dataset.tipLabel;
+      });
+    };
   }, [sidebarCollapsed]);
   useScrollLock(bottomPanelOpen);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -207,24 +295,26 @@ export default function Layout() {
   }, [bottomPanelOpen]);
 
 
-  // NavLink base class. When the sidebar is collapsed (icon-only), center
-  // the icon in the link instead of left-aligning. The transition-colors
-  // works at any width.
-  const navAlignClass = sidebarCollapsed ? 'justify-center px-2' : 'px-3';
-  const navClass = ({ isActive }) =>
-    `flex items-center gap-2 ${navAlignClass} py-2 rounded-md transition-colors ${
-      isActive
-        ? 'bg-brand-50 text-brand-700 font-medium dark:bg-gray-700 dark:text-brand-500'
-        : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
-    }`;
-
-  // Active class for kid-path links that match any /:base/:id
-  const kidPathClass = (base) =>
-    `flex items-center gap-2 ${navAlignClass} py-2 rounded-md transition-colors ${
+  // NavLink class factories — take `collapsed` so the same <Nav /> can render
+  // icon-only-centered inside the desktop collapsed sidebar and full-width
+  // left-aligned inside the mobile drawer.
+  const makeNavClass = (collapsed) => {
+    const align = collapsed ? 'justify-center px-2' : 'px-3';
+    return ({ isActive }) =>
+      `flex items-center gap-2 ${align} py-2 rounded-md transition-colors ${
+        isActive
+          ? 'bg-brand-50 text-brand-700 font-medium dark:bg-gray-700 dark:text-brand-500'
+          : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
+      }`;
+  };
+  const makeKidPathClass = (collapsed) => (base) => {
+    const align = collapsed ? 'justify-center px-2' : 'px-3';
+    return `flex items-center gap-2 ${align} py-2 rounded-md transition-colors ${
       location.pathname.startsWith(base + '/')
         ? 'bg-brand-50 text-brand-700 font-medium dark:bg-gray-700 dark:text-brand-500'
-        : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+        : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
     }`;
+  };
 
   // Helpers — wrap a text label so it can be hidden by the sidebar's
   // [&_[data-nav-label]]:hidden when collapsed. Section dividers use
@@ -233,13 +323,22 @@ export default function Layout() {
   const Badge = ({ className, children }) => (
     <span data-nav-badge className={className}>{children}</span>
   );
+  // When expanded, render the text section header. When collapsed, the
+  // text is hidden (data-nav-label) and a horizontal rule (data-nav-divider)
+  // takes its place so groups stay visually separated in icon-only mode.
   const SectionHeader = ({ children }) => (
-    <div data-nav-label className="pt-2 pb-1 px-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-      {children}
-    </div>
+    <>
+      <div data-nav-label className="pt-2 pb-1 px-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+        {children}
+      </div>
+      <hr data-nav-divider className="hidden mx-2 !mt-3 !mb-3 border-gray-200 dark:border-gray-700" aria-hidden="true" />
+    </>
   );
 
-  const Nav = () => (
+  const Nav = ({ collapsed = false }) => {
+  const navClass = makeNavClass(collapsed);
+  const kidPathClass = makeKidPathClass(collapsed);
+  return (
     <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-4 space-y-1 text-sm">
       <NavLink to="/dashboard" className={navClass} onClick={close} title="Dashboard">
         <FontAwesomeIcon icon={faHouse} className="w-4 shrink-0" />
@@ -431,6 +530,7 @@ export default function Layout() {
       )}
     </nav>
   );
+  };
 
   return (
     <div className="flex h-dvh bg-gray-50 dark:bg-gray-900">
@@ -450,9 +550,12 @@ export default function Layout() {
           inside the aside without a per-link edit, and [&_[data-nav-badge]]:hidden
           drops the inline count chips so the icon row stays clean. */}
       <aside
+        ref={asideRef}
+        onMouseOver={handleSidebarMouseOver}
+        onMouseOut={handleSidebarMouseOut}
         className={`hidden lg:flex lg:flex-col lg:shrink-0 bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 shadow-sm transition-[width] duration-200 ${
           sidebarCollapsed
-            ? 'lg:w-14 [&_[data-nav-label]]:hidden [&_[data-nav-badge]]:hidden'
+            ? 'lg:w-14 [&_[data-nav-label]]:hidden [&_[data-nav-badge]]:hidden [&_[data-nav-divider]]:block'
             : 'lg:w-56'
         }`}
       >
@@ -487,7 +590,7 @@ export default function Layout() {
           </button>
         </div>
 
-        <Nav />
+        <Nav collapsed={sidebarCollapsed} />
 
         {/* Pending deposit banner (kid only) */}
         {(kidStats?.pendingDepositCount || dexiePendingDepositCount) > 0 && (
@@ -534,6 +637,19 @@ export default function Layout() {
           )}
         </div>
       </aside>
+
+      {/* Custom instant tooltip for the collapsed sidebar. Always rendered
+          when collapsed (with display:none initially) and updated imperatively
+          via tipElRef so hovering doesn't re-render Layout and remount the
+          NavLinks mid-click. */}
+      {sidebarCollapsed && (
+        <div
+          ref={tipElRef}
+          className="hidden lg:block fixed z-50 px-3 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white text-[15px] font-medium shadow-xl ring-1 ring-black/10 pointer-events-none whitespace-nowrap"
+          style={{ display: 'none', transform: 'translateY(-50%)' }}
+          role="tooltip"
+        />
+      )}
 
       {/* Emoji picker */}
       <EmojiPicker
