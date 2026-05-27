@@ -1557,13 +1557,16 @@ export default function UserTaskDetailPage() {
       )}
 
       {/* ── Header ──
-          Below 600px viewport: stacks vertically with the badge centered,
-          title centered below it, then description and pills left-justified.
-          At 600px+ keeps the side-by-side layout (back/pin/map column,
-          badge, then title/desc/pills column). */}
+          Below 600px: a single flex-wrap row holds the controls column
+          (back/pin/map vertical stack, top-left), the badge (centered in
+          the available space), and an icon-only archive button (top-right).
+          The title/desc/pills column wraps to a full-width row below — title
+          centered, description and pills left-justified.
+          At 600px+ the title/desc/pills column un-wraps next to the badge
+          and the archive button switches to its full text variant. */}
       <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex flex-col min-[600px]:flex-row items-stretch min-[600px]:items-start gap-3">
-          <div className="flex flex-row min-[600px]:flex-col items-center gap-1 min-[600px]:flex-shrink-0 min-[600px]:mt-1 self-start min-[600px]:self-auto">
+        <div className="flex flex-wrap min-[600px]:flex-nowrap items-start gap-2 min-[600px]:gap-3">
+          <div className="flex flex-col items-center gap-1 flex-shrink-0 mt-1">
             <button
               onClick={goBack}
               className="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -1627,7 +1630,12 @@ export default function UserTaskDetailPage() {
               ? '#6B7280'
               : (detailLevelCfg?.borderColor || (allDone ? '#22C55E' : '#6366F1'));
             return (
-              <div className="relative flex-shrink-0 self-center min-[600px]:self-auto" style={{ width: size, height: size }}>
+              // Wrap the badge in a flex spacer so on mobile it sits centered
+              // between the left controls and the right archive button; on
+              // desktop the spacer collapses (no flex grow) and the badge
+              // just sits inline next to the title column.
+              <div className="flex-1 min-[600px]:flex-none flex justify-center min-[600px]:block">
+              <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
                 <svg width={size} height={size} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
                   <circle
                     cx={size / 2} cy={size / 2} r={r}
@@ -1672,22 +1680,41 @@ export default function UserTaskDetailPage() {
                   )}
                 </div>
               </div>
+              </div>
             );
           })()}
 
-          {/* Title + description + pills below. On mobile (<600px): title
-              centered, archive button stacks below it; description and pills
-              are still left-justified. */}
-          <div className="flex-1 min-w-0 w-full">
-            <div className="flex flex-col items-center min-[600px]:flex-row min-[600px]:items-start min-[600px]:justify-between gap-2">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight min-[600px]:flex-1 min-w-0 text-center min-[600px]:text-left">
+          {/* Mobile-only archive button — icon only, top-right. The desktop
+              full-text variant is inside the title row below. */}
+          {!archivedAt && (
+            <button
+              type="button"
+              onClick={() => setConfirmArchive(true)}
+              className="shrink-0 mt-1 w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors min-[600px]:hidden"
+              aria-label="Archive"
+              title="Archive — hide from your active list"
+            >
+              <FontAwesomeIcon icon={faBoxArchive} className="text-xs" />
+            </button>
+          )}
+
+          {/* Title + description + pills.
+              On mobile (<600px) this wraps onto a new row below the header
+              (basis-full) — title centered, description and pills left-
+              justified.
+              At 600px+ it flows next to the badge (flex-1). */}
+          <div className="basis-full min-[600px]:basis-0 min-[600px]:flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight flex-1 min-w-0 text-center min-[600px]:text-left">
                 {taskSet.name}
               </h1>
+              {/* Desktop-only archive button with text label. Mobile uses
+                  the icon-only button rendered in the header row above. */}
               {!archivedAt && (
                 <button
                   type="button"
                   onClick={() => setConfirmArchive(true)}
-                  className="shrink-0 text-xs font-medium px-2.5 py-1 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors flex items-center gap-1.5"
+                  className="hidden min-[600px]:flex shrink-0 text-xs font-medium px-2.5 py-1 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors items-center gap-1.5"
                   title="Archive — hide from your active list"
                 >
                   <FontAwesomeIcon icon={faBoxArchive} className="text-[11px]" />
