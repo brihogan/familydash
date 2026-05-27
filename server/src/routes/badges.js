@@ -582,10 +582,16 @@ router.patch('/users/:userId/task-assignments/:taskSetId/optional-swap', authent
       ).run(taskSetId, newOpt.text, oldStep.sort_order, newOpt.id);
     })();
 
+    // Include per-step completed_count for THIS user so the client doesn't
+    // briefly drop the kid's checkmarks when they pick / swap an optional.
+    // (The detail endpoint hydrates this same field; we mirror it here so
+    // setSteps(result.steps) is a complete swap.)
     const steps = db.prepare(
-      `SELECT id, name, description, sort_order, is_optional, badge_opt_req_id, repeat_count, limit_one_per_day, require_input, input_prompt, image
+      `SELECT id, name, description, sort_order, is_optional, badge_opt_req_id, repeat_count, limit_one_per_day, require_input, input_prompt, image,
+        (SELECT COUNT(*) FROM task_step_completions WHERE task_step_id = task_steps.id AND user_id = ?) AS completed_count,
+        (SELECT MAX(completed_at) FROM task_step_completions WHERE task_step_id = task_steps.id AND user_id = ?) AS last_completed_at
        FROM task_steps WHERE task_set_id = ? AND is_active = 1 ORDER BY sort_order ASC`
-    ).all(taskSetId);
+    ).all(targetId, targetId, taskSetId);
 
     res.json({ steps });
   } catch (err) {
@@ -653,10 +659,16 @@ router.post('/users/:userId/task-assignments/:taskSetId/add-optional', authentic
        VALUES (?, ?, '', ?, 1, ?, 1, 'How did you complete this step?')`
     ).run(taskSetId, newOpt.text, maxOrder + 1, newOpt.id);
 
+    // Include per-step completed_count for THIS user so the client doesn't
+    // briefly drop the kid's checkmarks when they pick / swap an optional.
+    // (The detail endpoint hydrates this same field; we mirror it here so
+    // setSteps(result.steps) is a complete swap.)
     const steps = db.prepare(
-      `SELECT id, name, description, sort_order, is_optional, badge_opt_req_id, repeat_count, limit_one_per_day, require_input, input_prompt, image
+      `SELECT id, name, description, sort_order, is_optional, badge_opt_req_id, repeat_count, limit_one_per_day, require_input, input_prompt, image,
+        (SELECT COUNT(*) FROM task_step_completions WHERE task_step_id = task_steps.id AND user_id = ?) AS completed_count,
+        (SELECT MAX(completed_at) FROM task_step_completions WHERE task_step_id = task_steps.id AND user_id = ?) AS last_completed_at
        FROM task_steps WHERE task_set_id = ? AND is_active = 1 ORDER BY sort_order ASC`
-    ).all(taskSetId);
+    ).all(targetId, targetId, taskSetId);
 
     res.json({ steps });
   } catch (err) {
@@ -705,10 +717,16 @@ router.post('/users/:userId/task-assignments/:taskSetId/remove-optional', authen
 
     db.prepare(`DELETE FROM task_steps WHERE id = ?`).run(step.id);
 
+    // Include per-step completed_count for THIS user so the client doesn't
+    // briefly drop the kid's checkmarks when they pick / swap an optional.
+    // (The detail endpoint hydrates this same field; we mirror it here so
+    // setSteps(result.steps) is a complete swap.)
     const steps = db.prepare(
-      `SELECT id, name, description, sort_order, is_optional, badge_opt_req_id, repeat_count, limit_one_per_day, require_input, input_prompt, image
+      `SELECT id, name, description, sort_order, is_optional, badge_opt_req_id, repeat_count, limit_one_per_day, require_input, input_prompt, image,
+        (SELECT COUNT(*) FROM task_step_completions WHERE task_step_id = task_steps.id AND user_id = ?) AS completed_count,
+        (SELECT MAX(completed_at) FROM task_step_completions WHERE task_step_id = task_steps.id AND user_id = ?) AS last_completed_at
        FROM task_steps WHERE task_set_id = ? AND is_active = 1 ORDER BY sort_order ASC`
-    ).all(taskSetId);
+    ).all(targetId, targetId, taskSetId);
 
     res.json({ steps });
   } catch (err) {
