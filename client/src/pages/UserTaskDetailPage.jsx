@@ -3,7 +3,7 @@ import { useIsDark } from '../components/tasks/TaskSetCard.jsx';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faStickyNote, faBoxArchive, faBoxOpen, faSitemap, faThumbtack } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faStickyNote, faBoxArchive, faBoxOpen, faSitemap, faThumbtack, faCircleInfo } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import Fireworks from '../components/shared/Fireworks.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
@@ -106,10 +106,20 @@ function ProjectCompletionModal({ taskSet, stepCount, assignedAt, completedAt, p
         <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mb-0.5">🎉 Congrats!</p>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">You've completed a project</p>
 
-        {/* Emoji in dimmed circle */}
-        <div className="w-28 h-28 rounded-full bg-gray-200/70 dark:bg-gray-700/70 flex items-center justify-center mb-6 text-5xl leading-none">
-          <IconDisplay value={taskSet.emoji} fallback="📋" />
-        </div>
+        {/* Emoji in dimmed circle. When the project has a badge level set,
+            ring the circle in the level's color instead of the default
+            neutral border. */}
+        {(() => {
+          const lvl = taskSet.badge_level && BADGE_LEVELS[taskSet.badge_level];
+          return (
+            <div
+              className="w-28 h-28 rounded-full bg-gray-200/70 dark:bg-gray-700/70 flex items-center justify-center mb-6 text-5xl leading-none"
+              style={lvl ? { border: `4px solid ${lvl.borderColor}` } : undefined}
+            >
+              <IconDisplay value={taskSet.emoji} fallback="📋" />
+            </div>
+          );
+        })()}
 
         {/* Name + category */}
         <p className="font-bold text-lg text-gray-900 dark:text-gray-100 leading-snug mb-1">{taskSet.name}</p>
@@ -334,11 +344,23 @@ function AwardCompletionModal({ taskSet, userId, assignedAt, completedAt, pendin
             height={wrapSz}
             className="absolute inset-0 pointer-events-none"
           />
-          {/* Gold ring */}
-          <div
-            className="absolute rounded-full bg-gradient-to-br from-yellow-300 via-amber-400 to-orange-500 shadow-lg"
-            style={{ inset: pad }}
-          />
+          {/* Ring around the badge — defaults to the gold gradient, but
+              uses the badge level's color when one is set so an Owl badge
+              isn't celebrated with an Otter-yellow ring. */}
+          {(() => {
+            const lvl = taskSet.badge_level && BADGE_LEVELS[taskSet.badge_level];
+            return lvl ? (
+              <div
+                className="absolute rounded-full shadow-lg"
+                style={{ inset: pad, background: `linear-gradient(to bottom right, ${lvl.color}, ${lvl.borderColor})` }}
+              />
+            ) : (
+              <div
+                className="absolute rounded-full bg-gradient-to-br from-yellow-300 via-amber-400 to-orange-500 shadow-lg"
+                style={{ inset: pad }}
+              />
+            );
+          })()}
           {/* Inner badge face */}
           <div
             className="absolute rounded-full bg-gradient-to-br from-yellow-50 via-yellow-100 to-amber-200 dark:from-yellow-200 dark:via-amber-200 dark:to-amber-300 flex items-center justify-center leading-none overflow-hidden"
@@ -1009,7 +1031,78 @@ export default function UserTaskDetailPage() {
   const [swapError,        setSwapError]        = useState('');
   const [imageLightbox,    setImageLightbox]    = useState(false);
   const [descExpanded,     setDescExpanded]     = useState(false);
-  const [tagsExpanded,     setTagsExpanded]     = useState(false);
+  // Info popover (tags + assigned date) anchored under the Archive button.
+  const [infoOpen,         setInfoOpen]         = useState(false);
+  // Shared popover content — rendered next to whichever info button is
+  // visible (mobile column or desktop title-row cluster).
+  const infoPopover = () => (
+    <div
+      data-info-popover
+      className="absolute right-0 top-full mt-1 z-30 w-64 p-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-xl text-left"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full whitespace-nowrap">
+          {taskSet.type}
+        </span>
+        {taskSet.category && !taskSet.is_award && (
+          <span className="px-2 py-0.5 text-xs font-medium bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-100 border border-brand-200 dark:border-brand-500/30 rounded-full whitespace-nowrap">
+            {taskSet.category}
+          </span>
+        )}
+        {Array.isArray(taskSet.tags) && taskSet.tags.map((tag) => (
+          <span
+            key={tag}
+            className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 whitespace-nowrap"
+          >
+            {tag}
+          </span>
+        ))}
+        {taskSet.badge_level && BADGE_LEVELS[taskSet.badge_level] && (() => {
+          const lvl = BADGE_LEVELS[taskSet.badge_level];
+          return (
+            <span
+              className="px-2 py-0.5 text-xs font-semibold rounded-full border whitespace-nowrap"
+              style={{ backgroundColor: lvl.color, color: lvl.textColor, borderColor: lvl.borderColor }}
+            >
+              {lvl.label}
+            </span>
+          );
+        })()}
+        {totalCount > 0 && (
+          <span className={`px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${
+            allDone
+              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+          }`}>
+            {allDone ? '🎉 Done' : `${completedCount}/${totalCount}`}
+          </span>
+        )}
+      </div>
+      {assignedAt && (
+        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 pt-1 border-t border-gray-100 dark:border-gray-700">
+          Assigned <span className="font-medium text-gray-700 dark:text-gray-300">{new Date(assignedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+        </p>
+      )}
+    </div>
+  );
+  useEffect(() => {
+    if (!infoOpen) return;
+    // Close on any click outside the trigger buttons or the popover. Two
+    // trigger buttons exist (mobile column + desktop title-row cluster);
+    // they share `data-info-trigger` so this handler doesn't need refs.
+    const handleDoc = (e) => {
+      if (e.target.closest('[data-info-trigger], [data-info-popover]')) return;
+      setInfoOpen(false);
+    };
+    const handleEsc = (e) => { if (e.key === 'Escape') setInfoOpen(false); };
+    document.addEventListener('mousedown', handleDoc);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleDoc);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [infoOpen]);
   // Opens BadgePreviewModal when a kid clicks a linked-badge step they haven't enrolled in yet.
   const [previewBadge,     setPreviewBadge]     = useState(null);
   // Opens the BadgeBrowser modal pre-filtered to an Area of Discovery when a
@@ -1201,13 +1294,26 @@ export default function UserTaskDetailPage() {
       if (!undo && doneBefore < totalNeeded) {
         const doneAfter = doneBefore - prevCount + result.completed_count;
         if (doneAfter >= totalNeeded) {
-          const isPending = !!(result.set_pending_approval || result.approval_status === 'pending');
-          completedAtRef.current = new Date();
-          setPendingApproval(isPending);
-          setShowFireworks(true);
-          playVictory();
-          if (taskSet?.type === 'One-Off')   setShowAwardModal(true);
-          if (taskSet?.type === 'Project' || taskSet?.type === 'Countdown') setShowProjectModal(true);
+          // For badges with required optional picks: a badge isn't truly
+          // complete until ALL optional slots have been picked. Skip the
+          // fireworks + modal so the kid sees the "Pick X more" CTA instead.
+          // Same Set-with-NULL semantics as the page-level needsPicks calc.
+          const levelOptCnt = (taskSet?.level_opt_counts && taskSet?.badge_level)
+            ? (taskSet.level_opt_counts[taskSet.badge_level] ?? 0)
+            : 0;
+          const pickCount = new Set(
+            steps.filter((s) => s.is_optional && s.is_active !== 0).map((s) => s.badge_opt_req_id)
+          ).size;
+          const needsMorePicks = !!taskSet?.badge_id && pickCount < levelOptCnt;
+          if (!needsMorePicks) {
+            const isPending = !!(result.set_pending_approval || result.approval_status === 'pending');
+            completedAtRef.current = new Date();
+            setPendingApproval(isPending);
+            setShowFireworks(true);
+            playVictory();
+            if (taskSet?.type === 'One-Off')   setShowAwardModal(true);
+            if (taskSet?.type === 'Project' || taskSet?.type === 'Countdown') setShowProjectModal(true);
+          }
         }
       }
     } catch {
@@ -1692,19 +1798,39 @@ export default function UserTaskDetailPage() {
             );
           })()}
 
-          {/* Mobile-only archive button — icon only, top-right. The desktop
-              full-text variant is inside the title row below. */}
-          {!archivedAt && (
+          {/* Mobile-only archive + info column — stacked on the right. The
+              desktop full-text Archive variant is inside the title row
+              below. The info popover anchors off whichever button is
+              visible at the current breakpoint. */}
+          <div className="shrink-0 mt-1 flex flex-col items-center gap-1 min-[600px]:hidden relative">
+            {!archivedAt && (
+              <button
+                type="button"
+                onClick={() => setConfirmArchive(true)}
+                className="w-10 h-10 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                aria-label="Archive"
+                title="Archive — hide from your active list"
+              >
+                <FontAwesomeIcon icon={faBoxArchive} className="text-base" />
+              </button>
+            )}
             <button
+              data-info-trigger
               type="button"
-              onClick={() => setConfirmArchive(true)}
-              className="shrink-0 mt-1 w-10 h-10 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors min-[600px]:hidden"
-              aria-label="Archive"
-              title="Archive — hide from your active list"
+              onClick={() => setInfoOpen((v) => !v)}
+              className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${
+                infoOpen
+                  ? 'bg-brand-50 dark:bg-gray-700 text-brand-700 dark:text-brand-400'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200'
+              }`}
+              aria-label="Show details"
+              aria-expanded={infoOpen}
+              title="Show details"
             >
-              <FontAwesomeIcon icon={faBoxArchive} className="text-base" />
+              <FontAwesomeIcon icon={faCircleInfo} className="text-lg" />
             </button>
-          )}
+            {infoOpen && infoPopover()}
+          </div>
 
           {/* Title + description + pills.
               On mobile (<600px) this wraps onto a new row below the header
@@ -1716,19 +1842,40 @@ export default function UserTaskDetailPage() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight flex-1 min-w-0 text-center min-[600px]:text-left">
                 {taskSet.name}
               </h1>
-              {/* Desktop-only archive button with text label. Mobile uses
-                  the icon-only button rendered in the header row above. */}
-              {!archivedAt && (
-                <button
-                  type="button"
-                  onClick={() => setConfirmArchive(true)}
-                  className="hidden min-[600px]:flex shrink-0 text-xs font-medium px-2.5 py-1 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors items-center gap-1.5"
-                  title="Archive — hide from your active list"
-                >
-                  <FontAwesomeIcon icon={faBoxArchive} className="text-[11px]" />
-                  Archive
-                </button>
-              )}
+              {/* Desktop-only archive + info cluster on the right of the
+                  title row. Mobile uses the icon-only versions in the
+                  header column above. */}
+              <div className="hidden min-[600px]:flex shrink-0 items-start gap-1">
+                {!archivedAt && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmArchive(true)}
+                    className="text-xs font-medium px-2.5 py-1 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors flex items-center gap-1.5"
+                    title="Archive — hide from your active list"
+                  >
+                    <FontAwesomeIcon icon={faBoxArchive} className="text-[11px]" />
+                    Archive
+                  </button>
+                )}
+                <div className="relative">
+                  <button
+                    data-info-trigger
+                    type="button"
+                    onClick={() => setInfoOpen((v) => !v)}
+                    className={`w-7 h-7 flex items-center justify-center rounded-full transition-colors ${
+                      infoOpen
+                        ? 'bg-brand-50 dark:bg-gray-700 text-brand-700 dark:text-brand-400'
+                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200'
+                    }`}
+                    aria-label="Show details"
+                    aria-expanded={infoOpen}
+                    title="Show details"
+                  >
+                    <FontAwesomeIcon icon={faCircleInfo} className="text-sm" />
+                  </button>
+                  {infoOpen && infoPopover()}
+                </div>
+              </div>
             </div>{/* /flex header */}
             {taskSet.description && (
               <p
@@ -1740,67 +1887,14 @@ export default function UserTaskDetailPage() {
                 {taskSet.description}
               </p>
             )}
-            {/* Two independent toggles: "Show more…" expands the description
-                (only when it overflows two lines); "Show tags" reveals the
-                pill row beneath. Pills are always present (type / progress
-                at minimum) so the tags toggle is always available. */}
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-              {descOverflowing && (
-                <button
-                  type="button"
-                  onClick={() => setDescExpanded((v) => !v)}
-                  className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
-                >
-                  {descExpanded ? 'Show less' : 'Show more…'}
-                </button>
-              )}
+            {descOverflowing && (
               <button
                 type="button"
-                onClick={() => setTagsExpanded((v) => !v)}
-                className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
+                onClick={() => setDescExpanded((v) => !v)}
+                className="mt-0.5 text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
               >
-                {tagsExpanded ? 'Hide tags' : 'Show tags'}
+                {descExpanded ? 'Show less' : 'Show more…'}
               </button>
-            </div>
-            {tagsExpanded && (
-              <div className="flex flex-wrap items-center gap-1.5 mt-2 justify-start">
-                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full whitespace-nowrap">
-                  {taskSet.type}
-                </span>
-                {taskSet.category && !taskSet.is_award && (
-                  <span className="px-2 py-0.5 text-xs font-medium bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-100 border border-brand-200 dark:border-brand-500/30 rounded-full whitespace-nowrap">
-                    {taskSet.category}
-                  </span>
-                )}
-                {Array.isArray(taskSet.tags) && taskSet.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 whitespace-nowrap"
-                  >
-                    {tag}
-                  </span>
-                ))}
-                {taskSet.badge_level && BADGE_LEVELS[taskSet.badge_level] && (() => {
-                  const lvl = BADGE_LEVELS[taskSet.badge_level];
-                  return (
-                    <span
-                      className="px-2 py-0.5 text-xs font-semibold rounded-full border whitespace-nowrap"
-                      style={{ backgroundColor: lvl.color, color: lvl.textColor, borderColor: lvl.borderColor }}
-                    >
-                      {lvl.label}
-                    </span>
-                  );
-                })()}
-                {totalCount > 0 && (
-                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${
-                    allDone
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-                  }`}>
-                    {allDone ? '🎉 Done' : `${completedCount}/${totalCount}`}
-                  </span>
-                )}
-              </div>
             )}
           </div>
         </div>
