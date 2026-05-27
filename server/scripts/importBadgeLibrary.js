@@ -162,10 +162,15 @@ const run = db.transaction(() => {
 
 run();
 
-// ─── Repair: task_steps with stale badge_opt_req_id ──────────────────────
-// Heals damage from previous imports that ran BEFORE the in-transaction
-// remap above. Any optional task_step whose badge_opt_req_id no longer
-// resolves gets re-pointed via name match against the badge's current
+// ─── Repair: task_steps with broken badge_opt_req_id ─────────────────────
+// Heals two kinds of broken optional refs that show up as "no selection"
+// in the picker modal:
+//   1. STALE: badge_opt_req_id points at an ID that no longer exists
+//      (damage from a previous import that wiped + reinserted optionals
+//      without remapping).
+//   2. NULL: badge_opt_req_id was never set — older code paths created
+//      optional task_steps without populating the ref.
+// Both are healed by matching step.name against the badge's current
 // optional pool. Step.name was set to opt.text at addOptional time, so a
 // normalized name + badge_id lookup recovers the right new ID.
 const orphanedSteps = db.prepare(`
@@ -174,10 +179,12 @@ const orphanedSteps = db.prepare(`
   JOIN task_sets ts ON ts.id = s.task_set_id
   WHERE s.is_optional = 1
     AND s.is_active = 1
-    AND s.badge_opt_req_id IS NOT NULL
     AND ts.badge_id IS NOT NULL
-    AND NOT EXISTS (
-      SELECT 1 FROM badge_optional_requirements o WHERE o.id = s.badge_opt_req_id
+    AND (
+      s.badge_opt_req_id IS NULL
+      OR NOT EXISTS (
+        SELECT 1 FROM badge_optional_requirements o WHERE o.id = s.badge_opt_req_id
+      )
     )
 `).all();
 if (orphanedSteps.length > 0) {
