@@ -448,6 +448,7 @@ const DIST = 26;
 // ── Step item with chore-style animation ──────────────────────────────────────
 function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
   const { userId } = useParams();
+  const location = useLocation();
   const done = false; // todo items are never done
   const [phase, setPhase] = useState('idle');
   const [inputValue, setInputValue] = useState('');
@@ -640,6 +641,7 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
           )}
           <Link
             to={`/tasks/${userId || ''}/${step.linked_task_set_id}`}
+            state={{ from: location.pathname + location.search }}
             onClick={(e) => e.stopPropagation()}
             className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
             title={`${step.linked_completed_count}/${step.linked_step_count} steps — open ${step.linked_badge_name}`}
