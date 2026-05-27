@@ -999,7 +999,6 @@ export default function UserTaskDetailPage() {
 
   // Badge optional pool (for swap chevron)
   const [optionalPool,     setOptionalPool]     = useState(null);
-  const [poolOpen,         setPoolOpen]         = useState(false);
   const [pickerOpen,       setPickerOpen]       = useState(false); // Modal for "Pick optional tasks"
   const [swapping,         setSwapping]         = useState(false);
   const [swapError,        setSwapError]        = useState('');
@@ -1073,8 +1072,6 @@ export default function UserTaskDetailPage() {
       loadOptionalPool();
     }
   }, [taskSet?.badge_id, optionalPool, loadOptionalPool]);
-
-  const handleOpenPool = () => setPoolOpen((o) => !o);
 
   const handleSwapOptional = async (removeStepId, addOptionalReqId) => {
     setSwapping(true);
@@ -1401,12 +1398,14 @@ export default function UserTaskDetailPage() {
             )}
             <div className="space-y-2">
               {optionalPool.map((opt) => {
-                const isSelected = selectedOptReqIds.has(opt.id);
+                const isSelected   = selectedOptReqIds.has(opt.id);
                 const selectedStep = steps.find((s) => s.badge_opt_req_id === opt.id && s.is_active);
-                const hasProgress  = isSelected && selectedStep && (selectedStep.completed_count || 0) > 0;
-                // Can't add more once at quota (server rejects too), but
-                // we still let the user click selected ones to remove —
-                // unless they have completion history.
+                const completed    = (selectedStep?.completed_count || 0);
+                const repeat       = (selectedStep?.repeat_count || 1);
+                const isDone       = isSelected && completed >= repeat;
+                const hasProgress  = isSelected && completed > 0;
+                // Can't add more once at quota (server rejects too); also
+                // can't remove a step that already has completion history.
                 const cantAddMore  = !isSelected && optionalsRemaining <= 0;
                 const locked       = hasProgress || cantAddMore;
                 const onClick = () => {
@@ -1421,17 +1420,21 @@ export default function UserTaskDetailPage() {
                     onClick={onClick}
                     disabled={swapping || locked}
                     className={`w-full text-left flex gap-3 p-3 rounded-lg border-2 transition-colors ${
-                      isSelected
-                        ? `bg-green-50 dark:bg-green-900/20 border-green-400 dark:border-green-600 ${hasProgress ? 'opacity-80' : 'hover:bg-green-100 dark:hover:bg-green-900/30'}`
-                        : cantAddMore
-                          ? 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed'
-                          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                      isDone
+                        ? 'bg-green-50 dark:bg-green-900/20 border-green-500 dark:border-green-600 opacity-80'
+                        : isSelected
+                          ? `bg-green-50 dark:bg-green-900/20 border-green-400 dark:border-green-600 ${hasProgress ? 'opacity-80' : 'hover:bg-green-100 dark:hover:bg-green-900/30'}`
+                          : cantAddMore
+                            ? 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed'
+                            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
                     } disabled:cursor-default`}
-                    title={hasProgress
-                      ? 'You already have progress on this step — swap it instead of removing.'
-                      : cantAddMore
-                        ? `You've picked all ${levelOptCount} optionals for this level — deselect one first.`
-                        : undefined}
+                    title={isDone
+                      ? 'Already completed — locked.'
+                      : hasProgress
+                        ? 'You already have progress on this step — swap it instead of removing.'
+                        : cantAddMore
+                          ? `You've picked all ${levelOptCount} optionals for this level — deselect one first.`
+                          : undefined}
                   >
                     <span
                       className={`mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs ${
@@ -1444,9 +1447,11 @@ export default function UserTaskDetailPage() {
                     </span>
                     <span
                       className={`text-sm leading-snug whitespace-pre-line flex-1 min-w-0 ${
-                        isSelected
-                          ? 'text-gray-500 dark:text-gray-400'
-                          : 'text-gray-800 dark:text-gray-100'
+                        isDone
+                          ? 'text-gray-400 dark:text-gray-500 line-through'
+                          : isSelected
+                            ? 'text-gray-500 dark:text-gray-400'
+                            : 'text-gray-800 dark:text-gray-100'
                       }`}
                     >
                       {opt.text}
@@ -1872,55 +1877,19 @@ export default function UserTaskDetailPage() {
                     ))}
                   </div>
 
-                  {/* Chevron toggle for unselected optional pool (swap mode) */}
-                  {!needsPicks && (
-                    <>
-                      <button
-                        onClick={handleOpenPool}
-                        className="mt-3 flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-brand-500 transition-colors"
-                      >
-                        <span>{poolOpen ? '▲' : '▼'}</span>
-                        {unselectedOptionals.length > 0
-                          ? `${poolOpen ? 'Hide' : 'See'} other options — change your picks`
-                          : 'No other options available'}
-                      </button>
-
-                      {poolOpen && (
-                        <div className="mt-2 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-                          {swapError && (
-                            <p className="text-xs text-red-500 px-3 pt-2">{swapError}</p>
-                          )}
-                          {unselectedOptionals.map((opt) => (
-                            <div key={opt.id} className="flex items-start gap-3 p-3 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                              <span className="mt-0.5 text-gray-300 dark:text-gray-600 text-sm shrink-0">○</span>
-                              <p className="text-sm text-gray-600 dark:text-gray-300 flex-1 leading-snug whitespace-pre-line">{opt.text}</p>
-                              {expanded.todoOptional.length > 0 && (
-                                <div className="shrink-0">
-                                  <select
-                                    disabled={swapping}
-                                    defaultValue=""
-                                    onChange={(e) => {
-                                      const removeId = parseInt(e.target.value, 10);
-                                      if (!isNaN(removeId)) handleSwapOptional(removeId, opt.id);
-                                      e.target.value = '';
-                                    }}
-                                    className="text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 disabled:opacity-50"
-                                  >
-                                    <option value="" disabled>Swap with…</option>
-                                    {expanded.todoOptional.map((s) => (
-                                      <option key={s.id} value={s.id}>{s._displayName.length > 40 ? s._displayName.slice(0, 40) + '…' : s._displayName}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                          {optionalPool && unselectedOptionals.length === 0 && (
-                            <p className="text-xs text-gray-400 dark:text-gray-500 p-3">All options are already selected.</p>
-                          )}
-                        </div>
-                      )}
-                    </>
+                  {/* Once all picks are made, "Change your picks" opens the
+                      same picker modal — kid can deselect a not-started
+                      optional and pick a different one. Completed picks
+                      strike through inside the modal so they're visually
+                      locked. */}
+                  {!needsPicks && unselectedOptionals.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setPickerOpen(true)}
+                      className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-brand-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                    >
+                      ↻ Change your picks
+                    </button>
                   )}
                 </div>
               )}
