@@ -1082,7 +1082,7 @@ export default function UserTaskDetailPage() {
     try {
       const result = await badgesApi.swapOptional(userId, taskSetId, removeStepId, addOptionalReqId);
       setSteps(result.steps);
-      setOptionalPool(null);
+      // Pool unchanged on swap — same reason as add/remove.
     } catch (e) {
       setSwapError(e?.response?.data?.error || 'Could not swap optional.');
     } finally {
@@ -1096,7 +1096,9 @@ export default function UserTaskDetailPage() {
     try {
       const result = await badgesApi.addOptional(userId, taskSetId, addOptionalReqId);
       setSteps(result.steps);
-      setOptionalPool(null);
+      // No need to nuke optionalPool — the pool itself depends only on
+      // badge_id + badge_level, neither of which can change here. Selection
+      // state is derived from `steps` which we just updated.
     } catch (e) {
       setSwapError(e?.response?.data?.error || 'Could not add optional.');
     } finally {
@@ -1110,7 +1112,6 @@ export default function UserTaskDetailPage() {
     try {
       const result = await badgesApi.removeOptional(userId, taskSetId, removeOptionalReqId);
       setSteps(result.steps);
-      setOptionalPool(null);
     } catch (e) {
       setSwapError(e?.response?.data?.error || 'Could not remove optional.');
     } finally {
