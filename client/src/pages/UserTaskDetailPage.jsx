@@ -1606,10 +1606,10 @@ export default function UserTaskDetailPage() {
             // = track, lighter = arc).
             const isOwlLevel = detailLevelCfg?.borderColor === '#111827';
             const trackColor = isDark
-              ? (isOwlLevel ? '#111827' : '#374151')
+              ? (isOwlLevel ? '#1F2937' : '#374151')
               : (detailLevelCfg?.trackColor || detailLevelCfg?.color || '#E5E7EB');
             const progressColor = isDark && isOwlLevel
-              ? '#D1D5DB'
+              ? '#6B7280'
               : (detailLevelCfg?.borderColor || (allDone ? '#22C55E' : '#6366F1'));
             return (
               <div className="relative flex-shrink-0" style={{ width: size, height: size }}>

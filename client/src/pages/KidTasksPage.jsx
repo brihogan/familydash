@@ -160,10 +160,10 @@ export default function KidTasksPage() {
     // progress arc gets a light visible shade).
     const isOwlLevel = kidLevelCfg?.borderColor === '#111827';
     const trackColor = isDark
-      ? (isOwlLevel ? '#111827' : '#374151')
+      ? (isOwlLevel ? '#1F2937' : '#374151')
       : (kidLevelCfg?.trackColor || kidLevelCfg?.color || '#E5E7EB');
     const progressColor = isDark && isOwlLevel
-      ? '#D1D5DB'
+      ? '#6B7280'
       : (kidLevelCfg?.borderColor || '#6366F1');
 
     // Curved title — uppercase label across the top arc, "FOLDER" across the

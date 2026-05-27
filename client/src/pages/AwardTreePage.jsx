@@ -24,11 +24,11 @@ function Medallion({ size, taskSet, step, status, pct, onClick, title, placehold
   // light shade is the visible arc.
   const isOwlLevel = levelCfg?.borderColor === '#111827';
   const trackColor = isDark
-    ? (isOwlLevel ? '#111827' : '#374151')
+    ? (isOwlLevel ? '#1F2937' : '#374151')
     : (levelCfg?.trackColor || levelCfg?.color || '#E5E7EB');
   const progressColor = status === 'completed'
     ? '#22C55E'
-    : (isDark && isOwlLevel ? '#D1D5DB' : (levelCfg?.borderColor || '#6366F1'));
+    : (isDark && isOwlLevel ? '#6B7280' : (levelCfg?.borderColor || '#6366F1'));
   const innerSize = Math.round(size * 0.78);
   const imageFile = isGeneric ? null : (taskSet?.badge_image_file || step?.linked_badge_image);
   const emoji     = isGeneric
