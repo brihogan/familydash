@@ -878,7 +878,7 @@ function StepCard({ step, onToggle, disabled, done, isLast }) {
         </div>
 
         {/* Name */}
-        <p className={`text-xs font-medium leading-tight text-left flex-1 min-w-0 ${
+        <p className={`text-xs font-medium leading-tight text-left flex-1 min-w-0 whitespace-pre-line ${
           showDone ? 'line-through text-gray-400 dark:text-gray-500' : step._limitedToday ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'
         }`}>
           {step._displayName || step.name}

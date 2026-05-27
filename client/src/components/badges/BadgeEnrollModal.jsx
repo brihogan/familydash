@@ -114,7 +114,7 @@ export default function BadgeEnrollModal({ badge, userId, userLevel, onClose, on
                 {requirements.map((req) => (
                   <li key={req.id} className="flex gap-2 text-sm text-gray-600 dark:text-gray-300">
                     <span className="mt-0.5 shrink-0 text-brand-500">•</span>
-                    <span>{req.text}</span>
+                    <span className="whitespace-pre-line">{req.text}</span>
                   </li>
                 ))}
               </ul>
@@ -152,7 +152,7 @@ export default function BadgeEnrollModal({ badge, userId, userLevel, onClose, on
                           onChange={() => toggleOpt(opt.id)}
                           className="mt-0.5 accent-brand-500 shrink-0"
                         />
-                        <span className="text-sm text-gray-700 dark:text-gray-300 leading-snug">
+                        <span className="text-sm text-gray-700 dark:text-gray-300 leading-snug whitespace-pre-line">
                           {opt.text}
                         </span>
                       </label>

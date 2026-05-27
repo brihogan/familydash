@@ -228,7 +228,7 @@ export default function BadgePreviewModal({ badge, userId, userLevel, canEnroll,
                       {requirements.map((req) => (
                         <li key={req.id} className="flex gap-2.5">
                           <span className="mt-0.5 text-brand-500 shrink-0">★</span>
-                          <p className="text-sm text-gray-700 dark:text-gray-300 leading-snug">{req.text}</p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300 leading-snug whitespace-pre-line">{req.text}</p>
                         </li>
                       ))}
                     </ul>
@@ -245,7 +245,7 @@ export default function BadgePreviewModal({ badge, userId, userLevel, canEnroll,
                       {optionals.map((opt) => (
                         <li key={opt.id} className="flex gap-2.5">
                           <span className="mt-0.5 text-amber-500 shrink-0">○</span>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 leading-snug">{opt.text}</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 leading-snug whitespace-pre-line">{opt.text}</p>
                         </li>
                       ))}
                     </ul>
