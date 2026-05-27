@@ -1321,13 +1321,20 @@ export default function UserTaskDetailPage() {
   const isWeightedAward = !!taskSet?.is_award && !isCountAtLevel && steps.length > 0;
   const weighted = isWeightedAward ? awardProgress(steps, taskSet?.badge_level) : null;
 
+  // Badges with optional-pick requirements: any unpicked optionals count
+  // against progress (denominator) so the bar/% reflects work-still-to-do,
+  // and `allDone` only flips true once every optional slot has been picked
+  // AND completed. Without this, a badge would look "100% done" the
+  // moment all required + already-picked optional steps are checked,
+  // even though the kid hadn't picked their optional tasks yet.
+  const unpickedOptionalSlots = needsPicks ? optionalsRemaining : 0;
   const totalCount     = isCountAtLevel ? (countProgress?.min   ?? 0)
                        : isWeightedAward ? weighted.totalCount
-                       : steps.reduce((sum, s) => sum + (s.repeat_count || 1), 0);
+                       : steps.reduce((sum, s) => sum + (s.repeat_count || 1), 0) + unpickedOptionalSlots;
   const completedCount = isCountAtLevel ? (countProgress?.count ?? 0)
                        : isWeightedAward ? weighted.completedCount
                        : steps.reduce((sum, s) => sum + (s.completed_count || 0), 0);
-  const allDone        = totalCount > 0 && completedCount >= totalCount;
+  const allDone        = totalCount > 0 && completedCount >= totalCount && unpickedOptionalSlots === 0;
   const pct            = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
   const anyBusy        = toggling.size > 0;
 

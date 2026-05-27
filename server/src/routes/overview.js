@@ -91,7 +91,13 @@ router.get('/:id/overview', authenticate, requireOwnOrParent, (req, res, next) =
         SELECT
           ts.id, ts.name, ts.emoji, ts.type,
           b.image_file AS badge_image_file,
-          (SELECT COALESCE(SUM(s.repeat_count), 0) FROM task_steps s WHERE s.task_set_id = ts.id AND s.is_active = 1) AS step_count,
+          (SELECT COALESCE(SUM(s.repeat_count), 0) FROM task_steps s WHERE s.task_set_id = ts.id AND s.is_active = 1)
+            + CASE WHEN ts.badge_id IS NOT NULL
+                THEN MAX(0, COALESCE(CAST(json_extract(b.level_opt_counts, '$.' || ts.badge_level) AS INTEGER), 0)
+                          - (SELECT COUNT(DISTINCT COALESCE(badge_opt_req_id, -1))
+                             FROM task_steps WHERE task_set_id = ts.id AND is_active = 1 AND is_optional = 1))
+                ELSE 0
+              END AS step_count,
           (SELECT COUNT(*) FROM task_step_completions c WHERE c.task_set_id = ts.id AND c.user_id = ta.user_id) AS completed_count,
           (SELECT MAX(completed_at) FROM task_step_completions c WHERE c.task_set_id = ts.id AND c.user_id = ta.user_id) AS earned_at
         FROM task_assignments ta

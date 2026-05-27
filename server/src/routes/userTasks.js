@@ -81,7 +81,19 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
         (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)   AS step_count,
         (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ?)                AS completed_count,
         (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ? AND approval_status = 'pending') AS pending_step_count,
-        (SELECT MAX(completed_at) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ?)       AS earned_at
+        (SELECT MAX(completed_at) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ?)       AS earned_at,
+        /* Unpicked optional slots — for badges with level_opt_counts the
+           kid must pick N optionals at their level. Until they do, those
+           slots count against progress so the bar doesn't sit at 100% just
+           from the required steps. Uses the same "Set with NULL = 1 auto
+           placeholder" semantics as the detail page so the math matches:
+              picks = COUNT(DISTINCT COALESCE(badge_opt_req_id, -1)) */
+        CASE WHEN ts.badge_id IS NOT NULL
+          THEN MAX(0, COALESCE(CAST(json_extract(b.level_opt_counts, '$.' || ts.badge_level) AS INTEGER), 0)
+                    - (SELECT COUNT(DISTINCT COALESCE(badge_opt_req_id, -1))
+                       FROM task_steps WHERE task_set_id = ts.id AND is_active = 1 AND is_optional = 1))
+          ELSE 0
+        END AS unpicked_optionals
       FROM task_sets ts
       JOIN task_assignments ta ON ta.task_set_id = ts.id
       LEFT JOIN badges b ON b.id = ts.badge_id
@@ -89,6 +101,12 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
         ${archivedFilter}
       ORDER BY ts.name ASC
     `).all(userId, userId, userId, userId);
+
+    // Apply unpicked-optional inflation to step_count so cards / progress
+    // rings everywhere reflect the picks the kid still owes the badge.
+    for (const r of rows) {
+      r.step_count = (r.step_count || 0) + (r.unpicked_optionals || 0);
+    }
 
     // Override step_count/completed_count for award task sets with weighted
     // progress (linked-badge sub-steps + level-average estimates for unpicked
