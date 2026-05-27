@@ -382,7 +382,11 @@ export default function Layout() {
   return (
     <nav className={horizontal
       ? 'flex-1 min-w-0 overflow-x-auto overscroll-contain flex flex-row items-center gap-1 px-2 text-sm'
-      : 'flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-4 space-y-1 text-sm'}>
+      // overflow-x-hidden: setting only overflow-y: auto turns overflow-x
+      // into `auto` per CSS spec, which causes a spurious 1px horizontal
+      // scrollbar when collapsed at w-14 (rounded pill / absolute badges
+      // peek out by sub-pixel).
+      : 'flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-4 space-y-1 text-sm'}>
       <NavLink to="/dashboard" className={navClass} onClick={close} title="Dashboard">
         <FontAwesomeIcon icon={faHouse} className="w-4 shrink-0" />
         <Lbl>Dashboard</Lbl>
