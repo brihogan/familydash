@@ -1705,7 +1705,7 @@ export default function UserTaskDetailPage() {
           so the bar's bottom edge is fully outside the visible content
           area — no peeking. */}
       <div
-        className={`sticky top-0 z-20 -mx-4 lg:-mx-6 -mb-12 transition-transform duration-200 ease-out ${
+        className={`sticky -top-4 lg:-top-6 z-20 -mx-4 lg:-mx-6 -mb-12 transition-transform duration-200 ease-out ${
           stickyHeaderVisible
             ? 'translate-y-0'
             : '-translate-y-[calc(100%+1rem)] lg:-translate-y-[calc(100%+1.5rem)] pointer-events-none'
