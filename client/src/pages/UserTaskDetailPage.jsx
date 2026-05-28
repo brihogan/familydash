@@ -1696,6 +1696,82 @@ export default function UserTaskDetailPage() {
         </div>
       )}
 
+      {/* ── Sticky compact header ──
+          Lives at the very top of the page so it pins flush with the top
+          of the main scroll area the moment it appears. `-mb-12` cancels
+          its own h-12 layout space so the badge header below sits at the
+          natural top of the page (no empty gap when hidden). The hidden
+          state translates up by h-12 + main's padding-top (16 / 24 on lg)
+          so the bar's bottom edge is fully outside the visible content
+          area — no peeking. */}
+      <div
+        className={`sticky top-0 z-20 -mx-4 lg:-mx-6 -mb-12 transition-transform duration-200 ease-out ${
+          stickyHeaderVisible
+            ? 'translate-y-0'
+            : '-translate-y-[calc(100%+1rem)] lg:-translate-y-[calc(100%+1.5rem)] pointer-events-none'
+        }`}
+      >
+        <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur border-b border-gray-200 dark:border-gray-700 shadow-sm flex items-center gap-2 px-3 py-2 h-12">
+          <button
+            type="button"
+            onClick={goBack}
+            className="shrink-0 w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            aria-label="Go back"
+          >
+            <FontAwesomeIcon icon={faChevronLeft} className="text-base" />
+          </button>
+          {/* Tiny progress ring + badge image, mirroring the main header. */}
+          {(() => {
+            const sz = 36;
+            const sw = 3;
+            const r  = (sz - sw) / 2;
+            const c  = 2 * Math.PI * r;
+            const lvlCfg = taskSet.badge_level && BADGE_LEVELS[taskSet.badge_level];
+            const isOwl  = lvlCfg?.borderColor === '#111827';
+            const track  = isDark
+              ? (lvlCfg?.darkTrackColor || '#374151')
+              : (lvlCfg?.trackColor || lvlCfg?.color || '#E5E7EB');
+            const arc    = isDark && isOwl ? '#6B7280'
+                         : (lvlCfg?.borderColor || (allDone ? '#22C55E' : '#6366F1'));
+            return (
+              <div className="relative shrink-0" style={{ width: sz, height: sz }}>
+                <svg width={sz} height={sz} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
+                  <circle cx={sz / 2} cy={sz / 2} r={r} fill="none" stroke={track} strokeWidth={sw} />
+                  {totalCount > 0 && (
+                    <circle
+                      cx={sz / 2} cy={sz / 2} r={r}
+                      fill="none" stroke={arc} strokeWidth={sw}
+                      strokeDasharray={c}
+                      strokeDashoffset={c - (pct / 100) * c}
+                      strokeLinecap="round"
+                    />
+                  )}
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center p-1">
+                  <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                    {taskSet.badge_image_file ? (
+                      <img
+                        src={`/api/uploads/badges/${taskSet.badge_image_file}`}
+                        alt=""
+                        className="w-full h-full object-cover dark:brightness-75 dark:contrast-110"
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <span className="text-xs leading-none">
+                        <IconDisplay value={taskSet.emoji} fallback={taskSet.is_award ? '🏆' : '📋'} />
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+          <h2 className="flex-1 min-w-0 text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+            {taskSet.name}
+          </h2>
+        </div>
+      </div>
+
       {/* ── Header ──
           Below 600px: a single flex-wrap row holds the controls column
           (back/pin/map vertical stack, top-left), the badge (centered in
@@ -1927,81 +2003,8 @@ export default function UserTaskDetailPage() {
       </div>
 
       {/* Sentinel — watched by the IntersectionObserver above. When its top
-          edge goes above the viewport, the compact sticky header fades in. */}
+          edge goes above the viewport, the compact sticky header slides in. */}
       <div ref={setHeaderSentinelRef} aria-hidden="true" />
-
-      {/* ── Sticky compact header ──
-          One-row replacement for the big badge header — shows once the user
-          has scrolled the badge offscreen. Back chevron + tiny badge icon +
-          truncated title. Hidden (zero-height) when the badge is still in
-          view, so it doesn't take layout space at the top of the page. */}
-      <div
-        className={`sticky -top-4 lg:-top-6 z-20 -mx-4 lg:-mx-6 mb-4 transition-all duration-150 ${
-          stickyHeaderVisible
-            ? 'opacity-100 visible'
-            : 'opacity-0 invisible pointer-events-none -mb-4 h-0 overflow-hidden'
-        }`}
-      >
-        <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur border-b border-gray-200 dark:border-gray-700 shadow-sm flex items-center gap-2 px-3 py-2 min-h-[3rem]">
-          <button
-            type="button"
-            onClick={goBack}
-            className="shrink-0 w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            aria-label="Go back"
-          >
-            <FontAwesomeIcon icon={faChevronLeft} className="text-base" />
-          </button>
-          {/* Tiny progress ring + badge image, mirroring the main header. */}
-          {(() => {
-            const sz = 36;
-            const sw = 3;
-            const r  = (sz - sw) / 2;
-            const c  = 2 * Math.PI * r;
-            const lvlCfg = taskSet.badge_level && BADGE_LEVELS[taskSet.badge_level];
-            const isOwl  = lvlCfg?.borderColor === '#111827';
-            const track  = isDark
-              ? (lvlCfg?.darkTrackColor || '#374151')
-              : (lvlCfg?.trackColor || lvlCfg?.color || '#E5E7EB');
-            const arc    = isDark && isOwl ? '#6B7280'
-                         : (lvlCfg?.borderColor || (allDone ? '#22C55E' : '#6366F1'));
-            return (
-              <div className="relative shrink-0" style={{ width: sz, height: sz }}>
-                <svg width={sz} height={sz} className="absolute inset-0" style={{ transform: 'rotate(-90deg)' }}>
-                  <circle cx={sz / 2} cy={sz / 2} r={r} fill="none" stroke={track} strokeWidth={sw} />
-                  {totalCount > 0 && (
-                    <circle
-                      cx={sz / 2} cy={sz / 2} r={r}
-                      fill="none" stroke={arc} strokeWidth={sw}
-                      strokeDasharray={c}
-                      strokeDashoffset={c - (pct / 100) * c}
-                      strokeLinecap="round"
-                    />
-                  )}
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center p-1">
-                  <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-                    {taskSet.badge_image_file ? (
-                      <img
-                        src={`/api/uploads/badges/${taskSet.badge_image_file}`}
-                        alt=""
-                        className="w-full h-full object-cover dark:brightness-75 dark:contrast-110"
-                        onError={(e) => { e.target.style.display = 'none'; }}
-                      />
-                    ) : (
-                      <span className="text-xs leading-none">
-                        <IconDisplay value={taskSet.emoji} fallback={taskSet.is_award ? '🏆' : '📋'} />
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-          <h2 className="flex-1 min-w-0 text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-            {taskSet.name}
-          </h2>
-        </div>
-      </div>
 
       {/* ── Set-level pending approval banner ── */}
       {completionStatus === 'pending' && (
