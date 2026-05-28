@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faListCheck, faPen, faTrash, faKey } from '@fortawesome/free-solid-svg-icons';
 import Modal from '../components/shared/Modal.jsx';
 import { familyApi } from '../api/family.api.js';
+import { claudeApi } from '../api/claude.api.js';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import Avatar from '../components/shared/Avatar.jsx';
@@ -27,6 +28,80 @@ function Toggle({ checked, onChange }) {
         checked ? 'translate-x-6' : 'translate-x-1'
       }`} />
     </button>
+  );
+}
+
+// Reset-container helper card — force-removes the kid's docker container so
+// the next session recreates it from the current image. Useful when a
+// botched Claude self-update leaves the binary missing in /home/coder/.npm-global.
+function ResetContainerCard({ userId, name }) {
+  const [confirming, setConfirming] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState('');
+
+  const handleReset = async () => {
+    setResetting(true);
+    setErr('');
+    try {
+      await claudeApi.resetContainer(userId);
+      setDone(true);
+      setConfirming(false);
+      setTimeout(() => setDone(false), 4000);
+    } catch (e) {
+      setErr(e?.response?.data?.error || 'Reset failed.');
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  return (
+    <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-gray-900 dark:text-gray-100">Reset Claude Container</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+            Wipes {name}&apos;s container and rebuilds it from the image on the next session. Use this if the <code className="font-mono text-xs">claude</code> binary is missing or broken. Workspace files and Claude login are preserved.
+          </p>
+          {done && (
+            <p className="text-xs font-medium text-green-600 dark:text-green-400 mt-2">
+              ✓ Container removed. Next terminal open will rebuild it.
+            </p>
+          )}
+          {err && (
+            <p className="text-xs font-medium text-red-600 dark:text-red-400 mt-2">{err}</p>
+          )}
+        </div>
+        {!confirming ? (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            className="shrink-0 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            Reset…
+          </button>
+        ) : (
+          <div className="shrink-0 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              disabled={resetting}
+              className="px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleReset}
+              disabled={resetting}
+              className="px-3 py-1.5 text-sm font-medium rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white transition-colors"
+            >
+              {resetting ? 'Resetting…' : 'Confirm reset'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -500,6 +575,12 @@ export default function SettingsUserDetailPage() {
             </div>
           </div>
           )}
+        {!!member.claude_enabled && isKid && (
+          <ResetContainerCard
+            userId={member.id}
+            name={member.name}
+          />
+        )}
       </div>}
 
       {/* ── Badges ── */}

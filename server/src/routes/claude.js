@@ -7,7 +7,7 @@ import { requireRole } from '../middleware/requireRole.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { getOrCreateContainer, stopContainer, getContainerStatus, readContainerFile, listContainerApps } from '../services/dockerService.js';
+import { getOrCreateContainer, stopContainer, removeContainer, getContainerStatus, readContainerFile, listContainerApps } from '../services/dockerService.js';
 import { localDateISO } from '../utils/dateHelpers.js';
 
 const __claude_dirname = dirname(fileURLToPath(import.meta.url));
@@ -295,6 +295,20 @@ router.post('/:userId/stop', authenticate, authorizeClaudeAccess, async (req, re
   try {
     await stopContainer(req.kidId);
     res.json({ ok: true, running: false });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/claude/:userId/reset
+// Parent-only: force-remove the kid's container so the next session
+// recreates it from the image. Recovers from a corrupted
+// /home/coder/.npm-global (e.g. a missing `claude` binary after a
+// failed self-update). Workspace + .claude auth volumes are preserved.
+router.post('/:userId/reset', authenticate, requireRole('parent'), authorizeClaudeAccess, async (req, res, next) => {
+  try {
+    await removeContainer(req.kidId);
+    res.json({ ok: true, removed: true });
   } catch (err) {
     next(err);
   }

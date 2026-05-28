@@ -159,6 +159,22 @@ export async function stopContainer(userId) {
   lastActivity.delete(userId);
 }
 
+// Force-remove the container so the next `getOrCreateContainer` call
+// rebuilds it from the current image. Used to recover from a corrupted
+// /home/coder/.npm-global (e.g. a botched self-update that leaves the
+// `claude` binary missing). The per-user workspace + .claude volumes
+// survive because they're mounted, not part of the container layer.
+export async function removeContainer(userId) {
+  const name = containerName(userId);
+  try {
+    const container = docker.getContainer(name);
+    await container.remove({ force: true });
+  } catch (err) {
+    if (err.statusCode !== 404) throw err;
+  }
+  lastActivity.delete(userId);
+}
+
 export async function getContainerStatus(userId) {
   const name = containerName(userId);
   try {
