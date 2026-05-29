@@ -20,6 +20,7 @@ import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { playChoreCheck, playVictory } from '../utils/sounds.js';
 import { awardProgress } from '../utils/awardProgress.js';
 import useScrollLock from '../hooks/useScrollLock.js';
+import { renderEarnBadgeRef } from '../utils/earnBadgeRef.jsx';
 
 // ── Fullscreen step detail modal (image + description) ───────────────────────
 function StepDetailModal({ step, onClose }) {
@@ -1540,7 +1541,9 @@ export default function UserTaskDetailPage() {
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         title={`Optional tasks — ${selectedOptCount} of ${levelOptCount} selected`}
+        subtitle={optionalPool ? `${optionalPool.length} available to choose from` : undefined}
         size="xl"
+        stickyHeader
       >
         {!optionalPool ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
@@ -1607,7 +1610,7 @@ export default function UserTaskDetailPage() {
                             : 'text-gray-800 dark:text-gray-100'
                       }`}
                     >
-                      {opt.text}
+                      {renderEarnBadgeRef(opt.text, opt.linked_badge_id, opt.linked_badge_name)}
                     </span>
                   </button>
                 );

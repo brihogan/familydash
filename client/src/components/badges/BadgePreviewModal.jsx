@@ -4,6 +4,7 @@ import { BADGE_LEVELS } from '../../constants/badgeLevels.js';
 import useScrollLock from '../../hooks/useScrollLock.js';
 import { useTheme } from '../../context/ThemeContext.jsx';
 import BadgeImageLightbox from './BadgeImageLightbox.jsx';
+import { renderEarnBadgeRef } from '../../utils/earnBadgeRef.jsx';
 
 function LevelPill({ level }) {
   const cfg = BADGE_LEVELS[level];
@@ -228,7 +229,7 @@ export default function BadgePreviewModal({ badge, userId, userLevel, canEnroll,
                       {requirements.map((req) => (
                         <li key={req.id} className="flex gap-2.5">
                           <span className="mt-0.5 text-brand-500 shrink-0">★</span>
-                          <p className="text-sm text-gray-700 dark:text-gray-300 leading-snug whitespace-pre-line">{req.text}</p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300 leading-snug whitespace-pre-line">{renderEarnBadgeRef(req.text, req.linked_badge_id, req.linked_badge_name)}</p>
                         </li>
                       ))}
                     </ul>
@@ -245,7 +246,7 @@ export default function BadgePreviewModal({ badge, userId, userLevel, canEnroll,
                       {optionals.map((opt) => (
                         <li key={opt.id} className="flex gap-2.5">
                           <span className="mt-0.5 text-amber-500 shrink-0">○</span>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 leading-snug whitespace-pre-line">{opt.text}</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 leading-snug whitespace-pre-line">{renderEarnBadgeRef(opt.text, opt.linked_badge_id, opt.linked_badge_name)}</p>
                         </li>
                       ))}
                     </ul>

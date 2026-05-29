@@ -7,6 +7,7 @@ import { getKingOfCrowns } from '../services/streakService.js';
 import { assertSameFamily as assertUserInFamily } from '../utils/assertions.js';
 import { localDateISO } from '../utils/dateHelpers.js';
 import { syncLinkedAwardSteps as syncLinkedAwardStepsShared } from '../services/awardSync.js';
+import { resolveEarnBadgeRef } from '../services/badgeRefLink.js';
 
 const router = Router();
 
@@ -552,6 +553,22 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
     const awardLevel = taskSet?.badge_level || null;
     const assignedTaskSetIds = new Set();
     for (const step of steps) {
+      // Badge requirements / optionals are free text, not award config, so they
+      // carry no linkage. When a step has none of its own, try to derive one
+      // from "Earn the {Name} badge" prose — resolving the name to a real badge
+      // lets the rest of this loop + the renderer treat it exactly like an
+      // award's badge step (progress ring when enrolled, "Start the X badge"
+      // preview when not). Excludes the parent badge so it can't link to itself.
+      if (!step.linked_badge_id && !step.linked_badge_category && !step.linked_task_set_id) {
+        const ref = resolveEarnBadgeRef(db, step.name, taskSet.badge_id || null);
+        if (ref) {
+          step.linked_badge_id    = ref.id;
+          step.linked_badge_name  = ref.name;
+          step.linked_badge_image = ref.image_file;
+          step.linked_badge_emoji = ref.emoji;
+        }
+      }
+
       // Stored manual pick wins over auto-pick. This covers both
       // category-linked steps (STEAM/Discovery) where the kid explicitly
       // picked a badge AND cross-area steps (STEAM's Man Made Wonders

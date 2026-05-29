@@ -1,5 +1,29 @@
 # Work Log
 
+## Session Start: 2026-05-29 17:33 EDT (evening)
+
+### 2026-05-29 — Earn-badge underline everywhere + sub-header + SWAPS delete + L5 audit
+- Extracted the "Earn the X badge" dotted-underline into a shared `client/src/utils/earnBadgeRef.jsx` helper; now used by the optional picker AND the "Start this badge" preview modal (`GET /badges/:id` now resolves refs on requirements + optionals). Verified resolution (Fire Building→Fire Safety, Foods→4 food badges, Computers→Internet/Internet Safety).
+- Optional picker modal got a `subtitle` (new shared-`Modal` prop) showing "N available to choose from" under the title.
+- Soft-deleted the non-badge "Annual SWAPS Event" (#1675, `is_active=0`; 0 refs).
+- L5 audit: only Event Planning (9) & Fire Building (8) exceed 7 L5 requirements — both legit (real content, no bad "do requirement X" steps; back-ref cleanup already removed those).
+
+### 2026-05-29 — Strip "* " indicators + clean up "Do Level N requirements" back-refs
+- Removed leading `* ` (8) and `*. ` (4) requirement indicators (redundant — required steps already sit under a Required section) + 2 enrolled Bowling task_steps.
+- Cleaned the cross-level "Do/Complete Level N requirements 1 & 2" family via a classifier script (dry-run first). Since enrollment already includes every prior level's steps, these are redundant: **HID 65** pure/corrupt/mangled back-refs, **STRIPPED 22** to keep only their own added instructions (Knitting→"Cast on 15 stitches…"), **KEPT 4** continuation rows full (Coloring "…except color N pictures"). Deactivated 2 matching enrolled steps. Backups: family.db.bak-20260529-{asterisk,backrefs}. Prod needs export/importBadgeLibrary.
+
+### 2026-05-29 — Fix nested `<button>` warning in BadgeBrowser
+- The badge grid card was a `<button>` wrapping the bookmark-toggle `<button>`, which React flagged with `validateDOMNesting (<button> cannot appear as a descendant of <button>)`. Converted the outer card to a `<div role="button" tabIndex={0}>` with an `onKeyDown` (Enter/Space → `handleCardClick`) so click + keyboard behavior and styling are unchanged. Verified on `/badges/52`: 0 nested button-in-button, console clean, card still focusable and Enter opens the preview modal.
+
+### 2026-05-29 — Sticky header on the optional-tasks picker modal
+- Added an opt-in `stickyHeader` prop to the shared `Modal` (default off, so other modals are unchanged) and enabled it on the optional-tasks picker. The "Optional tasks — N of 7 selected" title now pins to the top while the list scrolls so the count stays visible. Gotcha: sticky pins relative to the scroll container's *content* box, so the panel's `pt-6` left a 24px gap where cards peeked above the header bg — fixed by moving the top padding off the panel (`pt-0`) onto the header itself when sticky.
+
+### 2026-05-29 — Badge library cleanup: scraped gibberish + junk "." optionals
+- Stripped the scraped CU website footer ("Disclaimer: Our web pages…" + wp-emoji-loader JS, ~13.6KB) that had been appended to **71 optional requirements** (incl. Bowling's "Find out what bowling pins are made of…"). Truncated each at the "Disclaimer:" boundary — uniform across all 71, 0 in `badge_level_requirements`. Deleted **5 junk lone-"." optionals** (Bowling req 10, Accountability, Computers, Costume Design ×2) — none were referenced by any kid's added step. Backup at `data/family.db.bak-20260529-cleanup`. NOTE: library lives in the DB; prod still needs the export/importBadgeLibrary deploy to pick these up.
+
+### 2026-05-29 — Auto-link "Earn the X badge" in badge steps
+- Badge requirements/optionals that say "Earn the {Name} badge" now auto-link to that badge just like awards do. New `services/badgeRefLink.js` parses the phrase (anchored on "badge", requires an article so the Level-5 "this badge" boilerplate is skipped) and resolves it to a real non-award badge by name. The kid-task GET endpoint derives `linked_badge_id` at read-time for any unlinked step (so existing `StepItem` renders the medallion/progress ring, or a "Start the X badge" preview when not enrolled) and the `/optionals` endpoint flags resolvable rows so the picker modal dotted-underlines the phrase. ~70–77% of refs resolve cleanly; drift ("Math"→Mathematics), "X or Y" compounds, and Area words ("Character") correctly stay plain text. Verified on user 52 (Advanced Aviation → Airplanes medallion; "Earn the Drones badge" dotted-underlined in the optional modal).
+
 ## Session Start: 2026-05-26 (morning)
 
 ### 2026-05-26 — Pin task sets to the top of the kid's lists

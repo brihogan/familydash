@@ -3,6 +3,7 @@ import { z } from 'zod';
 import db from '../db/db.js';
 import { authenticate } from '../middleware/auth.js';
 import { generateAwardSteps } from '../services/awardSteps.js';
+import { resolveEarnBadgeRef } from '../services/badgeRefLink.js';
 
 const router = Router();
 
@@ -298,6 +299,16 @@ router.get('/badges/:id', authenticate, (req, res, next) => {
       ).all(badgeId);
     }
 
+    // Flag any "Earn the X badge" cross-references so the preview can
+    // dotted-underline the phrase (same treatment as the optional picker).
+    for (const list of [requirements, optionals]) {
+      for (const row of list) {
+        const ref = resolveEarnBadgeRef(db, row.text, badgeId);
+        row.linked_badge_id   = ref ? ref.id   : null;
+        row.linked_badge_name = ref ? ref.name : null;
+      }
+    }
+
     const optCounts = JSON.parse(badge.level_opt_counts || '{}');
 
     res.json({ ...badge, level_opt_counts: optCounts, requirements, optionals });
@@ -329,6 +340,16 @@ router.get('/badges/:id/optionals', authenticate, (req, res, next) => {
       optionals = db.prepare(
         `SELECT id, req_number, text, level FROM badge_optional_requirements WHERE badge_id = ? ORDER BY req_number ASC`
       ).all(badgeId);
+    }
+
+    // Flag optionals that reference another badge ("Earn the X badge") so the
+    // picker modal can dotted-underline the phrase — a hint that the step will
+    // auto-link to that badge once it's added. Only set when the name resolves
+    // to a real badge, so the underline is never a dead promise.
+    for (const opt of optionals) {
+      const ref = resolveEarnBadgeRef(db, opt.text, badgeId);
+      opt.linked_badge_id   = ref ? ref.id   : null;
+      opt.linked_badge_name = ref ? ref.name : null;
     }
 
     res.json({ optionals });

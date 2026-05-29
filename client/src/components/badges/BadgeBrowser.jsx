@@ -480,10 +480,20 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, onPi
               : 'border-gray-200 dark:border-gray-700 hover:border-brand-300 dark:hover:border-brand-500/50';
 
             return (
-              <button
-                type="button"
+              // Card is a div (not a button) so the bookmark <button> below can
+              // nest inside without an invalid <button>-in-<button> DOM tree.
+              // role/tabIndex/onKeyDown keep it keyboard-activatable like a button.
+              <div
                 key={badge.id}
+                role="button"
+                tabIndex={0}
                 onClick={handleCardClick}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleCardClick();
+                  }
+                }}
                 className={`relative flex flex-col items-center p-3 bg-white dark:bg-gray-800 border rounded-xl shadow-sm hover:shadow-md hover:bg-brand-50/30 dark:hover:bg-brand-900/10 transition-all text-left cursor-pointer ${enrolledClasses}`}
                 title={isEnrolled
                   ? (onPickEnrolled ? 'Click to link this badge to the step' : "Already in this kid's list")
@@ -528,7 +538,7 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, onPi
                     ✓
                   </span>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
