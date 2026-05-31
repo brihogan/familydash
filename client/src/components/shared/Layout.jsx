@@ -20,6 +20,7 @@ import { accountsApi } from '../../api/accounts.api.js';
 import { formatCents } from '../../utils/formatCents.js';
 import InstallPrompt from './InstallPrompt.jsx';
 import QuickActionsFab from './QuickActionsFab.jsx';
+import ErrorBoundary from './ErrorBoundary.jsx';
 import useScrollLock from '../../hooks/useScrollLock.js';
 import useSyncStatus from '../../offline/hooks/useSyncStatus.js';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -1196,7 +1197,11 @@ export default function Layout() {
             : 'max(1rem, env(safe-area-inset-bottom))' }}
         >
           <div className="max-w-6xl mx-auto">
-            <Outlet />
+            {/* Keyed by pathname so a crashed page resets the boundary when
+                the user navigates elsewhere (otherwise the fallback sticks). */}
+            <ErrorBoundary key={location.pathname}>
+              <Outlet />
+            </ErrorBoundary>
           </div>
         </main>
 
