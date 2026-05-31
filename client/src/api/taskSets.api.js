@@ -26,6 +26,7 @@ export const taskSetsApi = {
     client.get(`/users/${userId}/task-assignments`, { params: archived ? { archived } : {} }).then((r) => r.data),
   archiveAssignment:   (userId, taskSetId) => client.post(`/users/${userId}/task-assignments/${taskSetId}/archive`).then((r) => r.data),
   unarchiveAssignment: (userId, taskSetId) => client.post(`/users/${userId}/task-assignments/${taskSetId}/unarchive`).then((r) => r.data),
+  deleteAssignment:    (userId, taskSetId) => client.delete(`/users/${userId}/task-assignments/${taskSetId}`).then((r) => r.data),
   setPinned:           (userId, taskSetId, pinned) => client.patch(`/users/${userId}/task-assignments/${taskSetId}/pin`, { pinned }).then((r) => r.data),
   getUserTaskSet:  (userId, taskSetId)         => client.get(`/users/${userId}/task-assignments/${taskSetId}`).then((r) => r.data),
   toggleStep:      (userId, taskSetId, stepId, undo = false, inputResponse = null) => client.post(`/users/${userId}/task-assignments/${taskSetId}/steps/${stepId}/toggle`, { ...(undo ? { undo: true } : {}), ...(inputResponse ? { input_response: inputResponse } : {}) }).then((r) => r.data),

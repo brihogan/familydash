@@ -8,6 +8,7 @@ import IconPicker, { IconDisplay } from '../components/shared/IconPicker.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
 import { familyApi } from '../api/family.api.js';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
+import { BADGE_LEVELS, BADGE_LEVEL_ORDER } from '../constants/badgeLevels.js';
 
 const TYPE_OPTIONS = ['Project', 'One-Off'];
 
@@ -34,8 +35,11 @@ export default function SettingsTasksPage() {
   const toggleGroup = (key) => setCollapsedGroups((prev) => ({ ...prev, [key]: !isCollapsed(prev, key) }));
   function isCollapsed(state, key) {
     if (key in state) return state[key];
-    // Default: collapse anything in the Curiosity category
-    return key.endsWith('::Curiosity');
+    // Curiosity category opens by default; its Awards/Badges sub-groups and each
+    // per-badge level group start collapsed. All other categories stay open.
+    if (key.endsWith('::Curiosity')) return false;
+    if (key.includes('::Curiosity::')) return true;
+    return false;
   }
   const triggerRef = useRef(null);
 
@@ -85,7 +89,7 @@ export default function SettingsTasksPage() {
 
   const openEdit = (ts) => {
     setEditTarget(ts);
-    setForm({ name: ts.name, type: ts.type, emoji: ts.emoji || '', description: ts.description || '', category: ts.category || '', ticket_reward: ts.ticket_reward ?? 0, display_mode: ts.display_mode || 'list', notify_mode: ts.notify_mode || 'off' });
+    setForm({ name: ts.name, type: ts.type, emoji: ts.emoji || '', description: ts.description || '', category: ts.category || '', ticket_reward: ts.ticket_reward ?? 0, display_mode: ts.display_mode || 'list', notify_mode: ts.notify_mode || 'off', badge_id: ts.badge_id ?? null });
     setFormError('');
     setPickerOpen(false);
     setModalOpen(true);
@@ -274,6 +278,176 @@ export default function SettingsTasksPage() {
       ) : (
         <div className="space-y-6">
           {grouped.map(({ label, subGroups }) => {
+            // Right-side actions, shared by the flat rows and the per-level rows.
+            const renderActions = (ts) => (
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={(e) => { e.stopPropagation(); openAssign(ts); }}
+                  disabled={!ts.step_count}
+                  title={!ts.step_count ? 'Add steps before assigning' : undefined}
+                  className={`hidden lg:inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border transition-colors ${
+                    ts.step_count
+                      ? 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-brand-400 hover:text-brand-600'
+                      : 'border-gray-100 dark:border-gray-700 text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                  }`}
+                >
+                  <FontAwesomeIcon icon={faUserPlus} />
+                  Assign
+                  {ts.assignment_count > 0 && (
+                    <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none bg-brand-100 dark:bg-brand-500/20 text-brand-700 dark:text-gray-400">
+                      {ts.assignment_count}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); openEdit(ts); }}
+                  className="w-7 h-7 flex items-center justify-center rounded-md border border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-brand-400 hover:text-brand-600 transition-colors"
+                  title="Edit set"
+                >
+                  <FontAwesomeIcon icon={faPen} className="text-xs" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); openDeleteConfirm(ts); }}
+                  className="w-7 h-7 flex items-center justify-center rounded-md border border-red-200 dark:border-red-800 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  title="Delete set"
+                >
+                  <FontAwesomeIcon icon={faTrash} className="text-xs" />
+                </button>
+              </div>
+            );
+
+            // Curiosity badges/awards: collapse the per-level task sets under a
+            // single badge row. Group by badge_id; order levels preschool→5.
+            const levelRank = (lv) => { const i = BADGE_LEVEL_ORDER.indexOf(lv); return i === -1 ? 99 : i; };
+            const groupByBadge = (rows) => {
+              const map = new Map();
+              for (const ts of rows) {
+                const k = ts.badge_id ?? `noid-${ts.id}`;
+                if (!map.has(k)) map.set(k, { key: String(k), name: ts.badge_name || ts.name, image_file: ts.badge_image_file, emoji: ts.emoji, levels: [] });
+                map.get(k).levels.push(ts);
+              }
+              const groups = [...map.values()];
+              for (const g of groups) g.levels.sort((a, b) => levelRank(a.badge_level) - levelRank(b.badge_level));
+              return groups.sort((a, b) => a.name.localeCompare(b.name));
+            };
+
+            // A single level entry under a badge group — shows the level pill
+            // (badge name is already on the parent row) + the usual actions.
+            const renderLevelRow = (ts) => {
+              const lvl = BADGE_LEVELS[ts.badge_level];
+              return (
+                <div
+                  key={ts.id}
+                  onClick={() => navigate(`/task/${ts.id}`)}
+                  className="flex items-center gap-3 p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm cursor-pointer hover:border-brand-300 dark:hover:border-brand-500/50 transition-colors"
+                >
+                  {lvl ? (
+                    <span
+                      className="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 border"
+                      style={{ backgroundColor: lvl.color, color: lvl.textColor, borderColor: lvl.borderColor }}
+                    >
+                      {lvl.label}
+                    </span>
+                  ) : (
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ts.name}</span>
+                  )}
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    {ts.step_count > 0 && (
+                      <span className="text-xs text-gray-400 dark:text-gray-500">{ts.step_count} {ts.step_count === 1 ? 'step' : 'steps'}</span>
+                    )}
+                    {useTickets && ts.ticket_reward > 0 && (
+                      <span className="text-xs font-medium text-amber-600 dark:text-amber-300">🎟 {ts.ticket_reward}</span>
+                    )}
+                  </div>
+                  {renderActions(ts)}
+                </div>
+              );
+            };
+
+            // One badge row (icon + name) that looks like a normal row but has a
+            // chevron instead of edit/delete; expands to its per-level entries.
+            const renderBadgeGroup = (g, parentKey) => {
+              // Single level → render as a normal row (icon + name + edit/delete,
+              // click to view steps). No group wrapper or chevron — there's
+              // nothing to expand.
+              if (g.levels.length === 1) return renderRow(g.levels[0]);
+
+              const gkey = `${parentKey}::${g.key}`;
+              const gCollapsed = isCollapsed(collapsedGroups, gkey);
+              return (
+                <div key={gkey} className={gCollapsed ? 'relative pb-1.5' : undefined}>
+                  {/* Stacked-cards hint — a second card peeking below the main
+                      row so a multi-level badge reads as a collection. Only
+                      while collapsed (expanded shows the real level rows). */}
+                  {gCollapsed && (
+                    <div
+                      aria-hidden
+                      className="absolute inset-x-2 bottom-0 h-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60"
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(gkey)}
+                    className="relative w-full flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:border-brand-300 dark:hover:border-brand-500/50 transition-colors text-left"
+                  >
+                    {g.image_file ? (
+                      <img src={`/api/uploads/badges/${g.image_file}`} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" onError={(e) => { e.target.style.display = 'none'; }} />
+                    ) : (
+                      <span className="w-8 text-center flex-shrink-0 text-xl leading-none text-gray-700 dark:text-gray-300">
+                        <IconDisplay value={g.emoji} fallback="🏅" />
+                      </span>
+                    )}
+                    <p className="flex-1 min-w-0 font-medium text-sm text-gray-900 dark:text-gray-100">{g.name}</p>
+                    <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 flex-shrink-0">
+                      {g.levels.length} {g.levels.length === 1 ? 'level' : 'levels'}
+                    </span>
+                    <FontAwesomeIcon icon={faChevronDown} className={`text-xs text-gray-400 transition-transform flex-shrink-0 ${gCollapsed ? '' : 'rotate-180'}`} />
+                  </button>
+                  {!gCollapsed && (
+                    <div className="space-y-2 mt-2 ml-5 pl-3 border-l-2 border-gray-100 dark:border-gray-700/60">
+                      {g.levels.map(renderLevelRow)}
+                    </div>
+                  )}
+                </div>
+              );
+            };
+
+            // Awards / Badges sub-group inside Curiosity (collapsed by default).
+            const renderCuriositySub = (subLabel, rows, parentKey) => {
+              if (rows.length === 0) return null;
+              const skey = `${parentKey}::${subLabel}`;
+              const collapsed = isCollapsed(collapsedGroups, skey);
+              const groups = groupByBadge(rows);
+              return (
+                <div key={subLabel}>
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(skey)}
+                    className="flex items-center gap-1.5 pb-1.5 pl-2 mb-2 w-full text-left border-l-2 border-gray-200 dark:border-gray-700 hover:border-brand-400 transition-colors"
+                  >
+                    <span className="text-gray-400 dark:text-gray-500 text-[10px]">{collapsed ? '▶' : '▼'}</span>
+                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{subLabel}</span>
+                    <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">{groups.length}</span>
+                  </button>
+                  {!collapsed && <div className="space-y-2">{groups.map((g) => renderBadgeGroup(g, skey))}</div>}
+                </div>
+              );
+            };
+
+            // Body of a category: Curiosity gets the Awards/Badges nesting; every
+            // other category renders its task sets as flat rows.
+            const renderBody = (catLabel, items, parentKey) => {
+              if (catLabel === 'Curiosity') {
+                return (
+                  <div className="space-y-4">
+                    {renderCuriositySub('Awards', items.filter((ts) => ts.badge_is_award), parentKey)}
+                    {renderCuriositySub('Badges', items.filter((ts) => !ts.badge_is_award), parentKey)}
+                  </div>
+                );
+              }
+              return <div className="space-y-2">{items.map(renderRow)}</div>;
+            };
+
             const renderRow = (ts) => (
               <div
                 key={ts.id}
@@ -303,7 +477,9 @@ export default function SettingsTasksPage() {
                     {useTickets && ts.ticket_reward > 0 && (
                       <span className="text-xs font-medium text-amber-600 dark:text-amber-300 flex-shrink-0">🎟 {ts.ticket_reward}</span>
                     )}
-                    {Array.isArray(ts.tags) && ts.tags.map((tag) => (
+                    {Array.isArray(ts.tags) && ts.tags
+                      .filter((tag) => tag !== 'Award' && tag !== 'Badge' && !tag.startsWith('Discover'))
+                      .map((tag) => (
                       <span
                         key={tag}
                         className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 whitespace-nowrap"
@@ -361,7 +537,7 @@ export default function SettingsTasksPage() {
                   </span>
                 </div>
                 {subGroups.length === 1 ? (
-                  <div className="space-y-2">{subGroups[0].items.map(renderRow)}</div>
+                  renderBody(subGroups[0].label, subGroups[0].items, `${label}::${subGroups[0].label}`)
                 ) : (
                   <div className="space-y-4">
                     {subGroups.map(({ label: catLabel, items }) => {
@@ -384,7 +560,7 @@ export default function SettingsTasksPage() {
                               {items.length}
                             </span>
                           </button>
-                          {!collapsed && <div className="space-y-2">{items.map(renderRow)}</div>}
+                          {!collapsed && renderBody(catLabel, items, key)}
                         </div>
                       );
                     })}
@@ -524,6 +700,9 @@ export default function SettingsTasksPage() {
             </div>
           )}
 
+          {/* Display Mode — hidden for Curiosity badges/awards, which always use
+              the list/medallion presentation (no list-vs-card choice). */}
+          {form.category !== 'Curiosity' && (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Display Mode</label>
             <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
@@ -544,19 +723,35 @@ export default function SettingsTasksPage() {
             </div>
             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Card view shows steps as a grid of cards.</p>
           </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Parent Notifications</label>
-            <select
-              value={form.notify_mode}
-              onChange={(e) => setForm((f) => ({ ...f, notify_mode: e.target.value }))}
-              className={INPUT_CLS}
-            >
-              <option value="off">Off</option>
-              <option value="each_step">On each step completion</option>
-              <option value="on_completion">On set (final step) completion</option>
-            </select>
-            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Sends a dismissible inbox notification to parents whenever the kid makes progress on this set.</p>
+            {form.category === 'Curiosity' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => { setModalOpen(false); navigate('/settings/users'); }}
+                  className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline"
+                >
+                  Set per kid →
+                </button>
+                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Badge &amp; award notifications are configured per kid (so each child can differ). Set them on each kid's settings page.</p>
+              </>
+            ) : (
+              <>
+                <select
+                  value={form.notify_mode}
+                  onChange={(e) => setForm((f) => ({ ...f, notify_mode: e.target.value }))}
+                  className={INPUT_CLS}
+                >
+                  <option value="off">Off</option>
+                  <option value="each_step">On each step completion</option>
+                  <option value="on_completion">On set (final step) completion</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Sends a dismissible inbox notification to parents whenever the kid makes progress on this set.</p>
+              </>
+            )}
           </div>
 
           {formError && <p className="text-sm text-red-500">{formError}</p>}

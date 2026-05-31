@@ -657,6 +657,52 @@ export function runMigrations(db) {
   //   flag toggled off) just drop out of the primary list at render time.
   try { db.exec(`ALTER TABLE users ADD COLUMN menubar_layout TEXT`); } catch (_) {}
 
+  // v77: per-kid parent-notification mode for Curiosity badges/awards.
+  //   'off' | 'each_step' | 'on_completion' — same vocabulary as
+  //   task_sets.notify_mode, but applied to every Curiosity badge/award the kid
+  //   works on (their enrolled task_sets have badge_id set). Regular task_sets
+  //   keep using their own notify_mode.
+  try { db.exec(`ALTER TABLE users ADD COLUMN badge_notify_mode TEXT NOT NULL DEFAULT 'off'`); } catch (_) {}
+
+  // v78: optional `detail` blob on inbox notifications — extra context shown
+  //   when a parent expands a notification row (e.g. the kid's typed input
+  //   response for a step). NULL for notifications with no extra detail.
+  try { db.exec(`ALTER TABLE inbox_notifications ADD COLUMN detail TEXT`); } catch (_) {}
+
+  // v79: backfill `detail` for notifications created before v78 shipped. Match
+  //   each task_step/task_set notification to the kid's most recent completion
+  //   in that task_set whose step name appears in the notification title and
+  //   that carries an input_response. Idempotent (only touches NULL detail).
+  try {
+    db.exec(`
+      UPDATE inbox_notifications AS n
+      SET detail = (
+        SELECT c.input_response
+        FROM task_step_completions c
+        JOIN task_steps s ON s.id = c.task_step_id
+        WHERE c.task_set_id = n.reference_id
+          AND c.user_id = n.subject_user_id
+          AND c.input_response IS NOT NULL
+          AND instr(n.title, s.name) > 0
+        ORDER BY c.completed_at DESC
+        LIMIT 1
+      )
+      WHERE n.detail IS NULL
+        AND n.reference_type = 'task_set'
+        AND n.kind IN ('task_step', 'task_set')
+    `);
+  } catch (_) {}
+
+  // v80: short_text — an optional one-line summary of a long requirement/optional.
+  //   The original `text` stays the source of truth; `short_text` is NULL for
+  //   steps short enough to read inline (<=20 words) and is filled by an AI
+  //   summarization pass for longer ones. Enrollment uses `short_text || text`
+  //   as the task_step name (one-liner) and stores the full `text` as the
+  //   task_step description (focus-mode / details view). Reversible: clearing
+  //   short_text reverts to showing the full text.
+  try { db.exec(`ALTER TABLE badge_level_requirements    ADD COLUMN short_text TEXT`); } catch (_) {}
+  try { db.exec(`ALTER TABLE badge_optional_requirements ADD COLUMN short_text TEXT`); } catch (_) {}
+
   // v68: re-generate award task_steps for any enrollment that hasn't been
   //   started yet. The earlier v67 backfill used cumulative steps (all levels
   //   up through the kid's level); the corrected logic shows only the kid's

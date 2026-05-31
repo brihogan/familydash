@@ -39,7 +39,7 @@ router.get('/', authenticate, (req, res, next) => {
     const members = db.prepare(`
       SELECT u.id, u.name, u.username, u.email, u.role, u.avatar_color, u.avatar_emoji, u.ticket_balance,
              u.is_active, u.sort_order, u.show_on_dashboard, u.show_balance_on_dashboard, u.require_task_approval,
-             u.require_set_approval, u.allow_transfers, u.allow_withdraws, u.require_currency_work, u.chores_enabled, u.allow_login, u.claude_enabled, u.claude_time_limit, u.claude_model, u.public_slug, u.badge_level, u.max_active_badges, u.menubar_layout, u.created_at,
+             u.require_set_approval, u.allow_transfers, u.allow_withdraws, u.require_currency_work, u.chores_enabled, u.allow_login, u.claude_enabled, u.claude_time_limit, u.claude_model, u.public_slug, u.badge_level, u.max_active_badges, u.badge_notify_mode, u.menubar_layout, u.created_at,
              COALESCE(ct.daily_potential, 0) AS daily_ticket_potential
       FROM users u
       LEFT JOIN (
@@ -256,6 +256,7 @@ const UpdateUserSchema = z.object({
   claude_model: z.enum(['sonnet', 'opus', 'haiku']).optional(),
   badge_level: z.enum(['preschool', 'level1', 'level2', 'level3', 'level4', 'level5']).nullable().optional(),
   max_active_badges: z.number().int().min(1).max(50).optional(),
+  badge_notify_mode: z.enum(['off', 'each_step', 'on_completion']).optional(),
 }).strict();
 
 router.put('/users/:id', authenticate, requireRole('parent'), async (req, res, next) => {
@@ -347,6 +348,9 @@ router.put('/users/:id', authenticate, requireRole('parent'), async (req, res, n
     }
     if (body.max_active_badges !== undefined) {
       updates.push('max_active_badges = ?'); values.push(body.max_active_badges);
+    }
+    if (body.badge_notify_mode !== undefined) {
+      updates.push('badge_notify_mode = ?'); values.push(body.badge_notify_mode);
     }
 
     if (updates.length === 0) return res.status(400).json({ error: 'No valid fields to update.' });

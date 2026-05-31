@@ -6,6 +6,43 @@ import { useTheme } from '../../context/ThemeContext.jsx';
 import BadgeImageLightbox from './BadgeImageLightbox.jsx';
 import { renderEarnBadgeRef } from '../../utils/earnBadgeRef.jsx';
 
+// One preview row: shows the punchy summary (short_text) when present, with a
+// ▶ chevron that expands the full original text in a boxed inset — mirroring
+// the optional-task picker. `expandedSet`/`onToggle` are lifted to the parent
+// so expansion state survives re-renders.
+function PreviewStep({ row, rowKey, bullet, bulletClass, textClass, expandedSet, onToggle }) {
+  const short    = row.short_text && row.short_text.trim();
+  const hasFull  = short && short !== (row.text || '').trim();
+  const label    = short || row.text;
+  const expanded = expandedSet.has(rowKey);
+  return (
+    <li className="flex gap-2.5">
+      <span className={`mt-0.5 shrink-0 ${bulletClass}`}>{bullet}</span>
+      <div className="flex-1 min-w-0">
+        <p className={`${textClass} leading-snug whitespace-pre-line`}>
+          {renderEarnBadgeRef(label, row.linked_badge_id, row.linked_badge_name)}
+        </p>
+        {expanded && hasFull && (
+          <div className="mt-1.5 p-2 rounded-md bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700">
+            <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-line">{row.text}</p>
+          </div>
+        )}
+      </div>
+      {hasFull && (
+        <button
+          type="button"
+          onClick={() => onToggle(rowKey)}
+          aria-label={expanded ? 'Hide details' : 'Show details'}
+          title={expanded ? 'Hide details' : 'Show details'}
+          className="shrink-0 mt-0.5 w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        >
+          <span className={`text-[10px] inline-block transition-transform ${expanded ? 'rotate-90' : ''}`}>▶</span>
+        </button>
+      )}
+    </li>
+  );
+}
+
 function LevelPill({ level }) {
   const cfg = BADGE_LEVELS[level];
   if (!cfg) return null;
@@ -32,6 +69,14 @@ export default function BadgePreviewModal({ badge, userId, userLevel, canEnroll,
   const [enrollError, setEnrollError] = useState(''); // failed to enroll
   const [starting,  setStarting]  = useState(false);
   const [lightbox,  setLightbox]  = useState(false);
+  // Preview rows whose full description is expanded (by row id). Keys are
+  // "r<id>" / "o<id>" so requirement and optional ids never collide.
+  const [expandedSteps, setExpandedSteps] = useState(new Set());
+  const toggleStep = (key) => setExpandedSteps((prev) => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
 
   useScrollLock(true);
   const { isDark } = useTheme();
@@ -227,10 +272,16 @@ export default function BadgePreviewModal({ badge, userId, userLevel, canEnroll,
                   ) : (
                     <ul className="space-y-2">
                       {requirements.map((req) => (
-                        <li key={req.id} className="flex gap-2.5">
-                          <span className="mt-0.5 text-brand-500 shrink-0">★</span>
-                          <p className="text-sm text-gray-700 dark:text-gray-300 leading-snug whitespace-pre-line">{renderEarnBadgeRef(req.text, req.linked_badge_id, req.linked_badge_name)}</p>
-                        </li>
+                        <PreviewStep
+                          key={req.id}
+                          row={req}
+                          rowKey={`r${req.id}`}
+                          bullet="★"
+                          bulletClass="text-brand-500"
+                          textClass="text-sm text-gray-700 dark:text-gray-300"
+                          expandedSet={expandedSteps}
+                          onToggle={toggleStep}
+                        />
                       ))}
                     </ul>
                   )}
@@ -244,10 +295,16 @@ export default function BadgePreviewModal({ badge, userId, userLevel, canEnroll,
                     </h3>
                     <ul className="space-y-2">
                       {optionals.map((opt) => (
-                        <li key={opt.id} className="flex gap-2.5">
-                          <span className="mt-0.5 text-amber-500 shrink-0">○</span>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 leading-snug whitespace-pre-line">{renderEarnBadgeRef(opt.text, opt.linked_badge_id, opt.linked_badge_name)}</p>
-                        </li>
+                        <PreviewStep
+                          key={opt.id}
+                          row={opt}
+                          rowKey={`o${opt.id}`}
+                          bullet="○"
+                          bulletClass="text-amber-500"
+                          textClass="text-sm text-gray-600 dark:text-gray-400"
+                          expandedSet={expandedSteps}
+                          onToggle={toggleStep}
+                        />
                       ))}
                     </ul>
                   </div>

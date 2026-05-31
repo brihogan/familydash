@@ -9,6 +9,15 @@ const router = Router();
 
 const LEVEL_ORDER = ['preschool', 'level1', 'level2', 'level3', 'level4', 'level5'];
 
+// For a requirement/optional row, decide the task_step name + description.
+// When a one-line summary (short_text) exists, it becomes the glanceable name
+// and the full text moves to the description (shown in focus mode / details).
+// Otherwise the full text is the name and there's no separate description.
+function stepNameDesc(row) {
+  const short = row && typeof row.short_text === 'string' ? row.short_text.trim() : '';
+  return short ? { name: short, description: row.text } : { name: row.text, description: '' };
+}
+
 // ─── GET /api/badges ──────────────────────────────────────────────────────────
 // List badges with optional search and category filter. Paginated.
 router.get('/badges', authenticate, (req, res, next) => {
@@ -255,7 +264,7 @@ router.get('/badges/:id', authenticate, (req, res, next) => {
       const levelsToFetch = LEVEL_ORDER.slice(0, maxIdx + 1);
       const placeholders = levelsToFetch.map(() => '?').join(', ');
       const raw = db.prepare(
-        `SELECT id, level, sort_order, text
+        `SELECT id, level, sort_order, text, short_text
          FROM badge_level_requirements
          WHERE badge_id = ? AND level IN (${placeholders})
          ORDER BY sort_order ASC`
@@ -289,13 +298,13 @@ router.get('/badges/:id', authenticate, (req, res, next) => {
     let optionals;
     if (levelParam && LEVEL_ORDER.includes(levelParam)) {
       optionals = db.prepare(
-        `SELECT id, req_number, text, level FROM badge_optional_requirements
+        `SELECT id, req_number, text, short_text, level FROM badge_optional_requirements
          WHERE badge_id = ? AND (level IS NULL OR level = ?)
          ORDER BY req_number ASC`
       ).all(badgeId, levelParam);
     } else {
       optionals = db.prepare(
-        `SELECT id, req_number, text, level FROM badge_optional_requirements WHERE badge_id = ? ORDER BY req_number ASC`
+        `SELECT id, req_number, text, short_text, level FROM badge_optional_requirements WHERE badge_id = ? ORDER BY req_number ASC`
       ).all(badgeId);
     }
 
@@ -332,13 +341,13 @@ router.get('/badges/:id/optionals', authenticate, (req, res, next) => {
     let optionals;
     if (levelParam && LEVEL_ORDER.includes(levelParam)) {
       optionals = db.prepare(
-        `SELECT id, req_number, text, level FROM badge_optional_requirements
+        `SELECT id, req_number, text, short_text, level FROM badge_optional_requirements
          WHERE badge_id = ? AND (level IS NULL OR level = ?)
          ORDER BY req_number ASC`
       ).all(badgeId, levelParam);
     } else {
       optionals = db.prepare(
-        `SELECT id, req_number, text, level FROM badge_optional_requirements WHERE badge_id = ? ORDER BY req_number ASC`
+        `SELECT id, req_number, text, short_text, level FROM badge_optional_requirements WHERE badge_id = ? ORDER BY req_number ASC`
       ).all(badgeId);
     }
 
@@ -460,7 +469,7 @@ router.post('/users/:userId/badges/enroll', authenticate, (req, res, next) => {
     const levelsToFetch = LEVEL_ORDER.slice(0, maxIdx + 1);
     const placeholders = levelsToFetch.map(() => '?').join(', ');
     const requiredStepsRaw = db.prepare(
-      `SELECT text FROM badge_level_requirements
+      `SELECT text, short_text FROM badge_level_requirements
        WHERE badge_id = ? AND level IN (${placeholders})
        ORDER BY sort_order ASC`
     ).all(badge.id, ...levelsToFetch);
@@ -475,7 +484,7 @@ router.post('/users/:userId/badges/enroll', authenticate, (req, res, next) => {
     // Fetch selected optional step texts
     const selectedOpts = body.selectedOptionalIds.length > 0
       ? db.prepare(
-          `SELECT id, text FROM badge_optional_requirements
+          `SELECT id, text, short_text FROM badge_optional_requirements
            WHERE badge_id = ? AND id IN (${body.selectedOptionalIds.map(() => '?').join(',')})
            ORDER BY req_number ASC`
         ).all(badge.id, ...body.selectedOptionalIds)
@@ -500,7 +509,7 @@ router.post('/users/:userId/badges/enroll', authenticate, (req, res, next) => {
 
       const insertStep = db.prepare(`
         INSERT INTO task_steps (task_set_id, name, description, sort_order, is_optional, badge_opt_req_id, require_input, input_prompt)
-        VALUES (?, ?, '', ?, ?, ?, 1, 'How did you complete this step?')
+        VALUES (?, ?, ?, ?, ?, ?, 1, 'How did you complete this step?')
       `);
 
       let order = 0;
@@ -522,10 +531,12 @@ router.post('/users/:userId/badges/enroll', authenticate, (req, res, next) => {
         }
       } else {
         for (const step of requiredSteps) {
-          insertStep.run(taskSetId, step.text, order++, 0, null);
+          const nd = stepNameDesc(step);
+          insertStep.run(taskSetId, nd.name, nd.description, order++, 0, null);
         }
         for (const opt of selectedOpts) {
-          insertStep.run(taskSetId, opt.text, order++, 1, opt.id);
+          const nd = stepNameDesc(opt);
+          insertStep.run(taskSetId, nd.name, nd.description, order++, 1, opt.id);
         }
       }
 
@@ -583,7 +594,7 @@ router.patch('/users/:userId/task-assignments/:taskSetId/optional-swap', authent
 
     // Verify new optional req belongs to this badge and is not already in the set
     const newOpt = db.prepare(
-      `SELECT id, text FROM badge_optional_requirements WHERE id = ? AND badge_id = ?`
+      `SELECT id, text, short_text FROM badge_optional_requirements WHERE id = ? AND badge_id = ?`
     ).get(body.addOptionalReqId, taskSet.badge_id);
     if (!newOpt) return res.status(404).json({ error: 'Optional requirement not found for this badge.' });
 
@@ -595,12 +606,13 @@ router.patch('/users/:userId/task-assignments/:taskSetId/optional-swap', authent
     // Get sort_order of the step being removed so the new one takes its place
     const oldStep = db.prepare(`SELECT sort_order FROM task_steps WHERE id = ?`).get(body.removeStepId);
 
+    const swapNd = stepNameDesc(newOpt);
     db.transaction(() => {
       db.prepare(`UPDATE task_steps SET is_active = 0 WHERE id = ?`).run(body.removeStepId);
       db.prepare(
         `INSERT INTO task_steps (task_set_id, name, description, sort_order, is_optional, badge_opt_req_id, require_input, input_prompt)
-         VALUES (?, ?, '', ?, 1, ?, 1, 'How did you complete this step?')`
-      ).run(taskSetId, newOpt.text, oldStep.sort_order, newOpt.id);
+         VALUES (?, ?, ?, ?, 1, ?, 1, 'How did you complete this step?')`
+      ).run(taskSetId, swapNd.name, swapNd.description, oldStep.sort_order, newOpt.id);
     })();
 
     // Include per-step completed_count for THIS user so the client doesn't
@@ -661,7 +673,7 @@ router.post('/users/:userId/task-assignments/:taskSetId/add-optional', authentic
 
     // Verify new optional req belongs to badge and isn't already selected
     const newOpt = db.prepare(
-      `SELECT id, text FROM badge_optional_requirements WHERE id = ? AND badge_id = ?`
+      `SELECT id, text, short_text FROM badge_optional_requirements WHERE id = ? AND badge_id = ?`
     ).get(body.addOptionalReqId, taskSet.badge_id);
     if (!newOpt) return res.status(404).json({ error: 'Optional requirement not found for this badge.' });
 
@@ -675,10 +687,11 @@ router.post('/users/:userId/task-assignments/:taskSetId/add-optional', authentic
       `SELECT COALESCE(MAX(sort_order), -1) AS m FROM task_steps WHERE task_set_id = ?`
     ).get(taskSetId).m;
 
+    const addNd = stepNameDesc(newOpt);
     db.prepare(
       `INSERT INTO task_steps (task_set_id, name, description, sort_order, is_optional, badge_opt_req_id, require_input, input_prompt)
-       VALUES (?, ?, '', ?, 1, ?, 1, 'How did you complete this step?')`
-    ).run(taskSetId, newOpt.text, maxOrder + 1, newOpt.id);
+       VALUES (?, ?, ?, ?, 1, ?, 1, 'How did you complete this step?')`
+    ).run(taskSetId, addNd.name, addNd.description, maxOrder + 1, newOpt.id);
 
     // Include per-step completed_count for THIS user so the client doesn't
     // briefly drop the kid's checkmarks when they pick / swap an optional.

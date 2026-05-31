@@ -15,6 +15,12 @@ export default function InboxPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState(new Set()); // "chore:id" or "step:id"
+  const [expandedNotifs, setExpandedNotifs] = useState(new Set()); // notification ids shown expanded
+  const toggleNotif = (id) => setExpandedNotifs((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
 
   const allChoreIds = kids.flatMap((k) => k.chores.map((c) => c.id));
   const allStepIds  = kids.flatMap((k) => k.steps.map((s) => s.id));
@@ -295,15 +301,39 @@ export default function InboxPage() {
                         <div>
                           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Notifications</p>
                           <div className="space-y-2">
-                            {notifications.map((n) => (
+                            {notifications.map((n) => {
+                              const expanded = expandedNotifs.has(n.id);
+                              return (
                               <div
                                 key={`notif-${n.id}`}
-                                className="flex items-center gap-3 p-2.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg"
+                                className="flex items-start gap-2 p-2.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg"
                               >
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{n.title}</p>
-                                  {n.body && <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{n.body}</p>}
-                                </div>
+                                {/* Chevron — toggles the full title + the kid's typed response. */}
+                                <button
+                                  onClick={() => toggleNotif(n.id)}
+                                  aria-label={expanded ? 'Collapse' : 'Expand'}
+                                  aria-expanded={expanded}
+                                  className="shrink-0 mt-0.5 w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                >
+                                  <span className={`text-[10px] inline-block transition-transform ${expanded ? 'rotate-90' : ''}`}>▶</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleNotif(n.id)}
+                                  className="flex-1 min-w-0 text-left"
+                                >
+                                  <p className={`text-sm font-medium text-gray-800 dark:text-gray-200 ${expanded ? 'whitespace-pre-line' : 'truncate'}`}>
+                                    {n.detail && <span className="mr-1" title="Has a typed response" aria-label="Has a typed response">💬</span>}
+                                    {n.title}
+                                  </p>
+                                  {n.body && <p className={`text-xs text-gray-500 dark:text-gray-400 ${expanded ? 'whitespace-pre-line' : 'truncate'}`}>{n.body}</p>}
+                                  {expanded && n.detail && (
+                                    <div className="mt-1.5 p-2 rounded-md bg-white/70 dark:bg-gray-800/60 border border-blue-200/60 dark:border-blue-800/40">
+                                      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-0.5">Their response</p>
+                                      <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-line">{n.detail}</p>
+                                    </div>
+                                  )}
+                                </button>
                                 <button
                                   onClick={() => handleDismissNotification(n.id)}
                                   disabled={actionLoading}
@@ -312,7 +342,8 @@ export default function InboxPage() {
                                   Dismiss
                                 </button>
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       )}

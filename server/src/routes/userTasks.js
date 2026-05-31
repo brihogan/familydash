@@ -453,7 +453,7 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
     assertUserInFamily(userId, req.user.familyId);
 
     const assignment = db.prepare(
-      'SELECT id, assigned_at, completion_status, archived_at, is_pinned FROM task_assignments WHERE task_set_id = ? AND user_id = ? AND is_active = 1'
+      'SELECT id, assigned_at, assigned_by, completion_status, archived_at, is_pinned FROM task_assignments WHERE task_set_id = ? AND user_id = ? AND is_active = 1'
     ).get(taskSetId, userId);
     if (!assignment) return res.status(404).json({ error: 'Task set not assigned to this user.' });
 
@@ -624,7 +624,7 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
       ORDER BY task_step_id, instance
     `).all(taskSetId, userId);
 
-    res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at, completions, completionStatus: assignment.completion_status, archivedAt: assignment.archived_at, isPinned: !!assignment.is_pinned });
+    res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at, assignedBy: assignment.assigned_by, completions, completionStatus: assignment.completion_status, archivedAt: assignment.archived_at, isPinned: !!assignment.is_pinned });
   } catch (err) { next(err); }
 });
 
@@ -661,10 +661,13 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
       });
     }
 
-    const taskSet = db.prepare('SELECT id, name, ticket_reward, notify_mode FROM task_sets WHERE id = ? AND is_active = 1').get(taskSetId);
+    const taskSet = db.prepare('SELECT id, name, ticket_reward, notify_mode, badge_id FROM task_sets WHERE id = ? AND is_active = 1').get(taskSetId);
     if (!taskSet) return res.status(404).json({ error: 'Task set not found.' });
 
-    const user = db.prepare('SELECT family_id, name, require_task_approval, require_set_approval FROM users WHERE id = ?').get(userId);
+    const user = db.prepare('SELECT family_id, name, require_task_approval, require_set_approval, badge_notify_mode FROM users WHERE id = ?').get(userId);
+    // Curiosity badges/awards (task_set has a badge_id) use the kid's per-user
+    // badge_notify_mode; everything else uses the task_set's own notify_mode.
+    const notifyMode = taskSet.badge_id != null ? (user.badge_notify_mode || 'off') : taskSet.notify_mode;
     const family = db.prepare('SELECT use_tickets FROM families WHERE id = ?').get(user.family_id);
     const useTickets = family?.use_tickets !== 0;
 
@@ -795,7 +798,7 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
       // Skipped when the set just finished — we'd rather the completion
       // notification cover it than spam two rows in the inbox.
       const setJustFinished = totalInst > 0 && doneInst >= totalInst;
-      if (taskSet.notify_mode === 'each_step' && !setJustFinished) {
+      if (notifyMode === 'each_step' && !setJustFinished) {
         const remaining = Math.max(0, totalInst - doneInst);
         insertNotification({
           familyId: user.family_id,
@@ -805,6 +808,7 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
           body: `${taskSet.name} — ${remaining} step${remaining === 1 ? '' : 's'} left`,
           referenceType: 'task_set',
           referenceId: taskSetId,
+          detail: inputResponse || null,
         });
       }
       if (totalInst > 0 && doneInst >= totalInst) {
@@ -840,7 +844,7 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
         // Parent-inbox notification when the set closes (opt-in per set).
         // Fires for both 'each_step' and 'on_completion' modes so that
         // families who want per-step updates also hear about the finish.
-        if (taskSet.notify_mode === 'each_step' || taskSet.notify_mode === 'on_completion') {
+        if (notifyMode === 'each_step' || notifyMode === 'on_completion') {
           insertNotification({
             familyId: user.family_id,
             subjectUserId: userId,
@@ -849,6 +853,7 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
             body: useTickets && ticketReward > 0 ? `+${ticketReward} 🎟 awarded` : 'All steps done',
             referenceType: 'task_set',
             referenceId: taskSetId,
+            detail: inputResponse || null,
           });
         }
       }
@@ -993,6 +998,44 @@ router.post('/:userId/task-assignments/:taskSetId/unarchive', authenticate, (req
     ).run(taskSetId, userId);
     if (result.changes === 0) return res.status(404).json({ error: 'Assignment not found.' });
     res.json({ archived: false });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/users/:userId/task-assignments/:taskSetId
+// Unassign a badge/award the kid hasn't started. The client only offers this
+// when zero steps are completed (nothing to lose); we still guard server-side
+// and refuse if any completion exists (archive instead). Soft-unassign
+// (is_active = 0) keeps the row for possible re-assignment, matching the
+// PUT-assignments + archive philosophy. A self-enrolled kid may remove their
+// own; a parent (same family) may remove any.
+router.delete('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next) => {
+  try {
+    const userId    = parseInt(req.params.userId,    10);
+    const taskSetId = parseInt(req.params.taskSetId, 10);
+    assertUserInFamily(userId, req.user.familyId);
+
+    const assignment = db.prepare(
+      'SELECT id, assigned_by FROM task_assignments WHERE task_set_id = ? AND user_id = ? AND is_active = 1'
+    ).get(taskSetId, userId);
+    if (!assignment) return res.status(404).json({ error: 'Assignment not found.' });
+
+    // A parent in the family may always remove; a non-parent only their OWN
+    // self-enrolled assignment (not one a parent gave them).
+    const isParent = req.user.role === 'parent';
+    const isSelf   = req.user.userId === userId;
+    if (!isParent && !(isSelf && assignment.assigned_by === userId)) {
+      return res.status(403).json({ error: 'Not allowed to remove this assignment.' });
+    }
+
+    const done = db.prepare(
+      'SELECT COUNT(*) AS n FROM task_step_completions WHERE task_set_id = ? AND user_id = ?'
+    ).get(taskSetId, userId).n;
+    if (done > 0) return res.status(409).json({ error: 'This has progress — archive it instead.' });
+
+    db.prepare(
+      'UPDATE task_assignments SET is_active = 0 WHERE task_set_id = ? AND user_id = ? AND is_active = 1'
+    ).run(taskSetId, userId);
+    res.json({ deleted: true });
   } catch (err) { next(err); }
 });
 

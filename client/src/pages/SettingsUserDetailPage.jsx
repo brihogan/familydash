@@ -638,6 +638,28 @@ export default function SettingsUserDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Badge & Award Notifications — per-kid parent-notification mode for
+            every Curiosity badge/award this kid works on. */}
+        <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-gray-900 dark:text-gray-100">Badge &amp; Award Notifications</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                When to send parents an inbox notification as {member.name} works on badges and awards.
+              </p>
+            </div>
+            <select
+              value={member.badge_notify_mode ?? 'off'}
+              onChange={(e) => handleToggle('badge_notify_mode', e.target.value)}
+              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none shrink-0"
+            >
+              <option value="off">Off</option>
+              <option value="each_step">On each step completion</option>
+              <option value="on_completion">On set (final step) completion</option>
+            </select>
+          </div>
+        </div>
       </div>
       )}
 

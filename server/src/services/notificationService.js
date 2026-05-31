@@ -9,12 +9,12 @@ import db from '../db/db.js';
  * (e.g. we never want to break a step-completion API call just because
  * a notification insert blew up).
  */
-export function insertNotification({ familyId, subjectUserId, kind, title, body = '', referenceType = null, referenceId = null }) {
+export function insertNotification({ familyId, subjectUserId, kind, title, body = '', referenceType = null, referenceId = null, detail = null }) {
   try {
     db.prepare(`
-      INSERT INTO inbox_notifications (family_id, subject_user_id, kind, title, body, reference_type, reference_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(familyId, subjectUserId, kind, title, body, referenceType, referenceId);
+      INSERT INTO inbox_notifications (family_id, subject_user_id, kind, title, body, reference_type, reference_id, detail)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(familyId, subjectUserId, kind, title, body, referenceType, referenceId, detail);
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[notificationService] insertNotification failed:', err.message);

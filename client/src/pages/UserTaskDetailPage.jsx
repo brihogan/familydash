@@ -3,7 +3,7 @@ import { useIsDark } from '../components/tasks/TaskSetCard.jsx';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faStickyNote, faBoxArchive, faBoxOpen, faSitemap, faThumbtack, faCircleInfo } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faStickyNote, faBoxArchive, faBoxOpen, faSitemap, faThumbtack, faCircleInfo, faTrash, faExpand } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import Fireworks from '../components/shared/Fireworks.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
@@ -17,6 +17,7 @@ import Modal from '../components/shared/Modal.jsx';
 import AwardDetail from '../components/awards/AwardDetail.jsx';
 import ProgressRing from '../components/dashboard/ProgressRing.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import { playChoreCheck, playVictory } from '../utils/sounds.js';
 import { awardProgress } from '../utils/awardProgress.js';
 import useScrollLock from '../hooks/useScrollLock.js';
@@ -63,6 +64,161 @@ function StepDetailModal({ step, onClose }) {
           </div>
         </div>
       )}
+    </div>,
+    document.body,
+  );
+}
+
+// ── Step focus mode ───────────────────────────────────────────────────────────
+// Fullscreen "do this step" view for long/summarized steps: badge medallion on
+// top, the full step text (description, which holds the original long wording),
+// an answer textarea when the step asks for input, and a Mark Complete button.
+// Used instead of the cramped inline input when a step has a description.
+function StepFocusModal({ step, taskSet, onComplete, onClose, disabled }) {
+  useScrollLock(true);
+  const isDark = useIsDark();
+  const needsInput = !!step.require_input;
+  const [value, setValue] = useState(step._inputResponse || '');
+  const [saving, setSaving] = useState(false);
+  const taRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape' && !saving) onClose(); };
+    document.addEventListener('keydown', handler);
+    const t = setTimeout(() => taRef.current?.focus(), 80);
+    return () => { document.removeEventListener('keydown', handler); clearTimeout(t); };
+  }, [onClose, saving]);
+
+  const lvlCfg = taskSet?.badge_level && BADGE_LEVELS[taskSet.badge_level];
+  const fullText = step.description || step.name;
+  const canComplete = !disabled && !saving && (!needsInput || value.trim().length > 0);
+
+  const handleComplete = () => {
+    if (!canComplete) return;
+    setSaving(true);
+    onComplete(needsInput ? value.trim() : null);
+    // Parent refetch unmounts this modal; no need to reset state.
+  };
+
+  return createPortal(
+    // stopPropagation: this modal is portaled to <body>, but React replays its
+    // events through the COMPONENT tree — so without this, a click here bubbles
+    // up to the StepItem row's onClick (which would immediately re-open focus
+    // mode, making the X button appear to do nothing).
+    <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-gray-900" onClick={(e) => e.stopPropagation()}>
+      {/* Header: close */}
+      <div className="flex items-center justify-end p-3 shrink-0">
+        <button
+          onClick={(e) => { e.stopPropagation(); onClose(); }}
+          disabled={saving}
+          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+          aria-label="Close"
+        >
+          <span className="text-xl leading-none">×</span>
+        </button>
+      </div>
+
+      {/* Scrollable body */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-5">
+        <div className="max-w-lg mx-auto flex flex-col items-center text-center">
+          {/* Badge medallion */}
+          <div
+            className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center shadow-md ring-2 ring-brand-200 dark:ring-brand-500/40 shrink-0"
+            style={!taskSet?.badge_image_file ? {
+              background: isDark
+                ? 'radial-gradient(circle at center, #4B4133 0%, #2A2520 100%)'
+                : 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)',
+            } : undefined}
+          >
+            {taskSet?.badge_image_file ? (
+              <img
+                src={`/api/uploads/badges/${taskSet.badge_image_file}`}
+                alt=""
+                className="w-full h-full object-cover dark:brightness-75 dark:contrast-110"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            ) : (
+              <span className="text-5xl leading-none">
+                <IconDisplay value={taskSet?.emoji} fallback={taskSet?.is_award ? '🏆' : '📋'} />
+              </span>
+            )}
+          </div>
+          {taskSet?.name && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">{taskSet.name}</p>
+          )}
+          {lvlCfg && (
+            <span
+              className="mt-2 text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap border"
+              style={{ backgroundColor: lvlCfg.color, color: lvlCfg.textColor, borderColor: lvlCfg.borderColor }}
+            >
+              {lvlCfg.label}
+            </span>
+          )}
+
+          {/* Heading + body card.
+              • Step WITH a separate full description (summarized long step):
+                heading = the short title, card = the full text.
+              • Title-only step (no description): heading = a generic label
+                ("Required step" / "Chosen step") and the actual step text goes
+                in the card — so every step reads the same way in fullscreen. */}
+          {(() => {
+            const title    = step._displayName || step.name;
+            const hasDesc  = step.description && step.description !== title;
+            const heading  = hasDesc ? title : (step.is_optional ? 'Chosen step' : 'Required step');
+            const bodyText = hasDesc ? step.description : title;
+            return (
+              <>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-5 leading-snug">
+                  {heading}
+                </h2>
+                <div className="mt-4 w-full text-left bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+                  <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">{bodyText}</p>
+                </div>
+              </>
+            );
+          })()}
+
+          {/* Step image, if any */}
+          {step.image && (
+            <img
+              src={`/api/uploads/steps/${step.image}`}
+              alt=""
+              className="mt-4 w-full max-h-64 object-contain rounded-xl"
+            />
+          )}
+
+          {/* Answer textarea */}
+          {needsInput && (
+            <div className="mt-5 w-full text-left">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
+                {step.input_prompt || 'Your response'}
+              </label>
+              <textarea
+                ref={taRef}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                placeholder="Write your answer here…"
+                maxLength={2000}
+                rows={6}
+                className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 rounded-xl px-3.5 py-3 text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-brand-400"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Footer: Mark Complete (pinned near the bottom) */}
+      <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 p-4">
+        <div className="max-w-lg mx-auto">
+          <button
+            onClick={handleComplete}
+            disabled={!canComplete}
+            className="w-full py-3 rounded-xl text-base font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+          >
+            {saving ? 'Saving…' : needsInput && !value.trim() ? 'Write your answer to finish' : '✓ Mark complete'}
+          </button>
+        </div>
+      </div>
     </div>,
     document.body,
   );
@@ -469,7 +625,7 @@ const RAD  = Math.PI / 180;
 const DIST = 26;
 
 // ── Step item with chore-style animation ──────────────────────────────────────
-function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
+function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea, taskSet }) {
   const { userId } = useParams();
   const location = useLocation();
   const done = false; // todo items are never done
@@ -477,9 +633,14 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
   const [inputValue, setInputValue] = useState('');
   const [showInput, setShowInput] = useState(false);
   const [lightbox, setLightbox] = useState(false);
+  const [focusOpen, setFocusOpen] = useState(false);
   const inputRef = useRef(null);
 
   const needsInput = !!step.require_input;
+  // Long/summarized steps carry the full text in `description`. They open a
+  // fullscreen focus mode (read full task + answer + complete) instead of the
+  // cramped inline input.
+  const hasDetails = !!step.description;
   // Steps that point at a specific badge auto-complete when that badge is
   // finished. Kids can't toggle them manually — show them as inert / awaiting.
   // Steps that point at a specific badge (linked_badge_id) OR an area of
@@ -490,6 +651,10 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
 
   const handleClick = () => {
     if (disabled || step._limitedToday || phase !== 'idle') return;
+
+    // Long steps: open focus mode (full text + answer + complete) instead of
+    // toggling / showing the cramped inline input.
+    if (hasDetails) { setFocusOpen(true); return; }
 
     // If this step requires input and we haven't shown the input yet, show it
     if (needsInput && !showInput) {
@@ -738,17 +903,31 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea }) {
           {step.linked_badge_category === '*' ? 'Pick ↗' : 'Find ↗'}
         </button>
       )}
-      {/* Note icon for description (no-image steps in list view) */}
-      {!step.image && !step.linked_badge_id && !step.linked_badge_category && step.description && !showInput && (
+      {/* Fullscreen button — opens the step in focus mode (badge + full text +
+          answer + complete). Shown for EVERY Curiosity badge/award step the kid
+          can work on, so any step gets a fullscreen view. Auto-linked
+          "Earn the X badge" steps have their own medallion cell and auto-
+          complete, so they're excluded. */}
+      {taskSet?.badge_id && !isAutoLinked && !showInput && (
         <button
-          onClick={(e) => { e.stopPropagation(); setLightbox(true); }}
-          className="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex-shrink-0"
-          aria-label="Show description"
+          onClick={(e) => { e.stopPropagation(); setFocusOpen(true); }}
+          className="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-brand-600 dark:hover:text-brand-400 transition-colors flex-shrink-0"
+          aria-label="Open full screen"
+          title="Open full screen"
         >
-          <FontAwesomeIcon icon={faStickyNote} className="text-[10px]" />
+          <FontAwesomeIcon icon={faExpand} className="text-xs" />
         </button>
       )}
       {lightbox && <StepDetailModal step={step} onClose={() => setLightbox(false)} />}
+      {focusOpen && (
+        <StepFocusModal
+          step={step}
+          taskSet={taskSet}
+          disabled={disabled}
+          onComplete={(resp) => { setFocusOpen(false); onToggle(step, false, resp); }}
+          onClose={() => setFocusOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1004,6 +1183,7 @@ export default function UserTaskDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { useTickets } = useFamilySettings();
+  const { user: viewer } = useAuth();
   const isDark = useIsDark();
 
   const [taskSet,       setTaskSet]       = useState(null);
@@ -1016,10 +1196,13 @@ export default function UserTaskDetailPage() {
   const [showAwardModal,   setShowAwardModal]   = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [assignedAt,       setAssignedAt]       = useState(null);
+  const [assignedBy,       setAssignedBy]       = useState(null);
   const [completionStatus, setCompletionStatus] = useState(null);
   const [archivedAt,       setArchivedAt]       = useState(null);
   const [confirmArchive,   setConfirmArchive]   = useState(false);
   const [archiveBusy,      setArchiveBusy]      = useState(false);
+  const [confirmDelete,    setConfirmDelete]    = useState(false);
+  const [deleteBusy,       setDeleteBusy]       = useState(false);
   const [isPinned,         setIsPinned]         = useState(false);
   const [pinBusy,          setPinBusy]          = useState(false);
   const [pendingApproval,  setPendingApproval]  = useState(false);
@@ -1137,6 +1320,13 @@ export default function UserTaskDetailPage() {
   // Tuple { category, stepId } so we can route a picked badge back to the
   // right step via the link API. category === '*' = no category filter.
   const [areaBrowser, setAreaBrowser] = useState(null);
+  // Optional-picker rows whose full description is expanded (by opt id).
+  const [pickerExpanded, setPickerExpanded] = useState(new Set());
+  const togglePickerExpand = (id) => setPickerExpanded((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
   // Progress reported by CountAtLevelAwardDetail (WOW award). null until
   // its API call lands; { count, min, isComplete, … } afterward. The
   // header ring + count pill use this when the task_set is count_at_level.
@@ -1152,6 +1342,7 @@ export default function UserTaskDetailPage() {
       setSteps(data.steps);
       setCompletions(data.completions ?? []);
       setAssignedAt(data.assignedAt ?? null);
+      setAssignedBy(data.assignedBy ?? null);
       setCompletionStatus(data.completionStatus ?? null);
       setArchivedAt(data.archivedAt ?? null);
       setIsPinned(!!data.isPinned);
@@ -1265,6 +1456,22 @@ export default function UserTaskDetailPage() {
       setArchivedAt(result.archived ? new Date().toISOString() : null);
     } finally {
       setArchiveBusy(false);
+    }
+  };
+
+  // Delete (unassign) — only offered when nothing is checked off (the server
+  // also enforces this). Same bounce-back navigation as archive.
+  const handleDelete = async () => {
+    setDeleteBusy(true);
+    try {
+      await taskSetsApi.deleteAssignment(userId, taskSetId);
+      setConfirmDelete(false);
+      const tags = Array.isArray(taskSet?.tags) ? taskSet.tags : [];
+      if (tags.includes('Badge'))      navigate(`/tasks/${userId}/group/badges`);
+      else if (tags.includes('Award')) navigate(`/tasks/${userId}/group/awards`);
+      else                             navigate(`/tasks/${userId}`);
+    } catch {
+      setDeleteBusy(false);
     }
   };
 
@@ -1469,6 +1676,16 @@ export default function UserTaskDetailPage() {
                        : steps.reduce((sum, s) => sum + (s.completed_count || 0), 0);
   const allDone        = totalCount > 0 && completedCount >= totalCount && unpickedOptionalSlots === 0;
   const pct            = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  // Archive ↔ Delete control:
+  //  • Nothing checked off → Delete (unassign) — mirrors the server's
+  //    task_step_completions guard via `completions.length`.
+  //  • Anything checked → Archive (preserve history), the original behavior.
+  // Visibility: a parent always sees the control; a kid only for a badge/award
+  // THEY self-enrolled (assigned_by === their own id). Parent-assigned ones
+  // hide the control from the kid (but the parent still sees it on the kid's page).
+  const nothingDone = completions.length === 0;
+  const canRemove   = viewer?.role === 'parent' || (viewer?.id != null && viewer.id === assignedBy);
   const anyBusy        = toggling.size > 0;
 
   return (
@@ -1569,12 +1786,20 @@ export default function UserTaskDetailPage() {
                   if (isSelected) handleRemoveOptional(opt.id);
                   else            handleAddOptional(opt.id);
                 };
+                // Show the punchy summary; reveal the full text via a chevron.
+                const optShort = opt.short_text && opt.short_text.trim();
+                const hasFull  = optShort && optShort !== (opt.text || '').trim();
+                const label    = optShort || opt.text;
+                const expanded = pickerExpanded.has(opt.id);
+                const inert    = swapping || locked;
                 return (
-                  <button
+                  <div
                     key={opt.id}
-                    type="button"
-                    onClick={onClick}
-                    disabled={swapping || locked}
+                    role="button"
+                    tabIndex={inert ? -1 : 0}
+                    aria-disabled={inert}
+                    onClick={() => { if (!inert) onClick(); }}
+                    onKeyDown={(e) => { if (!inert && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClick(); } }}
                     className={`w-full text-left flex gap-3 p-3 rounded-lg border-2 transition-colors ${
                       isDone
                         ? 'bg-green-50 dark:bg-green-900/20 border-green-500 dark:border-green-600 opacity-80'
@@ -1583,7 +1808,7 @@ export default function UserTaskDetailPage() {
                           : cantAddMore
                             ? 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed'
                             : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
-                    } disabled:cursor-default`}
+                    } ${inert ? 'cursor-default' : 'cursor-pointer'}`}
                     title={isDone
                       ? 'Already completed — locked.'
                       : hasProgress
@@ -1601,18 +1826,37 @@ export default function UserTaskDetailPage() {
                     >
                       {isSelected ? '✓' : '+'}
                     </span>
-                    <span
-                      className={`text-sm leading-snug whitespace-pre-line flex-1 min-w-0 ${
-                        isDone
-                          ? 'text-gray-400 dark:text-gray-500 line-through'
-                          : isSelected
-                            ? 'text-gray-500 dark:text-gray-400'
-                            : 'text-gray-800 dark:text-gray-100'
-                      }`}
-                    >
-                      {renderEarnBadgeRef(opt.text, opt.linked_badge_id, opt.linked_badge_name)}
-                    </span>
-                  </button>
+                    <div className="flex-1 min-w-0">
+                      <span
+                        className={`text-sm leading-snug whitespace-pre-line block ${
+                          isDone
+                            ? 'text-gray-400 dark:text-gray-500 line-through'
+                            : isSelected
+                              ? 'text-gray-500 dark:text-gray-400'
+                              : 'text-gray-800 dark:text-gray-100'
+                        }`}
+                      >
+                        {renderEarnBadgeRef(label, opt.linked_badge_id, opt.linked_badge_name)}
+                      </span>
+                      {expanded && hasFull && (
+                        <div className="mt-1.5 p-2 rounded-md bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700">
+                          <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-line">{opt.text}</p>
+                        </div>
+                      )}
+                    </div>
+                    {/* Chevron — reveals the full description for summarized optionals. */}
+                    {hasFull && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); togglePickerExpand(opt.id); }}
+                        aria-label={expanded ? 'Hide details' : 'Show details'}
+                        title={expanded ? 'Hide details' : 'Show details'}
+                        className="shrink-0 mt-0.5 w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <span className={`text-[10px] inline-block transition-transform ${expanded ? 'rotate-90' : ''}`}>▶</span>
+                      </button>
+                    )}
+                  </div>
                 );
               })}
               {optionalPool.length === 0 && (
@@ -1693,6 +1937,40 @@ export default function UserTaskDetailPage() {
                 className="px-4 py-2 text-sm font-semibold bg-gray-900 hover:bg-gray-800 text-white rounded-lg transition-colors disabled:opacity-50"
               >
                 {archiveBusy ? 'Archiving…' : 'Archive'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete (unassign) confirmation modal ── */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => !deleteBusy && setConfirmDelete(false)} />
+          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-2">
+              <FontAwesomeIcon icon={faTrash} className="text-red-500" />
+              Delete this {taskSet.is_award ? 'award' : (taskSet.badge_id ? 'badge' : 'task set')}?
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
+              "{taskSet.name}" will be removed from the list. Nothing has been checked off yet, so no progress is lost — it can always be added again later.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleteBusy}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleteBusy}
+                className="px-4 py-2 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50"
+              >
+                {deleteBusy ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>
@@ -1908,16 +2186,28 @@ export default function UserTaskDetailPage() {
               below. The info popover anchors off whichever button is
               visible at the current breakpoint. */}
           <div className="shrink-0 mt-1 flex flex-col items-center gap-1 min-[600px]:hidden relative">
-            {!archivedAt && (
-              <button
-                type="button"
-                onClick={() => setConfirmArchive(true)}
-                className="w-10 h-10 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-                aria-label="Archive"
-                title="Archive — hide from your active list"
-              >
-                <FontAwesomeIcon icon={faBoxArchive} className="text-base" />
-              </button>
+            {!archivedAt && canRemove && (
+              nothingDone ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="w-10 h-10 flex items-center justify-center rounded-full text-red-400 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  aria-label="Delete"
+                  title="Delete — remove from your list"
+                >
+                  <FontAwesomeIcon icon={faTrash} className="text-base" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmArchive(true)}
+                  className="w-10 h-10 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                  aria-label="Archive"
+                  title="Archive — hide from your active list"
+                >
+                  <FontAwesomeIcon icon={faBoxArchive} className="text-base" />
+                </button>
+              )
             )}
             <button
               data-info-trigger
@@ -1951,16 +2241,28 @@ export default function UserTaskDetailPage() {
                   title row. Mobile uses the icon-only versions in the
                   header column above. */}
               <div className="hidden min-[600px]:flex shrink-0 items-start gap-1">
-                {!archivedAt && (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmArchive(true)}
-                    className="text-xs font-medium px-2.5 py-1 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors flex items-center gap-1.5"
-                    title="Archive — hide from your active list"
-                  >
-                    <FontAwesomeIcon icon={faBoxArchive} className="text-[11px]" />
-                    Archive
-                  </button>
+                {!archivedAt && canRemove && (
+                  nothingDone ? (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(true)}
+                      className="text-xs font-medium px-2.5 py-1 rounded-lg text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-1.5"
+                      title="Delete — remove from your list"
+                    >
+                      <FontAwesomeIcon icon={faTrash} className="text-[11px]" />
+                      Delete
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmArchive(true)}
+                      className="text-xs font-medium px-2.5 py-1 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors flex items-center gap-1.5"
+                      title="Archive — hide from your active list"
+                    >
+                      <FontAwesomeIcon icon={faBoxArchive} className="text-[11px]" />
+                      Archive
+                    </button>
+                  )
                 )}
                 <div className="relative">
                   <button
@@ -2105,7 +2407,7 @@ export default function UserTaskDetailPage() {
                       )}
                       <div className="space-y-2">
                         {group.rows.map((step) => (
-                          <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} />
+                          <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} taskSet={taskSet} />
                         ))}
                       </div>
                     </div>
@@ -2116,7 +2418,7 @@ export default function UserTaskDetailPage() {
                   <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Required</h3>
                   <div className="space-y-2">
                     {expanded.todoRequired.map((step) => (
-                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} />
+                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} taskSet={taskSet} />
                     ))}
                   </div>
                 </div>
@@ -2151,7 +2453,7 @@ export default function UserTaskDetailPage() {
                   </h3>
                   <div className="space-y-2">
                     {expanded.todoOptional.map((step) => (
-                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} />
+                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} taskSet={taskSet} />
                     ))}
                   </div>
 
@@ -2177,7 +2479,7 @@ export default function UserTaskDetailPage() {
             expanded.todo.length > 0 && (
               <div className="space-y-2">
                 {expanded.todo.map((step) => (
-                  <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} />
+                  <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} taskSet={taskSet} />
                 ))}
               </div>
             )

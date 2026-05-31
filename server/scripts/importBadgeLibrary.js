@@ -85,10 +85,10 @@ const upsertBadge = db.prepare(`
 const clearLevelReqs = db.prepare('DELETE FROM badge_level_requirements');
 const clearOptReqs   = db.prepare('DELETE FROM badge_optional_requirements');
 const insertLevelReq = db.prepare(
-  'INSERT INTO badge_level_requirements (badge_id, level, sort_order, text) VALUES (?, ?, ?, ?)'
+  'INSERT INTO badge_level_requirements (badge_id, level, sort_order, text, short_text) VALUES (?, ?, ?, ?, ?)'
 );
 const insertOptReq = db.prepare(
-  'INSERT INTO badge_optional_requirements (badge_id, req_number, text, level) VALUES (?, ?, ?, ?)'
+  'INSERT INTO badge_optional_requirements (badge_id, req_number, text, level, short_text) VALUES (?, ?, ?, ?, ?)'
 );
 
 // Snapshot the current optional-req IDs by (badge_id, normalized text)
@@ -121,14 +121,14 @@ const run = db.transaction(() => {
   clearLevelReqs.run();
   let lrCount = 0;
   for (const r of snapshot.levelReqs || []) {
-    insertLevelReq.run(r.badge_id, r.level, r.sort_order, r.text);
+    insertLevelReq.run(r.badge_id, r.level, r.sort_order, r.text, r.short_text ?? null);
     lrCount++;
   }
 
   clearOptReqs.run();
   let orCount = 0;
   for (const o of snapshot.optReqs || []) {
-    insertOptReq.run(o.badge_id, o.req_number, o.text, o.level || null);
+    insertOptReq.run(o.badge_id, o.req_number, o.text, o.level || null, o.short_text ?? null);
     orCount++;
   }
 

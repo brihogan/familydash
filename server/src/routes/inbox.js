@@ -55,7 +55,7 @@ router.get('/', authenticate, requireRole('parent'), (req, res, next) => {
       `).all(kid.id);
 
       const notifications = db.prepare(`
-        SELECT id, kind, title, body, reference_type, reference_id, created_at
+        SELECT id, kind, title, body, reference_type, reference_id, detail, created_at
         FROM inbox_notifications
         WHERE subject_user_id = ? AND family_id = ? AND dismissed_at IS NULL
         ORDER BY created_at DESC

@@ -78,6 +78,8 @@ router.get('/task-sets', authenticate, (req, res, next) => {
     const rows = db.prepare(`
       SELECT ts.*,
         b.image_file AS badge_image_file,
+        b.is_award   AS badge_is_award,
+        b.name       AS badge_name,
         (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)     AS step_count,
         (SELECT COUNT(*) FROM task_assignments ta
          JOIN users u ON u.id = ta.user_id

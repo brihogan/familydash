@@ -41,13 +41,13 @@ const badges = db.prepare(`
 `).all();
 
 const levelReqs = db.prepare(`
-  SELECT badge_id, level, sort_order, text
+  SELECT badge_id, level, sort_order, text, short_text
   FROM badge_level_requirements
   ORDER BY badge_id, level, sort_order
 `).all();
 
 const optReqs = db.prepare(`
-  SELECT badge_id, req_number, text, level
+  SELECT badge_id, req_number, text, level, short_text
   FROM badge_optional_requirements
   ORDER BY badge_id, req_number
 `).all();
