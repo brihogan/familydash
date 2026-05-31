@@ -85,8 +85,9 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, disabled }) {
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape' && !saving) onClose(); };
     document.addEventListener('keydown', handler);
-    const t = setTimeout(() => taRef.current?.focus(), 80);
-    return () => { document.removeEventListener('keydown', handler); clearTimeout(t); };
+    // Intentionally NOT auto-focusing the textarea — on mobile that forces the
+    // keyboard to pop up and shove the layout around. The kid taps it to type.
+    return () => document.removeEventListener('keydown', handler);
   }, [onClose, saving]);
 
   const lvlCfg = taskSet?.badge_level && BADGE_LEVELS[taskSet.badge_level];

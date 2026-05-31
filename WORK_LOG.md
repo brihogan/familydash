@@ -1,5 +1,9 @@
 # Work Log
 
+### 2026-05-31 — Focus mode: no auto-focus; More panel 5-wide
+- StepFocusModal no longer auto-focuses the answer textarea on open (removed the `taRef.current?.focus()` timeout) — on mobile that forced the keyboard up and shoved the layout. `taRef` kept as the textarea ref; kid taps to type.
+- Mobile menubar "More" sheet: section tile grid changed `grid-cols-4` → `grid-cols-5` so it's 5 icons wide. Client-only (Layout.jsx + UserTaskDetailPage.jsx), esbuild clean.
+
 ### 2026-05-29 — "Start this badge" preview modal: summaries + chevron-expand
 - Mirrored the optional-picker treatment in BadgePreviewModal ("I want to start this badge"): new `PreviewStep` component shows each requirement/optional's `short_text` summary with a ▶ chevron that expands the full original text in a boxed inset. Lifted `expandedSteps` Set state (keys `r<id>`/`o<id>` so req/opt ids can't collide) + `toggleStep`. Both Required and Optional Pool lists use it.
 - Server: `/badges/:id` detail endpoint now SELECTs `short_text` on requirements too (optionals already had it). (`badges.api.js` already passed the kid's `level` to getBadge — no client API change needed; the modal already renders requirements only when a level is set.)

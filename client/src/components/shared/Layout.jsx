@@ -998,7 +998,7 @@ export default function Layout() {
                           {heading}
                         </div>
                       )}
-                      <div className="grid grid-cols-4 gap-1 px-3 pb-2">
+                      <div className="grid grid-cols-5 gap-1 px-3 pb-2">
                         {items.map((item) => {
                           const isSelected = editMode && editSelectedKey === item.key;
                           const tileClasses = `flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-lg transition-all ${
