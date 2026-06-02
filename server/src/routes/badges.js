@@ -173,6 +173,38 @@ router.get('/badges', authenticate, (req, res, next) => {
       LIMIT ? OFFSET ?
     `).all(...selectParams, ...params, ...whereExtraParams, ...newWhereParams, ...enrolledWhereParams, ...enrolledByWhereParams, limit, offset);
 
+    // Per-badge co-assignees: other family members (in the viewer's family) who
+    // are currently enrolled in the badge — active assignment, not archived —
+    // and haven't finished it yet (completed step instances < total). Shown as
+    // avatars on the card. Gated on a known viewing user (bookmarksFor) so we
+    // can exclude them and scope to their family.
+    if (bookmarksFor && badges.length > 0) {
+      const ids = badges.map((b) => b.id);
+      const ph  = ids.map(() => '?').join(',');
+      const coRows = db.prepare(`
+        SELECT ts.badge_id AS bid, u.id, u.name, u.avatar_color, u.avatar_emoji
+        FROM task_sets ts
+        JOIN task_assignments ta ON ta.task_set_id = ts.id
+        JOIN users u ON u.id = ta.user_id
+        WHERE ts.badge_id IN (${ph})
+          AND ts.is_active = 1 AND ta.is_active = 1 AND ta.archived_at IS NULL
+          AND u.family_id = ? AND u.is_active = 1
+          AND ta.user_id != ?
+          AND (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)
+            > (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ta.user_id)
+      `).all(...ids, req.user.familyId, bookmarksFor);
+      const byBadge = new Map();
+      for (const r of coRows) {
+        let list = byBadge.get(r.bid);
+        if (!list) { list = new Map(); byBadge.set(r.bid, list); }
+        if (!list.has(r.id)) list.set(r.id, { id: r.id, name: r.name, avatar_color: r.avatar_color, avatar_emoji: r.avatar_emoji });
+      }
+      for (const b of badges) {
+        const list = byBadge.get(b.id);
+        b.co_assignees = list ? [...list.values()] : [];
+      }
+    }
+
     // Categories list excludes awards so the area-filter pills stay clean.
     const categories = db.prepare(
       `SELECT DISTINCT category FROM badges WHERE is_active = 1 AND is_award = 0 AND category != '' ORDER BY category ASC`

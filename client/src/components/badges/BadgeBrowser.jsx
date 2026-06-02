@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { badgesApi } from '../../api/badges.api.js';
 import { BADGE_LEVELS } from '../../constants/badgeLevels.js';
 import KidProfilePicker from '../shared/KidProfilePicker.jsx';
+import Avatar from '../shared/Avatar.jsx';
 import LoadingSkeleton from '../shared/LoadingSkeleton.jsx';
 import useOfflineFamily from '../../offline/hooks/useOfflineFamily.js';
 import BadgePreviewModal from './BadgePreviewModal.jsx';
@@ -537,6 +538,27 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, onPi
                   <span className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold shadow ring-2 ring-white dark:ring-gray-800" aria-hidden>
                     ✓
                   </span>
+                )}
+                {/* Co-assignees — family members currently working on this badge
+                    (active, not archived, not finished) — bottom-right corner. */}
+                {badge.co_assignees?.length > 0 && (
+                  <div
+                    className="absolute bottom-1.5 right-1.5 flex items-center"
+                    title={`Also working on this: ${badge.co_assignees.map((u) => u.name).join(', ')}`}
+                  >
+                    {badge.co_assignees.slice(0, 3).map((u, i) => (
+                      <span
+                        key={u.id}
+                        className={`relative rounded-full ring-2 ring-white dark:ring-gray-800 inline-flex ${i === 0 ? '' : '-ml-2'}`}
+                        style={{ zIndex: 10 - i }}
+                      >
+                        <Avatar name={u.name} color={u.avatar_color} emoji={u.avatar_emoji} size="xs" />
+                      </span>
+                    ))}
+                    {badge.co_assignees.length > 3 && (
+                      <span className="ml-0.5 text-[9px] font-semibold text-gray-400 dark:text-gray-500 self-end">+{badge.co_assignees.length - 3}</span>
+                    )}
+                  </div>
                 )}
               </div>
             );
