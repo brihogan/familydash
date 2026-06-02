@@ -703,7 +703,7 @@ export default function Layout() {
   };
 
   return (
-    <div className="flex bg-gray-50 dark:bg-gray-900" style={{ height: 'var(--app-h, 100dvh)' }}>
+    <div data-app-shell className="flex bg-gray-50 dark:bg-gray-900" style={{ height: 'var(--app-h, 100dvh)' }}>
 
       {/* ── Bottom panel backdrop (mobile) ──
           Inert now that the drawer is disabled; bottomPanelOpen never flips
@@ -834,6 +834,7 @@ export default function Layout() {
           {/* Bottom bar — z-50 so it stays on top of the More sheet (z-40)
               and the More-sheet backdrop (z-30). */}
           <div
+            data-debug-nav
             className="fixed left-2 right-2 z-50 h-14 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-[0_8px_24px_rgba(0,0,0,0.14)] flex items-stretch"
             style={{ bottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}
             role="navigation"
