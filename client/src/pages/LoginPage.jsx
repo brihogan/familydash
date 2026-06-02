@@ -4,15 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSun, faMoon } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
-
-// iOS in-app browsers (e.g. HappyWeb) crash when the password AutoFill UI is
-// presented on a type="password" field. Where -webkit-text-security is
-// supported (all WebKit/Blink), render a masked text field instead so the
-// password AutoFill credential sheet never fires. Fall back to a real
-// password field elsewhere (Firefox etc.), which doesn't have the crash.
-const MASK_OK = typeof CSS !== 'undefined' && !!CSS.supports && CSS.supports('-webkit-text-security', 'disc');
-const maskType = MASK_OK ? 'text' : 'password';
-const maskStyle = MASK_OK ? { WebkitTextSecurity: 'disc' } : undefined;
+import MaskedInput from '../components/shared/MaskedInput.jsx';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -109,17 +101,10 @@ export default function LoginPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-                <input
-                  type={maskType}
-                  name="password"
-                  id="login-password"
-                  autoComplete="off"
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  style={maskStyle}
+                <MaskedInput
+                  id="lp-secret"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={setPassword}
                   required
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
                 />
@@ -142,21 +127,13 @@ export default function LoginPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PIN (4 digits)</label>
-                <input
-                  type={maskType}
-                  name="pin"
-                  id="login-pin"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  style={maskStyle}
+                <MaskedInput
+                  id="lp-pin"
+                  numeric
                   value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  onChange={(v) => setPin(v.slice(0, 4))}
                   required
                   maxLength={4}
-                  pattern="\d{4}"
                   placeholder="••••"
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm tracking-widest focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
                 />

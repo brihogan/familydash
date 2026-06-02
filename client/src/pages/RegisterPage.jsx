@@ -1,13 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-
-// See LoginPage: render a masked text field instead of type="password" where
-// -webkit-text-security is supported, so the iOS password AutoFill credential
-// sheet (which crashes in-app browsers like HappyWeb) never fires.
-const MASK_OK = typeof CSS !== 'undefined' && !!CSS.supports && CSS.supports('-webkit-text-security', 'disc');
-const maskType = MASK_OK ? 'text' : 'password';
-const maskStyle = MASK_OK ? { WebkitTextSecurity: 'disc' } : undefined;
+import MaskedInput from '../components/shared/MaskedInput.jsx';
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -78,17 +72,10 @@ export default function RegisterPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-            <input
-              type={maskType}
-              name="new-password"
-              id="register-password"
-              autoComplete="off"
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck={false}
-              style={maskStyle}
+            <MaskedInput
+              id="rp-secret"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={setPassword}
               required
               minLength={8}
               className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
@@ -96,17 +83,10 @@ export default function RegisterPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm Password</label>
-            <input
-              type={maskType}
-              name="confirm-password"
-              id="register-confirm-password"
-              autoComplete="off"
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck={false}
-              style={maskStyle}
+            <MaskedInput
+              id="rp-confirm"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={setConfirmPassword}
               required
               className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
             />
