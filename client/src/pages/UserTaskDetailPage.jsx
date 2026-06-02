@@ -1962,17 +1962,31 @@ export default function UserTaskDetailPage() {
                       {isSelected ? '✓' : '+'}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <span
-                        className={`text-sm leading-snug whitespace-pre-line block ${
-                          isDone
-                            ? 'text-gray-400 dark:text-gray-500 line-through'
-                            : isSelected
-                              ? 'text-gray-500 dark:text-gray-400'
-                              : 'text-gray-800 dark:text-gray-100'
-                        }`}
-                      >
-                        {renderEarnBadgeRef(label, opt.linked_badge_id, opt.linked_badge_name)}
-                      </span>
+                      <div className="flex items-start gap-1">
+                        <span
+                          className={`text-sm leading-snug whitespace-pre-line min-w-0 ${
+                            isDone
+                              ? 'text-gray-400 dark:text-gray-500 line-through'
+                              : isSelected
+                                ? 'text-gray-500 dark:text-gray-400'
+                                : 'text-gray-800 dark:text-gray-100'
+                          }`}
+                        >
+                          {renderEarnBadgeRef(label, opt.linked_badge_id, opt.linked_badge_name)}
+                        </span>
+                        {/* Show-more chevron — sits immediately right of the title. */}
+                        {hasFull && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); togglePickerExpand(opt.id); }}
+                            aria-label={expanded ? 'Hide details' : 'Show details'}
+                            title={expanded ? 'Hide details' : 'Show details'}
+                            className="shrink-0 mt-0.5 w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          >
+                            <span className={`text-[10px] inline-block transition-transform ${expanded ? 'rotate-90' : ''}`}>▶</span>
+                          </button>
+                        )}
+                      </div>
                       {expanded && hasFull && (
                         <div className="mt-1.5 p-2 rounded-md bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700">
                           <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-line">{opt.text}</p>
@@ -1999,18 +2013,6 @@ export default function UserTaskDetailPage() {
                           <span className="ml-1 text-[10px] font-semibold text-gray-400 dark:text-gray-500">+{optionalCoAssignees[opt.id].length - 3}</span>
                         )}
                       </div>
-                    )}
-                    {/* Chevron — reveals the full description for summarized optionals. */}
-                    {hasFull && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); togglePickerExpand(opt.id); }}
-                        aria-label={expanded ? 'Hide details' : 'Show details'}
-                        title={expanded ? 'Hide details' : 'Show details'}
-                        className="shrink-0 mt-0.5 w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <span className={`text-[10px] inline-block transition-transform ${expanded ? 'rotate-90' : ''}`}>▶</span>
-                      </button>
                     )}
                   </div>
                 );
