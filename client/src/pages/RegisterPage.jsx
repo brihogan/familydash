@@ -76,6 +76,8 @@ export default function RegisterPage() {
               name="new-password"
               id="register-password"
               autoComplete="new-password"
+              readOnly
+              onFocus={(e) => e.currentTarget.removeAttribute('readonly')}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -90,6 +92,8 @@ export default function RegisterPage() {
               name="confirm-password"
               id="register-confirm-password"
               autoComplete="new-password"
+              readOnly
+              onFocus={(e) => e.currentTarget.removeAttribute('readonly')}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required

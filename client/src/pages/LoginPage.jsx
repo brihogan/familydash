@@ -105,6 +105,8 @@ export default function LoginPage() {
                   name="password"
                   id="login-password"
                   autoComplete="current-password"
+                  readOnly
+                  onFocus={(e) => e.currentTarget.removeAttribute('readonly')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -135,6 +137,8 @@ export default function LoginPage() {
                   id="login-pin"
                   inputMode="numeric"
                   autoComplete="off"
+                  readOnly
+                  onFocus={(e) => e.currentTarget.removeAttribute('readonly')}
                   value={pin}
                   onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
                   required
