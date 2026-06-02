@@ -559,16 +559,10 @@ export default function Layout() {
               )}
             </NavLink>
           )}
-          {useBadges && (
-            <NavLink to={`/badges/${user.id}`} className={navClass} onClick={close} title="My Badges">
-              <FontAwesomeIcon icon={faShieldHalved} className="w-4 shrink-0" />
-              <Lbl>My Badges</Lbl>
-            </NavLink>
-          )}
           {useSets && (
-            <NavLink to={`/tasks/${user.id}`} className={navClass} onClick={close} title="My Sets">
+            <NavLink to={`/tasks/${user.id}`} className={navClass} onClick={close} title={`My ${setsStepsLabel}`}>
               <FontAwesomeIcon icon={faMedal} className="w-4 shrink-0" />
-              <Lbl>My Sets</Lbl>
+              <Lbl>My {setsStepsLabel}</Lbl>
               {kidStats && (
                 <Badge className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full leading-tight bg-brand-50 dark:bg-brand-500/20 text-brand-700 dark:text-gray-400">
                   {kidStats.taskSetsCount}
@@ -639,8 +633,7 @@ export default function Layout() {
       if (claudeAccess) all.push({ key: 'apps', icon: faRocket, label: 'Apps', to: '/code-apps', section: 'main' });
       if (useBanking) all.push({ key: 'bank', icon: faPiggyBank, label: 'Bank', to: `/bank/${user.id}`, section: 'main' });
       if (useTickets) all.push({ key: 'tickets', icon: faTicket, label: 'Tickets', to: `/tickets/${user.id}`, section: 'main', badge: kidStats?.ticketBalance });
-      if (useBadges) all.push({ key: 'badges', icon: faShieldHalved, label: 'My Badges', to: `/badges/${user.id}`, section: 'main' });
-      if (useSets) all.push({ key: 'sets', icon: faMedal, label: 'My Sets', to: `/tasks/${user.id}`, section: 'main' });
+      if (useSets) all.push({ key: 'sets', icon: faMedal, label: `My ${setsStepsLabel}`, to: `/tasks/${user.id}`, section: 'main' });
       all.push({ key: 'trophies', icon: faTrophy, label: 'Trophies', to: `/trophies/${user.id}`, section: 'main' });
       if (useTickets) all.push({ key: 'rewards', icon: faTrophy, label: 'Rewards', to: '/rewards', section: 'main' });
       defaults = ['overview', 'chores', useTickets ? 'tickets' : (useBanking ? 'bank' : 'trophies'), 'trophies'].filter((k, i, arr) => k && arr.indexOf(k) === i).slice(0, 4);
