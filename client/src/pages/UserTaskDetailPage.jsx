@@ -696,12 +696,19 @@ function StepItem({ step, onToggle, onSaveNotes, disabled, onPreviewBadge, onFin
   // toggle either manually, the server rejects it.
   const isAutoLinked = !!step.linked_badge_id || !!step.linked_badge_category;
 
+  // Curiosity badge steps (not awards) all open fullscreen on tap so every
+  // badge step looks and behaves the same — no cramped inline input. Awards and
+  // generic task sets keep the inline input. Auto-linked steps are excluded
+  // (they navigate to their linked badge instead).
+  const isCuriosityBadge = !!taskSet?.badge_id && !taskSet?.is_award;
+  const opensFullscreen = hasDetails || (isCuriosityBadge && !isAutoLinked);
+
   const handleClick = () => {
     if (disabled || step._limitedToday || phase !== 'idle') return;
 
-    // Long steps: open focus mode (full text + answer + complete) instead of
-    // toggling / showing the cramped inline input.
-    if (hasDetails) { setFocusOpen(true); return; }
+    // Long steps (any set) and all Curiosity badge steps open focus mode
+    // (full text + answer + complete) instead of toggling / inline input.
+    if (opensFullscreen) { setFocusOpen(true); return; }
 
     // If this step requires input and we haven't shown the input yet, show it
     if (needsInput && !showInput) {
@@ -1217,10 +1224,12 @@ function CompletedStepItem({ step, taskSet, onUndo, canUndo, disabled }) {
   const [focusOpen, setFocusOpen] = useState(false);
   const isBadgeStep = !!taskSet?.badge_id;
   const hasGeneralNotes = !!(step._generalNotes && step._generalNotes.trim());
+  const rowClickable = isBadgeStep || !!step.description;
   return (
     <div
-      className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-xl"
+      className={`flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-xl ${rowClickable ? 'cursor-pointer' : ''}`}
       style={{ animation: 'chore-enter 350ms ease-out both' }}
+      onClick={rowClickable ? (() => { if (isBadgeStep) setFocusOpen(true); else setLightbox(true); }) : undefined}
     >
       <span className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center shrink-0">
         <svg viewBox="0 0 12 10" className="w-3 h-3" fill="none" aria-hidden>
@@ -1238,7 +1247,7 @@ function CompletedStepItem({ step, taskSet, onUndo, canUndo, disabled }) {
           src={`/api/uploads/steps/${step.image}`}
           alt=""
           className="w-10 h-10 object-cover rounded-lg flex-shrink-0 cursor-pointer"
-          onClick={() => setLightbox(true)}
+          onClick={(e) => { e.stopPropagation(); setLightbox(true); }}
         />
       )}
       {/* Badge/award steps reopen the full-screen view (read-only — no complete
@@ -1246,7 +1255,7 @@ function CompletedStepItem({ step, taskSet, onUndo, canUndo, disabled }) {
           exist, so completed steps with notes are flagged. */}
       {isBadgeStep ? (
         <button
-          onClick={() => setFocusOpen(true)}
+          onClick={(e) => { e.stopPropagation(); setFocusOpen(true); }}
           className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
             hasGeneralNotes
               ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/50'
@@ -1259,7 +1268,7 @@ function CompletedStepItem({ step, taskSet, onUndo, canUndo, disabled }) {
         </button>
       ) : (!step.image && step.description && (
         <button
-          onClick={() => setLightbox(true)}
+          onClick={(e) => { e.stopPropagation(); setLightbox(true); }}
           className="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex-shrink-0"
           aria-label="Show description"
         >
@@ -1278,7 +1287,7 @@ function CompletedStepItem({ step, taskSet, onUndo, canUndo, disabled }) {
       )}
       {canUndo && (
         <button
-          onClick={onUndo}
+          onClick={(e) => { e.stopPropagation(); onUndo(); }}
           disabled={disabled}
           className="text-xs text-red-500 hover:text-red-700 border border-red-200 dark:border-red-500 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors shrink-0"
         >
