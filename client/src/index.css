@@ -13,6 +13,16 @@
 }
 
 @layer base {
+  /* Disable the browser's pull-to-refresh / overscroll-reload gesture app-wide.
+     In-app browsers (e.g. "HappyWeb: Family Browser") reload the page on an
+     overscroll — which is triggered when the keyboard pushes a focused field up,
+     or when scrolling to reach the nav bar. The app previously suppressed this
+     only while popovers/panels were open; doing it globally stops the spurious
+     reloads everywhere. */
+  html,
+  body {
+    overscroll-behavior: none;
+  }
   body {
     @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 antialiased;
     font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
