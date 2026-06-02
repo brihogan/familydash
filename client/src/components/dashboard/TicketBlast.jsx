@@ -51,7 +51,10 @@ function KidCard({ member, delta, onIncrement, onDecrement }) {
     pressTimerRef.current = setTimeout(() => setPressedSide(null), 220);
   };
 
-  const handleClick = (e) => {
+  // Fire on pointer-DOWN (not click) so the rocker tilt + ticket animation
+  // happen the instant a finger/mouse touches the card — it feels more tactile
+  // than waiting for the release.
+  const handlePress = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     if (x >= rect.width / 2) {
@@ -75,11 +78,12 @@ function KidCard({ member, delta, onIncrement, onDecrement }) {
 
   return (
     <div
-      onClick={handleClick}
+      onPointerDown={handlePress}
       style={{
         transform: `perspective(600px) rotateY(${rockerRotate}deg)`,
         transformStyle: 'preserve-3d',
         transition: 'transform 180ms ease-out',
+        touchAction: 'manipulation',
       }}
       className="relative flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 select-none cursor-pointer"
     >
