@@ -703,7 +703,7 @@ export default function Layout() {
   };
 
   return (
-    <div className="flex h-dvh bg-gray-50 dark:bg-gray-900">
+    <div className="flex bg-gray-50 dark:bg-gray-900" style={{ height: 'var(--app-h, 100dvh)' }}>
 
       {/* ── Bottom panel backdrop (mobile) ──
           Inert now that the drawer is disabled; bottomPanelOpen never flips
