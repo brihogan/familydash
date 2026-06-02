@@ -5,6 +5,15 @@ import { faSun, faMoon } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 
+// iOS in-app browsers (e.g. HappyWeb) crash when the password AutoFill UI is
+// presented on a type="password" field. Where -webkit-text-security is
+// supported (all WebKit/Blink), render a masked text field instead so the
+// password AutoFill credential sheet never fires. Fall back to a real
+// password field elsewhere (Firefox etc.), which doesn't have the crash.
+const MASK_OK = typeof CSS !== 'undefined' && !!CSS.supports && CSS.supports('-webkit-text-security', 'disc');
+const maskType = MASK_OK ? 'text' : 'password';
+const maskStyle = MASK_OK ? { WebkitTextSecurity: 'disc' } : undefined;
+
 export default function LoginPage() {
   const { login } = useAuth();
   const { isDark, toggleTheme } = useTheme();
@@ -101,12 +110,14 @@ export default function LoginPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
                 <input
-                  type="password"
+                  type={maskType}
                   name="password"
                   id="login-password"
-                  autoComplete="current-password"
-                  readOnly
-                  onFocus={(e) => e.currentTarget.removeAttribute('readonly')}
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  style={maskStyle}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -132,13 +143,15 @@ export default function LoginPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PIN (4 digits)</label>
                 <input
-                  type="password"
+                  type={maskType}
                   name="pin"
                   id="login-pin"
                   inputMode="numeric"
                   autoComplete="off"
-                  readOnly
-                  onFocus={(e) => e.currentTarget.removeAttribute('readonly')}
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  style={maskStyle}
                   value={pin}
                   onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
                   required

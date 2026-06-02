@@ -2,6 +2,13 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
+// See LoginPage: render a masked text field instead of type="password" where
+// -webkit-text-security is supported, so the iOS password AutoFill credential
+// sheet (which crashes in-app browsers like HappyWeb) never fires.
+const MASK_OK = typeof CSS !== 'undefined' && !!CSS.supports && CSS.supports('-webkit-text-security', 'disc');
+const maskType = MASK_OK ? 'text' : 'password';
+const maskStyle = MASK_OK ? { WebkitTextSecurity: 'disc' } : undefined;
+
 export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
@@ -72,12 +79,14 @@ export default function RegisterPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
             <input
-              type="password"
+              type={maskType}
               name="new-password"
               id="register-password"
-              autoComplete="new-password"
-              readOnly
-              onFocus={(e) => e.currentTarget.removeAttribute('readonly')}
+              autoComplete="off"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              style={maskStyle}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -88,12 +97,14 @@ export default function RegisterPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm Password</label>
             <input
-              type="password"
+              type={maskType}
               name="confirm-password"
               id="register-confirm-password"
-              autoComplete="new-password"
-              readOnly
-              onFocus={(e) => e.currentTarget.removeAttribute('readonly')}
+              autoComplete="off"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              style={maskStyle}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
