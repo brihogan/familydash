@@ -851,13 +851,15 @@ export default function Layout() {
               const selectedBg = 'bg-brand-50 dark:bg-gray-700 text-brand-700 dark:text-brand-400';
               const content = (
                 <>
-                  <FontAwesomeIcon icon={item.icon} className="text-[17px]" />
+                  <span className="relative inline-flex">
+                    <FontAwesomeIcon icon={item.icon} className="text-[17px]" />
+                    {item.badge != null && item.badge !== 0 && (
+                      <span className="absolute -top-1.5 -right-2 min-w-[15px] h-[15px] px-1 rounded-full bg-red-500 text-white text-[9px] font-semibold flex items-center justify-center leading-none ring-2 ring-white dark:ring-gray-800">
+                        {item.badge}
+                      </span>
+                    )}
+                  </span>
                   <span className="text-[10px] font-medium leading-none truncate max-w-full px-0.5">{item.label}</span>
-                  {item.badge != null && item.badge !== 0 && (
-                    <span className="absolute top-0.5 right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-semibold flex items-center justify-center leading-none">
-                      {item.badge}
-                    </span>
-                  )}
                 </>
               );
               if (editMode) {
@@ -917,13 +919,15 @@ export default function Layout() {
                   aria-label="More options"
                   aria-expanded={moreOpen}
                 >
-                  <FontAwesomeIcon icon={moreOpen ? faXmark : faEllipsis} className="text-[17px]" />
+                  <span className="relative inline-flex">
+                    <FontAwesomeIcon icon={moreOpen ? faXmark : faEllipsis} className="text-[17px]" />
+                    {moreBadge > 0 && !moreOpen && (
+                      <span className="absolute -top-1.5 -right-2 min-w-[15px] h-[15px] px-1 rounded-full bg-red-500 text-white text-[9px] font-semibold flex items-center justify-center leading-none ring-2 ring-white dark:ring-gray-800">
+                        {moreBadge}
+                      </span>
+                    )}
+                  </span>
                   <span className="text-[10px] font-medium leading-none">More</span>
-                  {moreBadge > 0 && !moreOpen && (
-                    <span className="absolute top-0.5 right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-semibold flex items-center justify-center leading-none">
-                      {moreBadge}
-                    </span>
-                  )}
                 </button>
               );
             })()}

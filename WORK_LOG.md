@@ -1,5 +1,21 @@
 # Work Log
 
+## Session Start: 2026-06-02 (evening)
+
+### 2026-06-02 — Revert password masking + menubar pill positioning
+- Reverted Login/Register Password+PIN from the JS `MaskedInput` workaround back to native `type="password"` (kept name/id/autocomplete hints; PIN inputMode=numeric). The masking was for an AutoFill crash that was really the overscroll-reload — so native fields + password-manager autofill are restored. Deleted MaskedInput.jsx.
+- Mobile menubar pill counters: were `absolute top-0.5 right-1.5` of the whole slot (floating far from the centered icon). Wrapped the icon in a `relative inline-flex` and anchored the badge to the icon's top-right (`-top-1.5 -right-2`) with a white/dark ring outline. Applied to both nav-item badges and the "More" rollup badge.
+
+### 2026-06-02 — Kid nav: remove redundant "My Badges", label sets page from settings
+- Kid nav had a "My Badges" link (/badges browse page, already reachable via the "Browse Badges" modal on /tasks) AND a hardcoded "My Sets" link (/tasks). Removed the /badges item from both render paths (sidebar + mobile bar in Layout.jsx) and changed the /tasks label from "My Sets" → `My ${setsStepsLabel}` so it follows the parent's configured page name (Settings). Client-only.
+
+### 2026-06-02 — HappyWeb (iPad in-app browser) login/scroll reload saga
+- Chased "page reloads when focusing Password/PIN" in "HappyWeb: Family Browser" through several theories before the real cause. Steps shipped (all on `main`): added `name`/`id`/`autocomplete` to login+register fields; tried readonly-until-focus (suppressed the keyboard — bad); masked fields via `type=text`+`-webkit-text-security`, then via a JS `MaskedInput` (no `type=password` at all). None fixed it → AutoFill was never the cause.
+- **Real cause:** HappyWeb's overscroll/pull-to-refresh + an overlay search bar. Fixes: `overscroll-behavior:none` globally; JS `--app-h` (=`window.innerHeight`) drives the app-shell height because `dvh`/`svh` report the full screen while the visible area is ~128px shorter (proven via a new `?debug=1` layout-readout overlay + event logger); mobile nav `bottom` offset by `100dvh - --app-h` so the fixed bar lifts into view past the search bar.
+- Also made the **service worker opt-in / off by default** (login checkbox "Install as app & work offline"; self-heals existing installs by unregistering).
+- Short-page reload (swipe not absorbed → document overscroll → HappyWeb reload): new `useOverscrollGuard` hook (client/src/hooks) mounted in Layout — always-on version of useScrollLock's touchmove guard. On a vertical swipe with no scrollable ancestor (short page) or at a scroller's edge, `preventDefault`s to kill the native overscroll; horizontal gestures left alone (nav strip). Decision logic verified in preview; can't repro HappyWeb locally so awaiting Brian's device test.
+- **Open:** confirm on-device that the nav-visibility offset + overscroll guard fully resolve it. If HappyWeb still reloads despite preventDefault, it intercepts swipes below the web layer and there's no further web-level lever. See memory `project_happyweb_ipad`.
+
 ### 2026-05-31 — Focus mode: no auto-focus; More panel 5-wide
 - StepFocusModal no longer auto-focuses the answer textarea on open (removed the `taRef.current?.focus()` timeout) — on mobile that forced the keyboard up and shoved the layout. `taRef` kept as the textarea ref; kid taps to type.
 - Mobile menubar "More" sheet: section tile grid changed `grid-cols-4` → `grid-cols-5` so it's 5 icons wide. Client-only (Layout.jsx + UserTaskDetailPage.jsx), esbuild clean.
