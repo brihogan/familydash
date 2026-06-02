@@ -836,7 +836,11 @@ export default function Layout() {
           <div
             data-debug-nav
             className="fixed left-2 right-2 z-50 h-14 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-[0_8px_24px_rgba(0,0,0,0.14)] flex items-stretch"
-            style={{ bottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}
+            // `position: fixed` anchors to the layout viewport, which in some
+            // in-app browsers (HappyWeb) is taller than the visible area by the
+            // height of an overlay search bar. `100dvh - --app-h` is exactly
+            // that hidden strip, so adding it lifts the bar into view.
+            style={{ bottom: 'calc(100dvh - var(--app-h, 100dvh) + env(safe-area-inset-bottom) + 0.5rem)' }}
             role="navigation"
             aria-label="Primary"
           >
@@ -1194,7 +1198,7 @@ export default function Layout() {
           // a 56px (h-14) height, so the scroll area needs that much padding
           // plus a small gap so the last content row sits comfortably above.
           style={{ paddingBottom: isNarrow
-            ? 'calc(3.5rem + env(safe-area-inset-bottom) + 1.5rem)'
+            ? 'calc(100dvh - var(--app-h, 100dvh) + 3.5rem + env(safe-area-inset-bottom) + 1.5rem)'
             : 'max(1rem, env(safe-area-inset-bottom))' }}
         >
           <div className="max-w-6xl mx-auto">
