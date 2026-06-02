@@ -89,6 +89,9 @@ export default function LoginPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
                 <input
                   type="email"
+                  name="email"
+                  id="login-email"
+                  autoComplete="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -99,6 +102,9 @@ export default function LoginPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
                 <input
                   type="password"
+                  name="password"
+                  id="login-password"
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -112,6 +118,9 @@ export default function LoginPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
                 <input
                   type="text"
+                  name="username"
+                  id="login-username"
+                  autoComplete="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
@@ -122,6 +131,10 @@ export default function LoginPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PIN (4 digits)</label>
                 <input
                   type="password"
+                  name="pin"
+                  id="login-pin"
+                  inputMode="numeric"
+                  autoComplete="off"
                   value={pin}
                   onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
                   required
