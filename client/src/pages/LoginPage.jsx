@@ -4,7 +4,6 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSun, faMoon } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
-import MaskedInput from '../components/shared/MaskedInput.jsx';
 import { isPwaEnabled, setPwaEnabled } from '../pwa/pwa.js';
 import { isDebugEnabled, getDebugEvents, clearDebugEvents } from '../debug/eventLog.js';
 
@@ -106,10 +105,13 @@ export default function LoginPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-                <MaskedInput
-                  id="lp-secret"
+                <input
+                  type="password"
+                  name="password"
+                  id="login-password"
+                  autoComplete="current-password"
                   value={password}
-                  onChange={setPassword}
+                  onChange={(e) => setPassword(e.target.value)}
                   required
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
                 />
@@ -132,13 +134,17 @@ export default function LoginPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PIN (4 digits)</label>
-                <MaskedInput
-                  id="lp-pin"
-                  numeric
+                <input
+                  type="password"
+                  name="pin"
+                  id="login-pin"
+                  inputMode="numeric"
+                  autoComplete="off"
                   value={pin}
-                  onChange={(v) => setPin(v.slice(0, 4))}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
                   required
                   maxLength={4}
+                  pattern="\d{4}"
                   placeholder="••••"
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm tracking-widest focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
                 />

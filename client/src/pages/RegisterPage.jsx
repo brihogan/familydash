@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import MaskedInput from '../components/shared/MaskedInput.jsx';
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -72,10 +71,13 @@ export default function RegisterPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-            <MaskedInput
-              id="rp-secret"
+            <input
+              type="password"
+              name="new-password"
+              id="register-password"
+              autoComplete="new-password"
               value={password}
-              onChange={setPassword}
+              onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
               className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
@@ -83,10 +85,13 @@ export default function RegisterPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm Password</label>
-            <MaskedInput
-              id="rp-confirm"
+            <input
+              type="password"
+              name="confirm-password"
+              id="register-confirm-password"
+              autoComplete="new-password"
               value={confirmPassword}
-              onChange={setConfirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               required
               className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 dark:bg-gray-700 dark:text-gray-200"
             />
