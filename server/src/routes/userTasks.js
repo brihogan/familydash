@@ -632,10 +632,14 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
     `).all(taskSetId, userId);
 
     // Co-assignees: for a badge/award set, find OTHER family members enrolled in
-    // the same badge at the same level who have NOT yet completed each step — so
-    // the UI can show "who else is working on this, maybe team up". Task sets are
+    // the SAME badge (any level) who have NOT yet completed each step — so the UI
+    // can show "who else is working on this, maybe team up". Task sets are
     // per-kid, so steps are matched across enrollments by a stable identity:
-    // badge_opt_req_id for optionals, sort_order for required/award steps.
+    // badge_opt_req_id for optionals, sort_order for required/award steps. Levels
+    // are cumulative (a level's required steps are a same-sort_order prefix of
+    // higher levels), so we deliberately do NOT filter by level — kids at
+    // different levels still match on the shared prefix steps.
+    const optionalCoAssignees = {}; // { [badge_opt_req_id]: [users] } — for the picker
     if (taskSet.badge_id != null) {
       const coRows = db.prepare(`
         SELECT s.sort_order, s.badge_opt_req_id,
@@ -644,7 +648,7 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
         JOIN task_sets   ots ON ots.id = ta.task_set_id
         JOIN task_steps  s   ON s.task_set_id = ots.id AND s.is_active = 1
         JOIN users       u   ON u.id = ta.user_id
-        WHERE ots.badge_id = ? AND ots.badge_level IS ?
+        WHERE ots.badge_id = ?
           AND ta.user_id != ?
           AND ta.is_active = 1 AND ots.is_active = 1
           AND u.family_id = ? AND u.is_active = 1
@@ -652,7 +656,7 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
             SELECT 1 FROM task_step_completions tsc
             WHERE tsc.task_step_id = s.id AND tsc.user_id = ta.user_id
           )
-      `).all(taskSet.badge_id, taskSet.badge_level ?? null, userId, req.user.familyId);
+      `).all(taskSet.badge_id, userId, req.user.familyId);
 
       const keyOf = (optReqId, sortOrder) => (optReqId != null ? `o${optReqId}` : `r${sortOrder}`);
       const byKey = new Map();
@@ -668,9 +672,14 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
         const list = byKey.get(keyOf(step.badge_opt_req_id, step.sort_order));
         step.co_assignees = list ? [...list.values()] : [];
       }
+      // Expose optional-requirement co-assignees keyed by badge_opt_req_id so the
+      // "Pick optional tasks" modal can show avatars on each optional too.
+      for (const [key, list] of byKey) {
+        if (key[0] === 'o') optionalCoAssignees[key.slice(1)] = [...list.values()];
+      }
     }
 
-    res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at, assignedBy: assignment.assigned_by, completions, notes, completionStatus: assignment.completion_status, archivedAt: assignment.archived_at, isPinned: !!assignment.is_pinned });
+    res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at, assignedBy: assignment.assigned_by, completions, notes, optionalCoAssignees, completionStatus: assignment.completion_status, archivedAt: assignment.archived_at, isPinned: !!assignment.is_pinned });
   } catch (err) { next(err); }
 });
 

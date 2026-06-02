@@ -1302,6 +1302,7 @@ export default function UserTaskDetailPage() {
   const [steps,         setSteps]         = useState([]);
   const [completions,   setCompletions]   = useState([]);
   const [notes,         setNotes]         = useState([]); // per-step working notes
+  const [optionalCoAssignees, setOptionalCoAssignees] = useState({}); // { [badge_opt_req_id]: [users] }
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState('');
   const [toggling,      setToggling]      = useState(new Set());
@@ -1455,6 +1456,7 @@ export default function UserTaskDetailPage() {
       setSteps(data.steps);
       setCompletions(data.completions ?? []);
       setNotes(data.notes ?? []);
+      setOptionalCoAssignees(data.optionalCoAssignees ?? {});
       setAssignedAt(data.assignedAt ?? null);
       setAssignedBy(data.assignedBy ?? null);
       setCompletionStatus(data.completionStatus ?? null);
@@ -1977,6 +1979,27 @@ export default function UserTaskDetailPage() {
                         </div>
                       )}
                     </div>
+                    {/* Co-assignees — other family members doing this optional who
+                        haven't finished it, so the kid can choose to team up. */}
+                    {optionalCoAssignees[opt.id]?.length > 0 && (
+                      <div
+                        className="flex items-center shrink-0 self-center"
+                        title={`Also working on this: ${optionalCoAssignees[opt.id].map((u) => u.name).join(', ')}`}
+                      >
+                        {optionalCoAssignees[opt.id].slice(0, 3).map((u, i) => (
+                          <span
+                            key={u.id}
+                            className={`relative rounded-full ring-2 ring-white dark:ring-gray-800 inline-flex ${i === 0 ? '' : '-ml-2'}`}
+                            style={{ zIndex: 10 - i }}
+                          >
+                            <Avatar name={u.name} color={u.avatar_color} emoji={u.avatar_emoji} size="xs" />
+                          </span>
+                        ))}
+                        {optionalCoAssignees[opt.id].length > 3 && (
+                          <span className="ml-1 text-[10px] font-semibold text-gray-400 dark:text-gray-500">+{optionalCoAssignees[opt.id].length - 3}</span>
+                        )}
+                      </div>
+                    )}
                     {/* Chevron — reveals the full description for summarized optionals. */}
                     {hasFull && (
                       <button
