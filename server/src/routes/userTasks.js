@@ -650,7 +650,7 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
         JOIN users       u   ON u.id = ta.user_id
         WHERE ots.badge_id = ?
           AND ta.user_id != ?
-          AND ta.is_active = 1 AND ots.is_active = 1
+          AND ta.is_active = 1 AND ta.archived_at IS NULL AND ots.is_active = 1
           AND u.family_id = ? AND u.is_active = 1
           AND NOT EXISTS (
             SELECT 1 FROM task_step_completions tsc
