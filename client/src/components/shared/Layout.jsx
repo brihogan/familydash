@@ -22,6 +22,7 @@ import InstallPrompt from './InstallPrompt.jsx';
 import QuickActionsFab from './QuickActionsFab.jsx';
 import ErrorBoundary from './ErrorBoundary.jsx';
 import useScrollLock from '../../hooks/useScrollLock.js';
+import useOverscrollGuard from '../../hooks/useOverscrollGuard.js';
 import useSyncStatus from '../../offline/hooks/useSyncStatus.js';
 import { useLiveQuery } from 'dexie-react-hooks';
 import db from '../../offline/db.js';
@@ -189,6 +190,10 @@ export default function Layout() {
     };
   }, [effectiveCollapsed, isNarrow]);
   useScrollLock(bottomPanelOpen);
+  // Always-on overscroll guard: stops short app pages from reloading in
+  // HappyWeb when a swipe has nothing to scroll. (useScrollLock applies the
+  // same protection only while a modal is open.)
+  useOverscrollGuard(true);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [defaultMemberId, setDefaultMemberId] = useState(null);
   const [claudeAccess, setClaudeAccess] = useState(false);
