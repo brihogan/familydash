@@ -7,6 +7,7 @@ import { faChevronLeft, faChevronDown, faChevronRight, faStickyNote, faBoxArchiv
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import Fireworks from '../components/shared/Fireworks.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
+import Avatar from '../components/shared/Avatar.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
 import { badgesApi } from '../api/badges.api.js';
 import { BADGE_LEVELS } from '../constants/badgeLevels.js';
@@ -961,6 +962,29 @@ function StepItem({ step, onToggle, onSaveNotes, disabled, onPreviewBadge, onFin
         >
           <FontAwesomeIcon icon={faStickyNote} className="text-xs" />
         </button>
+      )}
+      {/* Co-assignees — other family members working on this same step who
+          haven't finished it yet, so the kid can choose to team up. Shown only
+          on incomplete steps (StepItem renders those); to the left of the
+          fullscreen button. An overlapping avatar stack with a names tooltip. */}
+      {step.co_assignees && step.co_assignees.length > 0 && !showInput && (
+        <div
+          className="flex items-center flex-shrink-0"
+          title={`Also working on this: ${step.co_assignees.map((u) => u.name).join(', ')}`}
+        >
+          {step.co_assignees.slice(0, 3).map((u, i) => (
+            <span
+              key={u.id}
+              className={`relative rounded-full ring-2 ring-white dark:ring-gray-800 inline-flex ${i === 0 ? '' : '-ml-2'}`}
+              style={{ zIndex: 10 - i }}
+            >
+              <Avatar name={u.name} color={u.avatar_color} emoji={u.avatar_emoji} size="xs" />
+            </span>
+          ))}
+          {step.co_assignees.length > 3 && (
+            <span className="ml-1 text-[10px] font-semibold text-gray-400 dark:text-gray-500">+{step.co_assignees.length - 3}</span>
+          )}
+        </div>
       )}
       {/* Fullscreen button — opens the step in focus mode (badge + full text +
           answer + complete). Shown for EVERY Curiosity badge/award step the kid

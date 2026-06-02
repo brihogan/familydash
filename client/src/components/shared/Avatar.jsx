@@ -1,6 +1,6 @@
 /**
  * Colored circle avatar with initials or an emoji.
- * @param {{ name: string, color: string, emoji?: string | null, size?: 'sm' | 'md' | 'lg' }} props
+ * @param {{ name: string, color: string, emoji?: string | null, size?: 'xs' | 'sm' | 'md' | 'lg' }} props
  */
 export default function Avatar({ name, color, emoji, size = 'md' }) {
   const initials = name
@@ -11,18 +11,21 @@ export default function Avatar({ name, color, emoji, size = 'md' }) {
     .toUpperCase();
 
   const sizeClass = {
+    xs: 'w-6 h-6',
     sm: 'w-8 h-8',
     md: 'w-10 h-10',
     lg: 'w-14 h-14',
   }[size];
 
   const emojiSize = {
+    xs: 'text-sm',
     sm: 'text-base',
     md: 'text-xl',
     lg: 'text-3xl',
   }[size];
 
   const initialsSize = {
+    xs: 'text-[10px]',
     sm: 'text-xs',
     md: 'text-sm',
     lg: 'text-lg',

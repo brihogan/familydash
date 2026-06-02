@@ -631,6 +631,45 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
       WHERE task_set_id = ? AND user_id = ?
     `).all(taskSetId, userId);
 
+    // Co-assignees: for a badge/award set, find OTHER family members enrolled in
+    // the same badge at the same level who have NOT yet completed each step — so
+    // the UI can show "who else is working on this, maybe team up". Task sets are
+    // per-kid, so steps are matched across enrollments by a stable identity:
+    // badge_opt_req_id for optionals, sort_order for required/award steps.
+    if (taskSet.badge_id != null) {
+      const coRows = db.prepare(`
+        SELECT s.sort_order, s.badge_opt_req_id,
+               u.id AS user_id, u.name AS user_name, u.avatar_color, u.avatar_emoji
+        FROM task_assignments ta
+        JOIN task_sets   ots ON ots.id = ta.task_set_id
+        JOIN task_steps  s   ON s.task_set_id = ots.id AND s.is_active = 1
+        JOIN users       u   ON u.id = ta.user_id
+        WHERE ots.badge_id = ? AND ots.badge_level IS ?
+          AND ta.user_id != ?
+          AND ta.is_active = 1 AND ots.is_active = 1
+          AND u.family_id = ? AND u.is_active = 1
+          AND NOT EXISTS (
+            SELECT 1 FROM task_step_completions tsc
+            WHERE tsc.task_step_id = s.id AND tsc.user_id = ta.user_id
+          )
+      `).all(taskSet.badge_id, taskSet.badge_level ?? null, userId, req.user.familyId);
+
+      const keyOf = (optReqId, sortOrder) => (optReqId != null ? `o${optReqId}` : `r${sortOrder}`);
+      const byKey = new Map();
+      for (const r of coRows) {
+        const key = keyOf(r.badge_opt_req_id, r.sort_order);
+        let list = byKey.get(key);
+        if (!list) { list = new Map(); byKey.set(key, list); }
+        if (!list.has(r.user_id)) {
+          list.set(r.user_id, { id: r.user_id, name: r.user_name, avatar_color: r.avatar_color, avatar_emoji: r.avatar_emoji });
+        }
+      }
+      for (const step of steps) {
+        const list = byKey.get(keyOf(step.badge_opt_req_id, step.sort_order));
+        step.co_assignees = list ? [...list.values()] : [];
+      }
+    }
+
     res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at, assignedBy: assignment.assigned_by, completions, notes, completionStatus: assignment.completion_status, archivedAt: assignment.archived_at, isPinned: !!assignment.is_pinned });
   } catch (err) { next(err); }
 });

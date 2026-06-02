@@ -1,5 +1,12 @@
 # Work Log
 
+## Session Start: 2026-06-02 18:00 EDT (evening, session 2)
+
+### 2026-06-02 — Show co-assigned users' avatars on shared badge steps
+- On a user's task-set detail page, incomplete badge/award steps now show an overlapping avatar stack of OTHER family members enrolled in the same badge+level who haven't finished that step (so kids can team up). Renders to the right of the row, left of the fullscreen button; tooltip lists names; caps at 3 + "+N".
+- Task sets are PER-KID (each enrollment = own task_set/steps), so "the same step" is matched across enrollments by a stable identity: `badge_opt_req_id` for optionals, `sort_order` for required/award steps (immune to the short_text name change). Server: one grouped query added to the GET detail handler (userTasks.js), filtered to others who haven't completed the step (NOT EXISTS); attaches `co_assignees[]` to each step. Only for `badge_id` sets.
+- Client: new `xs` size on Avatar.jsx; avatar stack in StepItem (UserTaskDetailPage.jsx). Verified: matching logic (synthetic in-memory test: required-by-sort, optional-by-req-id, completion filter, dedup all correct), query runs against real schema, client compiles clean. Visual/E2E pending (needs kid login + a badge shared by 2+ kids; dev DB has none). Server change → prod rebuild.
+
 ## Session Start: 2026-06-02 (evening)
 
 ### 2026-06-02 — Per-step "General Notes" + draft answers + read-only full-screen
