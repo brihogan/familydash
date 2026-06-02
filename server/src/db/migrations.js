@@ -754,4 +754,25 @@ export function runMigrations(db) {
     })();
   }
 
+  // v81: per-(user, step) working notes — a persistent scratchpad ("general
+  //   notes", e.g. research) plus a draft answer, both saved on blur and
+  //   independent of completion. The committed answer still lives in
+  //   task_step_completions.input_response; this table holds notes/drafts that
+  //   exist before (and persist after) completion.
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS user_step_notes (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        task_set_id    INTEGER NOT NULL REFERENCES task_sets(id) ON DELETE CASCADE,
+        task_step_id   INTEGER NOT NULL REFERENCES task_steps(id) ON DELETE CASCADE,
+        general_notes  TEXT NOT NULL DEFAULT '',
+        response_draft TEXT NOT NULL DEFAULT '',
+        updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(user_id, task_step_id)
+      );
+    `);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_user_step_notes_set ON user_step_notes(user_id, task_set_id)`);
+  } catch (_) {}
+
 }

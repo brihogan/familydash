@@ -624,7 +624,14 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
       ORDER BY task_step_id, instance
     `).all(taskSetId, userId);
 
-    res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at, assignedBy: assignment.assigned_by, completions, completionStatus: assignment.completion_status, archivedAt: assignment.archived_at, isPinned: !!assignment.is_pinned });
+    // Per-step working notes (general notes scratchpad + draft answer).
+    const notes = db.prepare(`
+      SELECT task_step_id, general_notes, response_draft
+      FROM user_step_notes
+      WHERE task_set_id = ? AND user_id = ?
+    `).all(taskSetId, userId);
+
+    res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at, assignedBy: assignment.assigned_by, completions, notes, completionStatus: assignment.completion_status, archivedAt: assignment.archived_at, isPinned: !!assignment.is_pinned });
   } catch (err) { next(err); }
 });
 
@@ -767,6 +774,12 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
 
       const nextInstance = completedCount + 1;
 
+      // The committed answer now lives in task_step_completions, so clear the
+      // draft answer for this step (general_notes scratchpad is kept).
+      db.prepare(
+        "UPDATE user_step_notes SET response_draft = '', updated_at = datetime('now') WHERE user_id = ? AND task_step_id = ?"
+      ).run(userId, stepId);
+
       if (user.require_set_approval === 'step' && req.user.role !== 'parent') {
         db.prepare(
           'INSERT INTO task_step_completions (task_step_id, task_set_id, user_id, instance, approval_status, input_response) VALUES (?, ?, ?, ?, ?, ?)'
@@ -864,6 +877,42 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
       syncLinkedAwardSteps(userId, taskSetId);
       res.json({ completed_count: nextInstance, completed_today: todayCount });
     }
+  } catch (err) { next(err); }
+});
+
+// PUT /api/users/:userId/task-assignments/:taskSetId/steps/:stepId/notes
+// Save a step's working notes — the "general notes" scratchpad and/or the draft
+// answer — upserted per (user, step). Called on blur from the focus view; both
+// fields are sent together so the row overwrites cleanly.
+router.put('/:userId/task-assignments/:taskSetId/steps/:stepId/notes', authenticate, (req, res, next) => {
+  try {
+    const userId    = parseInt(req.params.userId,    10);
+    const taskSetId = parseInt(req.params.taskSetId, 10);
+    const stepId    = parseInt(req.params.stepId,    10);
+    assertUserInFamily(userId, req.user.familyId);
+    if (req.user.userId !== userId && req.user.role !== 'parent') {
+      return res.status(403).json({ error: 'Forbidden.' });
+    }
+    const assignment = db.prepare(
+      'SELECT id FROM task_assignments WHERE task_set_id = ? AND user_id = ? AND is_active = 1'
+    ).get(taskSetId, userId);
+    if (!assignment) return res.status(404).json({ error: 'Task set not assigned to this user.' });
+    const step = db.prepare('SELECT id FROM task_steps WHERE id = ? AND task_set_id = ? AND is_active = 1').get(stepId, taskSetId);
+    if (!step) return res.status(404).json({ error: 'Step not found.' });
+
+    const generalNotes  = typeof req.body?.general_notes  === 'string' ? req.body.general_notes.slice(0, 5000)  : '';
+    const responseDraft = typeof req.body?.response_draft === 'string' ? req.body.response_draft.slice(0, 2000) : '';
+
+    db.prepare(`
+      INSERT INTO user_step_notes (user_id, task_set_id, task_step_id, general_notes, response_draft, updated_at)
+      VALUES (?, ?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(user_id, task_step_id) DO UPDATE SET
+        general_notes  = excluded.general_notes,
+        response_draft = excluded.response_draft,
+        updated_at     = datetime('now')
+    `).run(userId, taskSetId, stepId, generalNotes, responseDraft);
+
+    res.json({ ok: true, general_notes: generalNotes, response_draft: responseDraft });
   } catch (err) { next(err); }
 });
 

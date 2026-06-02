@@ -2,6 +2,10 @@
 
 ## Session Start: 2026-06-02 (evening)
 
+### 2026-06-02 — Per-step "General Notes" + draft answers + read-only full-screen
+- Full-stack feature on the badge/award step full-screen view (StepFocusModal). New `user_step_notes` table (migration v81 + schema.sql) keyed per (user, step): `general_notes` scratchpad + `response_draft`, both saved on blur via new `PUT .../steps/:stepId/notes` upsert endpoint; GET now returns `notes[]`. Completing a step clears the draft (answer commits to task_step_completions.input_response), general notes persist.
+- Client (UserTaskDetailPage.jsx): collapsible "General Notes" textarea above the answer (collapsed unless notes exist), both textareas blur-save via `handleSaveNotes` (optimistic). StepItem rows show an amber sticky-note icon when general notes OR a draft answer exist. CompletedStepItem shows the answer + an amber note icon when general notes exist, and a button to reopen the full-screen view in `readOnly` mode (no complete button). Verified: migration applied, upsert SQL (in-memory test), client compiles clean. Browser E2E pending (needs kid login). Server change → prod needs image rebuild.
+
 ### 2026-06-02 — Revert password masking + menubar pill positioning
 - Reverted Login/Register Password+PIN from the JS `MaskedInput` workaround back to native `type="password"` (kept name/id/autocomplete hints; PIN inputMode=numeric). The masking was for an AutoFill crash that was really the overscroll-reload — so native fields + password-manager autofill are restored. Deleted MaskedInput.jsx.
 - Mobile menubar pill counters: were `absolute top-0.5 right-1.5` of the whole slot (floating far from the centered icon). Wrapped the icon in a `relative inline-flex` and anchored the badge to the icon's top-right (`-top-1.5 -right-2`) with a white/dark ring outline. Applied to both nav-item badges and the "More" rollup badge.

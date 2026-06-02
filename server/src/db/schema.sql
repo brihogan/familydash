@@ -206,6 +206,20 @@ CREATE TABLE IF NOT EXISTS task_step_completions (
 );
 CREATE INDEX IF NOT EXISTS idx_task_step_completions_user ON task_step_completions(user_id, task_set_id);
 
+-- Per-(user, step) working notes: a persistent "general notes" scratchpad plus
+-- a draft answer, both saved on blur, independent of completion.
+CREATE TABLE IF NOT EXISTS user_step_notes (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  task_set_id    INTEGER NOT NULL REFERENCES task_sets(id) ON DELETE CASCADE,
+  task_step_id   INTEGER NOT NULL REFERENCES task_steps(id) ON DELETE CASCADE,
+  general_notes  TEXT NOT NULL DEFAULT '',
+  response_draft TEXT NOT NULL DEFAULT '',
+  updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, task_step_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_step_notes_set ON user_step_notes(user_id, task_set_id);
+
 CREATE TABLE IF NOT EXISTS badges (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   name             TEXT    NOT NULL,

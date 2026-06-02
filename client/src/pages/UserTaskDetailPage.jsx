@@ -3,7 +3,7 @@ import { useIsDark } from '../components/tasks/TaskSetCard.jsx';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faStickyNote, faBoxArchive, faBoxOpen, faSitemap, faThumbtack, faCircleInfo, faTrash, faExpand } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faChevronDown, faChevronRight, faStickyNote, faBoxArchive, faBoxOpen, faSitemap, faThumbtack, faCircleInfo, faTrash, faExpand } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import Fireworks from '../components/shared/Fireworks.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
@@ -74,13 +74,22 @@ function StepDetailModal({ step, onClose }) {
 // top, the full step text (description, which holds the original long wording),
 // an answer textarea when the step asks for input, and a Mark Complete button.
 // Used instead of the cramped inline input when a step has a description.
-function StepFocusModal({ step, taskSet, onComplete, onClose, disabled }) {
+function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disabled, readOnly = false }) {
   useScrollLock(true);
   const isDark = useIsDark();
   const needsInput = !!step.require_input;
-  const [value, setValue] = useState(step._inputResponse || '');
+  const [value, setValue] = useState(step._inputResponse || step._responseDraft || '');
+  const [generalNotes, setGeneralNotes] = useState(step._generalNotes || '');
+  const [notesOpen, setNotesOpen] = useState(!!(step._generalNotes && step._generalNotes.trim()));
   const [saving, setSaving] = useState(false);
   const taRef = useRef(null);
+
+  // Persist working notes (general notes + draft answer) on blur. No-op when
+  // read-only (a completed step) or when no save handler is wired.
+  const saveNotes = () => {
+    if (readOnly || !onSaveNotes) return;
+    onSaveNotes(step.id, { generalNotes, responseDraft: needsInput ? value : '' });
+  };
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape' && !saving) onClose(); };
@@ -188,6 +197,37 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, disabled }) {
             />
           )}
 
+          {/* General Notes — a collapsible scratchpad (research, links, anything
+              that isn't the answer). Saved on blur, persists independent of
+              completion. Hidden entirely on a read-only step with no notes. */}
+          {(!readOnly || generalNotes.trim()) && (
+            <div className="mt-5 w-full text-left">
+              <button
+                type="button"
+                onClick={() => setNotesOpen((o) => !o)}
+                className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
+                <FontAwesomeIcon icon={notesOpen ? faChevronDown : faChevronRight} className="text-[10px]" />
+                General Notes
+                {!notesOpen && generalNotes.trim() && (
+                  <FontAwesomeIcon icon={faStickyNote} className="text-amber-500 text-[11px]" />
+                )}
+              </button>
+              {notesOpen && (
+                <textarea
+                  value={generalNotes}
+                  onChange={(e) => setGeneralNotes(e.target.value)}
+                  onBlur={saveNotes}
+                  readOnly={readOnly}
+                  placeholder="Jot research, links, anything that isn't your answer…"
+                  maxLength={5000}
+                  rows={4}
+                  className="mt-1.5 w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 rounded-xl px-3.5 py-3 text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-brand-400 read-only:opacity-90"
+                />
+              )}
+            </div>
+          )}
+
           {/* Answer textarea */}
           {needsInput && (
             <div className="mt-5 w-full text-left">
@@ -198,28 +238,33 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, disabled }) {
                 ref={taRef}
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
+                onBlur={saveNotes}
+                readOnly={readOnly}
                 placeholder="Write your answer here…"
                 maxLength={2000}
                 rows={6}
-                className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 rounded-xl px-3.5 py-3 text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-brand-400"
+                className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 rounded-xl px-3.5 py-3 text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-brand-400 read-only:opacity-90"
               />
             </div>
           )}
         </div>
       </div>
 
-      {/* Footer: Mark Complete (pinned near the bottom) */}
-      <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 p-4">
-        <div className="max-w-lg mx-auto">
-          <button
-            onClick={handleComplete}
-            disabled={!canComplete}
-            className="w-full py-3 rounded-xl text-base font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
-          >
-            {saving ? 'Saving…' : needsInput && !value.trim() ? 'Write your answer to finish' : '✓ Mark complete'}
-          </button>
+      {/* Footer: Mark Complete (pinned near the bottom). Hidden for a
+          read-only (already-completed) step — the view is for reference only. */}
+      {!readOnly && (
+        <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 p-4">
+          <div className="max-w-lg mx-auto">
+            <button
+              onClick={handleComplete}
+              disabled={!canComplete}
+              className="w-full py-3 rounded-xl text-base font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+            >
+              {saving ? 'Saving…' : needsInput && !value.trim() ? 'Write your answer to finish' : '✓ Mark complete'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>,
     document.body,
   );
@@ -626,7 +671,7 @@ const RAD  = Math.PI / 180;
 const DIST = 26;
 
 // ── Step item with chore-style animation ──────────────────────────────────────
-function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea, taskSet }) {
+function StepItem({ step, onToggle, onSaveNotes, disabled, onPreviewBadge, onFindArea, taskSet }) {
   const { userId } = useParams();
   const location = useLocation();
   const done = false; // todo items are never done
@@ -904,6 +949,19 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea, taskSe
           {step.linked_badge_category === '*' ? 'Pick ↗' : 'Find ↗'}
         </button>
       )}
+      {/* Notes indicator — shown when the step has general notes or a saved
+          draft answer. Tapping opens focus mode where the notes live. */}
+      {((step._generalNotes && step._generalNotes.trim()) || (step._responseDraft && step._responseDraft.trim())) && !showInput && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setFocusOpen(true); }}
+          className="w-7 h-7 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-500 flex items-center justify-center hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors flex-shrink-0"
+          aria-label="Has notes"
+          title="Has notes"
+        >
+          <FontAwesomeIcon icon={faStickyNote} className="text-xs" />
+        </button>
+      )}
       {/* Fullscreen button — opens the step in focus mode (badge + full text +
           answer + complete). Shown for EVERY Curiosity badge/award step the kid
           can work on, so any step gets a fullscreen view. Auto-linked
@@ -927,6 +985,7 @@ function StepItem({ step, onToggle, disabled, onPreviewBadge, onFindArea, taskSe
           disabled={disabled}
           onComplete={(resp) => { setFocusOpen(false); onToggle(step, false, resp); }}
           onClose={() => setFocusOpen(false)}
+          onSaveNotes={onSaveNotes}
         />
       )}
     </div>
@@ -1129,8 +1188,11 @@ function StepCard({ step, onToggle, disabled, done, isLast }) {
 }
 
 // ── Completed step (list view) with lightbox support ─────────────────────────
-function CompletedStepItem({ step, onUndo, canUndo, disabled }) {
+function CompletedStepItem({ step, taskSet, onUndo, canUndo, disabled }) {
   const [lightbox, setLightbox] = useState(false);
+  const [focusOpen, setFocusOpen] = useState(false);
+  const isBadgeStep = !!taskSet?.badge_id;
+  const hasGeneralNotes = !!(step._generalNotes && step._generalNotes.trim());
   return (
     <div
       className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-xl"
@@ -1155,7 +1217,23 @@ function CompletedStepItem({ step, onUndo, canUndo, disabled }) {
           onClick={() => setLightbox(true)}
         />
       )}
-      {!step.image && step.description && (
+      {/* Badge/award steps reopen the full-screen view (read-only — no complete
+          button). The button turns amber with a note icon when general notes
+          exist, so completed steps with notes are flagged. */}
+      {isBadgeStep ? (
+        <button
+          onClick={() => setFocusOpen(true)}
+          className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
+            hasGeneralNotes
+              ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/50'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
+          }`}
+          aria-label={hasGeneralNotes ? 'Has notes — open full screen' : 'Open full screen'}
+          title={hasGeneralNotes ? 'Has notes — open full screen' : 'Open full screen'}
+        >
+          <FontAwesomeIcon icon={hasGeneralNotes ? faStickyNote : faExpand} className="text-xs" />
+        </button>
+      ) : (!step.image && step.description && (
         <button
           onClick={() => setLightbox(true)}
           className="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex-shrink-0"
@@ -1163,8 +1241,17 @@ function CompletedStepItem({ step, onUndo, canUndo, disabled }) {
         >
           <FontAwesomeIcon icon={faStickyNote} className="text-[10px]" />
         </button>
-      )}
+      ))}
       {lightbox && <StepDetailModal step={step} onClose={() => setLightbox(false)} />}
+      {focusOpen && (
+        <StepFocusModal
+          step={step}
+          taskSet={taskSet}
+          readOnly
+          onComplete={() => {}}
+          onClose={() => setFocusOpen(false)}
+        />
+      )}
       {canUndo && (
         <button
           onClick={onUndo}
@@ -1190,6 +1277,7 @@ export default function UserTaskDetailPage() {
   const [taskSet,       setTaskSet]       = useState(null);
   const [steps,         setSteps]         = useState([]);
   const [completions,   setCompletions]   = useState([]);
+  const [notes,         setNotes]         = useState([]); // per-step working notes
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState('');
   const [toggling,      setToggling]      = useState(new Set());
@@ -1342,6 +1430,7 @@ export default function UserTaskDetailPage() {
       setTaskSet(data.taskSet);
       setSteps(data.steps);
       setCompletions(data.completions ?? []);
+      setNotes(data.notes ?? []);
       setAssignedAt(data.assignedAt ?? null);
       setAssignedBy(data.assignedBy ?? null);
       setCompletionStatus(data.completionStatus ?? null);
@@ -1510,6 +1599,9 @@ export default function UserTaskDetailPage() {
       setSteps((prev) => prev.map((s) => s.id === step.id
         ? { ...s, completed_count: result.completed_count, completed_today: result.completed_today ?? 0 }
         : s));
+      // The committed answer is now stored as the completion's input_response;
+      // the server cleared the draft, so clear it locally too (keep general notes).
+      if (!undo) setNotes((prev) => prev.map((n) => (n.task_step_id === step.id ? { ...n, response_draft: '' } : n)));
       if (result.set_pending_approval) setCompletionStatus('pending');
       if (result.approval_status === 'pending') {
         setCompletions((prev) => {
@@ -1562,6 +1654,18 @@ export default function UserTaskDetailPage() {
     }
   };
 
+  // Save a step's working notes (general notes + draft answer) on blur.
+  // Optimistic local update so the row's notes indicator reflects it
+  // immediately; the network save is best-effort.
+  const handleSaveNotes = useCallback((stepId, { generalNotes = '', responseDraft = '' }) => {
+    setNotes((prev) => {
+      const next = { task_step_id: stepId, general_notes: generalNotes, response_draft: responseDraft };
+      const idx = prev.findIndex((n) => n.task_step_id === stepId);
+      return idx >= 0 ? prev.map((n, i) => (i === idx ? next : n)) : [...prev, next];
+    });
+    taskSetsApi.saveStepNotes(userId, taskSetId, stepId, { generalNotes, responseDraft }).catch(() => {});
+  }, [userId, taskSetId]);
+
   // Back chevron target: pop one step off the `chain` carried in location
   // state. Every forward step (kid tasks → award, award → linked badge,
   // detail → tree, etc.) appends the current path to the chain, so popping
@@ -1610,14 +1714,18 @@ export default function UserTaskDetailPage() {
     const todo = [];
     const done = [];
     const pending = [];
+    const noteFor = (stepId) => notes.find((n) => n.task_step_id === stepId);
     for (const step of steps) {
       const repeat = step.repeat_count || 1;
       const count = step.completed_count || 0;
+      const note = noteFor(step.id);
+      const generalNotes = note?.general_notes || '';
+      const responseDraft = note?.response_draft || '';
       for (let i = 1; i <= count; i++) {
         const name = repeat > 1 ? step.name.replace('{#}', String(i)) : step.name;
         const completion = completions.find((c) => c.task_step_id === step.id && c.instance === i);
         const isPending = completion?.approval_status === 'pending';
-        const entry = { ...step, _instance: i, _displayName: name, _isLast: i === count, _inputResponse: completion?.input_response || null };
+        const entry = { ...step, _instance: i, _displayName: name, _isLast: i === count, _inputResponse: completion?.input_response || null, _generalNotes: generalNotes, _responseDraft: responseDraft };
         if (isPending) pending.push(entry);
         else done.push(entry);
       }
@@ -1625,7 +1733,7 @@ export default function UserTaskDetailPage() {
         const nextInst = count + 1;
         const name = repeat > 1 ? step.name.replace('{#}', String(nextInst)) : step.name;
         const disabled = !!(step.limit_one_per_day && step.completed_today);
-        todo.push({ ...step, _instance: nextInst, _displayName: name, _limitedToday: disabled });
+        todo.push({ ...step, _instance: nextInst, _displayName: name, _limitedToday: disabled, _generalNotes: generalNotes, _responseDraft: responseDraft });
       }
     }
     // For badge sets: split todo into required and optional
@@ -2408,7 +2516,7 @@ export default function UserTaskDetailPage() {
                       )}
                       <div className="space-y-2">
                         {group.rows.map((step) => (
-                          <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} taskSet={taskSet} />
+                          <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} onSaveNotes={handleSaveNotes} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} taskSet={taskSet} />
                         ))}
                       </div>
                     </div>
@@ -2419,7 +2527,7 @@ export default function UserTaskDetailPage() {
                   <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Required</h3>
                   <div className="space-y-2">
                     {expanded.todoRequired.map((step) => (
-                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} taskSet={taskSet} />
+                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} onSaveNotes={handleSaveNotes} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} taskSet={taskSet} />
                     ))}
                   </div>
                 </div>
@@ -2454,7 +2562,7 @@ export default function UserTaskDetailPage() {
                   </h3>
                   <div className="space-y-2">
                     {expanded.todoOptional.map((step) => (
-                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} taskSet={taskSet} />
+                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} onSaveNotes={handleSaveNotes} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} taskSet={taskSet} />
                     ))}
                   </div>
 
@@ -2480,7 +2588,7 @@ export default function UserTaskDetailPage() {
             expanded.todo.length > 0 && (
               <div className="space-y-2">
                 {expanded.todo.map((step) => (
-                  <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} taskSet={taskSet} />
+                  <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} onSaveNotes={handleSaveNotes} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} taskSet={taskSet} />
                 ))}
               </div>
             )
@@ -2524,7 +2632,7 @@ export default function UserTaskDetailPage() {
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Completed</h3>
               <div className="space-y-2">
                 {expanded.done.map((step) => (
-                  <CompletedStepItem key={`${step.id}-done-${step._instance}`} step={step} onUndo={() => handleToggle(step, true)} canUndo={step._isLast} disabled={anyBusy} />
+                  <CompletedStepItem key={`${step.id}-done-${step._instance}`} step={step} taskSet={taskSet} onUndo={() => handleToggle(step, true)} canUndo={step._isLast} disabled={anyBusy} />
                 ))}
               </div>
             </div>
