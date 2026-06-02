@@ -5,11 +5,16 @@ import { faSun, faMoon } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import MaskedInput from '../components/shared/MaskedInput.jsx';
+import { isPwaEnabled, setPwaEnabled } from '../pwa/pwa.js';
+import { isDebugEnabled, getDebugEvents, clearDebugEvents } from '../debug/eventLog.js';
 
 export default function LoginPage() {
   const { login } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const [offlineMode, setOfflineMode] = useState(isPwaEnabled());
+  const debugOn = isDebugEnabled();
+  const [debugEvents] = useState(() => (debugOn ? getDebugEvents() : []));
   const savedEmail = localStorage.getItem('rememberedEmail') || '';
   const savedUsername = localStorage.getItem('rememberedUsername') || '';
   const savedTab = localStorage.getItem('loginTab');
@@ -151,6 +156,19 @@ export default function LoginPage() {
             <span className="text-sm text-gray-600 dark:text-gray-400">Remember me</span>
           </label>
 
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={offlineMode}
+              onChange={(e) => { setOfflineMode(e.target.checked); setPwaEnabled(e.target.checked); }}
+              className="w-4 h-4 mt-0.5 rounded border-gray-300 dark:border-gray-600 text-brand-500 focus:ring-brand-400"
+            />
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Install as app &amp; work offline
+              <span className="block text-xs text-gray-400 dark:text-gray-500">Off by default. Recommended only on Android/desktop.</span>
+            </span>
+          </label>
+
           {error && <p className="text-sm text-red-500 text-center">{error}</p>}
 
           <button
@@ -168,6 +186,26 @@ export default function LoginPage() {
             Register here
           </Link>
         </p>
+
+        {debugOn && (
+          <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-3">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Debug event log (newest last)</span>
+              <button
+                type="button"
+                onClick={() => { clearDebugEvents(); window.location.reload(); }}
+                className="text-xs text-brand-600 hover:underline"
+              >
+                Clear
+              </button>
+            </div>
+            <pre className="text-[10px] leading-snug whitespace-pre-wrap break-all max-h-48 overflow-auto bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 rounded p-2">
+              {debugEvents.length
+                ? debugEvents.map((e) => `${e.t} ${e.type} ${JSON.stringify(e.detail)}`).join('\n')
+                : '(no events yet — focus a field, then if it reloads, this list shows what happened)'}
+            </pre>
+          </div>
+        )}
       </div>
     </div>
   );

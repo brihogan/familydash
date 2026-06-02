@@ -19,6 +19,10 @@ export default defineConfig({
     },
     VitePWA({
       registerType: 'autoUpdate',
+      // Don't auto-register the service worker on page load. Registration is
+      // opt-in at runtime (see src/pwa/pwa.js) so the SW is OFF by default —
+      // users enable "install as app / offline" from the login screen.
+      injectRegister: false,
       manifest: {
         name: 'Family Dash',
         short_name: 'Family Dash',
