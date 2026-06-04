@@ -33,6 +33,9 @@ export const taskSetsApi = {
   // Save a step's working notes (general-notes scratchpad + draft answer),
   // upserted per (user, step). Called on blur from the focus view.
   saveStepNotes:   (userId, taskSetId, stepId, { generalNotes = '', responseDraft = '' } = {}) => client.put(`/users/${userId}/task-assignments/${taskSetId}/steps/${stepId}/notes`, { general_notes: generalNotes, response_draft: responseDraft }).then((r) => r.data),
+  // Persist this user's manual step order (full ordering of step ids across the
+  // set). Returns { stepOrder }. Order follows the user across devices.
+  setStepOrder:    (userId, taskSetId, order) => client.put(`/users/${userId}/task-assignments/${taskSetId}/step-order`, { order }).then((r) => r.data),
   // PATCH the user-chosen badge link on an award step. Pass `null` to clear
   // the link (lets the step fall back to category auto-pick or become
   // un-picked depending on the step's config).

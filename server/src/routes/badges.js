@@ -110,11 +110,27 @@ router.get('/badges', authenticate, (req, res, next) => {
     //   badge for this step" modal so a parent can pick a badge another kid
     //   already has, letting siblings work on awards together. Authorized
     //   to any same-family member (parent or sibling).
+    // ?enrolledByUserId=any — show badges ANY other family member (everyone
+    //   except the viewing user, bookmarksFor) is currently enrolled in.
+    const enrolledByAny = String(req.query.enrolledByUserId || '').toLowerCase() === 'any';
     const enrolledByRaw = parseInt(req.query.enrolledByUserId || '', 10);
     const enrolledByUserId = Number.isFinite(enrolledByRaw) ? enrolledByRaw : null;
     let enrolledByWhere = '';
     const enrolledByWhereParams = [];
-    if (enrolledByUserId) {
+    if (enrolledByAny) {
+      // Anyone in the family except the viewing user. Scoped to the caller's
+      // family so it can't probe another family.
+      enrolledByWhere = ` AND EXISTS (
+        SELECT 1 FROM task_sets ts3
+        JOIN task_assignments ta3 ON ta3.task_set_id = ts3.id
+        JOIN users u3 ON u3.id = ta3.user_id
+        WHERE ts3.badge_id = b.id AND ts3.is_active = 1
+          AND ta3.is_active = 1 AND u3.family_id = ?
+          ${bookmarksFor ? 'AND ta3.user_id != ?' : ''}
+      )`;
+      enrolledByWhereParams.push(req.user.familyId);
+      if (bookmarksFor) enrolledByWhereParams.push(bookmarksFor);
+    } else if (enrolledByUserId) {
       // Same-family guard so this can't be used to probe another family.
       const sameFamily = db.prepare(
         `SELECT 1 FROM users WHERE id = ? AND family_id = ?`

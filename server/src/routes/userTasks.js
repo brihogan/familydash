@@ -679,7 +679,16 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
       }
     }
 
-    res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at, assignedBy: assignment.assigned_by, completions, notes, optionalCoAssignees, completionStatus: assignment.completion_status, archivedAt: assignment.archived_at, isPinned: !!assignment.is_pinned });
+    // This user's manual step order (absolute positions across the set). Empty
+    // when they've never reordered — the client then falls back to sort_order.
+    // Keyed to the target userId, so a parent viewing a kid's badge gets the
+    // kid's order.
+    const stepOrder = db.prepare(
+      `SELECT task_step_id FROM user_task_step_order
+        WHERE user_id = ? AND task_set_id = ? ORDER BY position ASC`
+    ).all(userId, taskSetId).map((r) => r.task_step_id);
+
+    res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at, assignedBy: assignment.assigned_by, completions, notes, optionalCoAssignees, stepOrder, completionStatus: assignment.completion_status, archivedAt: assignment.archived_at, isPinned: !!assignment.is_pinned });
   } catch (err) { next(err); }
 });
 
@@ -961,6 +970,51 @@ router.put('/:userId/task-assignments/:taskSetId/steps/:stepId/notes', authentic
     `).run(userId, taskSetId, stepId, generalNotes, responseDraft);
 
     res.json({ ok: true, general_notes: generalNotes, response_draft: responseDraft });
+  } catch (err) { next(err); }
+});
+
+// PUT /api/users/:userId/task-assignments/:taskSetId/step-order
+// Persist this user's manual step order for a badge/award. Body: { order: [stepId,…] }
+// — the full ordering across the set's active steps. Replaces any prior order.
+// Auth: the user themselves or any parent in their family (so a parent can
+// arrange a kid's steps too). Order follows the user across devices.
+router.put('/:userId/task-assignments/:taskSetId/step-order', authenticate, (req, res, next) => {
+  try {
+    const userId    = parseInt(req.params.userId,    10);
+    const taskSetId = parseInt(req.params.taskSetId, 10);
+    assertUserInFamily(userId, req.user.familyId);
+    if (req.user.userId !== userId && req.user.role !== 'parent') {
+      return res.status(403).json({ error: 'Forbidden.' });
+    }
+    const assignment = db.prepare(
+      'SELECT id FROM task_assignments WHERE task_set_id = ? AND user_id = ? AND is_active = 1'
+    ).get(taskSetId, userId);
+    if (!assignment) return res.status(404).json({ error: 'Task set not assigned to this user.' });
+
+    const rawOrder = Array.isArray(req.body?.order) ? req.body.order : null;
+    if (!rawOrder) return res.status(400).json({ error: 'order must be an array of step ids.' });
+
+    // Keep only ids that are real, active steps of THIS set (dedup, preserve order).
+    const validIds = new Set(
+      db.prepare('SELECT id FROM task_steps WHERE task_set_id = ? AND is_active = 1').all(taskSetId).map((r) => r.id)
+    );
+    const seen = new Set();
+    const order = [];
+    for (const v of rawOrder) {
+      const id = parseInt(v, 10);
+      if (validIds.has(id) && !seen.has(id)) { seen.add(id); order.push(id); }
+    }
+
+    const write = db.transaction((ids) => {
+      db.prepare('DELETE FROM user_task_step_order WHERE user_id = ? AND task_set_id = ?').run(userId, taskSetId);
+      const ins = db.prepare(
+        'INSERT INTO user_task_step_order (user_id, task_set_id, task_step_id, position) VALUES (?, ?, ?, ?)'
+      );
+      ids.forEach((id, i) => ins.run(userId, taskSetId, id, i));
+    });
+    write(order);
+
+    res.json({ ok: true, stepOrder: order });
   } catch (err) { next(err); }
 });
 

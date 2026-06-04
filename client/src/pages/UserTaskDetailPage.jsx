@@ -3,7 +3,10 @@ import { useIsDark } from '../components/tasks/TaskSetCard.jsx';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faChevronDown, faChevronRight, faStickyNote, faBoxArchive, faBoxOpen, faSitemap, faThumbtack, faCircleInfo, faTrash, faExpand } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faChevronDown, faChevronRight, faStickyNote, faBoxArchive, faBoxOpen, faSitemap, faThumbtack, faCircleInfo, faTrash, faExpand, faGripVertical, faArrowDownWideShort } from '@fortawesome/free-solid-svg-icons';
+import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import Fireworks from '../components/shared/Fireworks.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
@@ -660,6 +663,76 @@ function groupStepsByLevel(rows) {
   return out;
 }
 
+// ── Manual step ordering ─────────────────────────────────────────────────────
+// A small toggle button that hangs to the right of a group heading and flips the
+// page between default order and the user's manual (drag) order.
+function SortToggleButton({ active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={active ? 'Switch back to the default order' : 'Reorder these steps manually'}
+      className={`shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-md border transition-colors ${
+        active
+          ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-300 border-brand-300 dark:border-brand-700'
+          : 'text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-600 hover:text-gray-600 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-500'
+      }`}
+    >
+      <FontAwesomeIcon icon={faArrowDownWideShort} />
+      {active ? 'Manual' : 'Sort'}
+    </button>
+  );
+}
+
+// Wraps a single step row with a left-edge drag handle when manual mode is on.
+function SortableStep({ id, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+    zIndex: isDragging ? 20 : undefined,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-stretch gap-1">
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label="Drag to reorder"
+        className="shrink-0 self-center -ml-1 px-1.5 py-2 rounded text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 cursor-grab active:cursor-grabbing touch-none"
+      >
+        <FontAwesomeIcon icon={faGripVertical} />
+      </button>
+      <div className="flex-1 min-w-0">{children}</div>
+    </div>
+  );
+}
+
+// Renders a list of step rows; when `manual` is on the rows become drag-sortable
+// (each constrained to this group, so nothing crosses between Required / a level
+// / Your Picks). `renderItem(step)` returns the row content.
+function StepGroup({ steps: groupSteps, manual, onReorder, renderItem }) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  if (!manual) {
+    return <div className="space-y-2">{groupSteps.map(renderItem)}</div>;
+  }
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => onReorder(groupSteps, e)}>
+      <SortableContext items={groupSteps.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+        <div className="space-y-2">
+          {groupSteps.map((s) => (
+            <SortableStep key={s.id} id={s.id}>{renderItem(s)}</SortableStep>
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
+  );
+}
+
 const BURST = [
   { angle: 0,   color: '#10b981' },
   { angle: 60,  color: '#6366f1' },
@@ -1312,6 +1385,14 @@ export default function UserTaskDetailPage() {
   const [completions,   setCompletions]   = useState([]);
   const [notes,         setNotes]         = useState([]); // per-step working notes
   const [optionalCoAssignees, setOptionalCoAssignees] = useState({}); // { [badge_opt_req_id]: [users] }
+  // This user's saved manual step order (full list of step ids). Empty = default.
+  const [stepOrder,     setStepOrder]     = useState([]);
+  // Whether THIS device is currently viewing in manual order. Persisted per
+  // task set in localStorage so a parent can keep default while the kid uses
+  // manual (the order itself is per-user/server; this toggle is per-device).
+  const [manualOrder,   setManualOrder]   = useState(() => {
+    try { return localStorage.getItem(`stepOrderManual:${taskSetId}`) === '1'; } catch { return false; }
+  });
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState('');
   const [toggling,      setToggling]      = useState(new Set());
@@ -1466,6 +1547,7 @@ export default function UserTaskDetailPage() {
       setCompletions(data.completions ?? []);
       setNotes(data.notes ?? []);
       setOptionalCoAssignees(data.optionalCoAssignees ?? {});
+      setStepOrder(data.stepOrder ?? []);
       setAssignedAt(data.assignedAt ?? null);
       setAssignedBy(data.assignedBy ?? null);
       setCompletionStatus(data.completionStatus ?? null);
@@ -1508,6 +1590,52 @@ export default function UserTaskDetailPage() {
     setOptionalPool(null);
   }, [taskSetId]);
 
+  // Re-read this device's manual-order preference when navigating between sets.
+  useEffect(() => {
+    try { setManualOrder(localStorage.getItem(`stepOrderManual:${taskSetId}`) === '1'); }
+    catch { setManualOrder(false); }
+  }, [taskSetId]);
+
+  const toggleManualOrder = useCallback(() => {
+    setManualOrder((v) => {
+      const next = !v;
+      try { localStorage.setItem(`stepOrderManual:${taskSetId}`, next ? '1' : '0'); } catch {}
+      return next;
+    });
+  }, [taskSetId]);
+
+  // The steps array in display order: the user's saved manual order when this
+  // device is in manual mode, otherwise the default (server sort_order). Steps
+  // missing from a saved order fall to the end by sort_order.
+  const orderedSteps = useMemo(() => {
+    if (!manualOrder || stepOrder.length === 0) return steps;
+    const pos = new Map(stepOrder.map((id, i) => [id, i]));
+    return [...steps].sort((a, b) => {
+      const pa = pos.has(a.id) ? pos.get(a.id) : Number.MAX_SAFE_INTEGER;
+      const pb = pos.has(b.id) ? pos.get(b.id) : Number.MAX_SAFE_INTEGER;
+      if (pa !== pb) return pa - pb;
+      return (a.sort_order - b.sort_order) || (a.id - b.id);
+    });
+  }, [steps, manualOrder, stepOrder]);
+
+  // Drag-end handler for a step group. Reorders only the dragged group's steps
+  // within the full ordering (everything else stays put), persists the complete
+  // order for this user, and updates local state optimistically.
+  const applyGroupReorder = useCallback((groupSteps, event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = groupSteps.map((s) => s.id);
+    const oldIndex = ids.indexOf(active.id);
+    const newIndex = ids.indexOf(over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const newGroupIds = arrayMove(ids, oldIndex, newIndex);
+    const groupSet = new Set(ids);
+    let p = 0;
+    const newFull = orderedSteps.map((s) => (groupSet.has(s.id) ? newGroupIds[p++] : s.id));
+    setStepOrder(newFull);
+    taskSetsApi.setStepOrder(userId, taskSetId, newFull).catch(() => {});
+  }, [orderedSteps, userId, taskSetId]);
+
   // Auto-load pool for badge task sets so the kid sees options upfront
   useEffect(() => {
     if (taskSet?.badge_id && !optionalPool) {
@@ -1515,12 +1643,32 @@ export default function UserTaskDetailPage() {
     }
   }, [taskSet?.badge_id, optionalPool, loadOptionalPool]);
 
+  // The add/remove/swap endpoints return steps WITHOUT co_assignees — only the
+  // detail endpoint hydrates those. Re-attach them from what we already have so
+  // the page's avatar stacks don't vanish until the next full refetch. Co-
+  // assignment (who ELSE in the family is on each step) is unaffected by this
+  // kid adding/removing their own optional, so the existing identity→avatars
+  // map stays valid. Steps are matched on the same stable identity the server
+  // uses: badge_opt_req_id for optionals, sort_order for required steps. A
+  // freshly added optional pulls its avatars from optionalCoAssignees.
+  const mergeCoAssignees = useCallback((nextSteps) => {
+    const keyOf = (s) => (s.badge_opt_req_id != null ? `o${s.badge_opt_req_id}` : `r${s.sort_order}`);
+    const byKey = new Map();
+    for (const s of steps) {
+      if (s.co_assignees?.length) byKey.set(keyOf(s), s.co_assignees);
+    }
+    for (const [optId, list] of Object.entries(optionalCoAssignees)) {
+      if (list?.length && !byKey.has(`o${optId}`)) byKey.set(`o${optId}`, list);
+    }
+    return nextSteps.map((s) => ({ ...s, co_assignees: byKey.get(keyOf(s)) ?? [] }));
+  }, [steps, optionalCoAssignees]);
+
   const handleSwapOptional = async (removeStepId, addOptionalReqId) => {
     setSwapping(true);
     setSwapError('');
     try {
       const result = await badgesApi.swapOptional(userId, taskSetId, removeStepId, addOptionalReqId);
-      setSteps(result.steps);
+      setSteps(mergeCoAssignees(result.steps));
       // Pool unchanged on swap — same reason as add/remove.
     } catch (e) {
       setSwapError(e?.response?.data?.error || 'Could not swap optional.');
@@ -1534,7 +1682,7 @@ export default function UserTaskDetailPage() {
     setSwapError('');
     try {
       const result = await badgesApi.addOptional(userId, taskSetId, addOptionalReqId);
-      setSteps(result.steps);
+      setSteps(mergeCoAssignees(result.steps));
       // No need to nuke optionalPool — the pool itself depends only on
       // badge_id + badge_level, neither of which can change here. Selection
       // state is derived from `steps` which we just updated.
@@ -1550,7 +1698,7 @@ export default function UserTaskDetailPage() {
     setSwapError('');
     try {
       const result = await badgesApi.removeOptional(userId, taskSetId, removeOptionalReqId);
-      setSteps(result.steps);
+      setSteps(mergeCoAssignees(result.steps));
     } catch (e) {
       setSwapError(e?.response?.data?.error || 'Could not remove optional.');
     } finally {
@@ -1750,7 +1898,7 @@ export default function UserTaskDetailPage() {
     const done = [];
     const pending = [];
     const noteFor = (stepId) => notes.find((n) => n.task_step_id === stepId);
-    for (const step of steps) {
+    for (const step of orderedSteps) {
       const repeat = step.repeat_count || 1;
       const count = step.completed_count || 0;
       const note = noteFor(step.id);
@@ -1831,6 +1979,26 @@ export default function UserTaskDetailPage() {
   const nothingDone = completions.length === 0;
   const canRemove   = viewer?.role === 'parent' || (viewer?.id != null && viewer.id === assignedBy);
   const anyBusy        = toggling.size > 0;
+
+  // On a (non-award) badge, manual mode merges the Required + Your Picks groups
+  // into a single freely-reorderable list. Awards keep their per-level groups so
+  // reordering stays within each level.
+  const mergedManual = !!taskSet?.badge_id && !taskSet?.is_award && manualOrder;
+
+  // Shared renderer for a todo step row — used directly when ordering is default
+  // and wrapped in a drag handle by StepGroup when manual order is on.
+  const renderStep = (step) => (
+    <StepItem
+      key={`${step.id}-${step._instance}`}
+      step={step}
+      onToggle={handleToggle}
+      onSaveNotes={handleSaveNotes}
+      disabled={anyBusy}
+      onPreviewBadge={setPreviewBadge}
+      onFindArea={(cat, s) => setAreaBrowser({ category: cat, stepId: s?.id || null })}
+      taskSet={taskSet}
+    />
+  );
 
   return (
     <div>
@@ -2561,33 +2729,46 @@ export default function UserTaskDetailPage() {
           {/* ── Todo steps (badge: split into required + optional) ── */}
           {taskSet.badge_id ? (
             <>
-              {/* Required steps — awards with per-step level metadata get grouped
-                  by level so it's clear which steps come from which level. */}
-              {expanded.todoRequired.length > 0 && taskSet.is_award && expanded.todoRequired.some((s) => s.level) ? (
+              {/* Manual mode on a (non-award) badge merges Required + Your Picks
+                  into one freely-reorderable list. Awards keep their per-level
+                  grouping (reorder stays within each level). */}
+              {mergedManual ? (
+                expanded.todo.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Manual order</h3>
+                      <SortToggleButton active onClick={toggleManualOrder} />
+                    </div>
+                    <StepGroup steps={expanded.todo} manual onReorder={applyGroupReorder} renderItem={renderStep} />
+                  </div>
+                )
+              ) : expanded.todoRequired.length > 0 && taskSet.is_award && expanded.todoRequired.some((s) => s.level) ? (
                 <div className="space-y-4">
                   {groupStepsByLevel(expanded.todoRequired).map((group, gi) => (
                     <div key={`${group.level || 'none'}-${gi}`}>
                       {group.level && (
-                        <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-1">
-                          {AWARD_LEVEL_LABELS[group.level] || group.level}
-                        </h3>
+                        <div className="flex items-center justify-between gap-2 mb-2 px-1">
+                          <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                            {manualOrder
+                              ? `Manual order · ${AWARD_LEVEL_LABELS[group.level] || group.level}`
+                              : (AWARD_LEVEL_LABELS[group.level] || group.level)}
+                          </h3>
+                          {group.rows.length > 1 && <SortToggleButton active={manualOrder} onClick={toggleManualOrder} />}
+                        </div>
                       )}
-                      <div className="space-y-2">
-                        {group.rows.map((step) => (
-                          <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} onSaveNotes={handleSaveNotes} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} taskSet={taskSet} />
-                        ))}
-                      </div>
+                      <StepGroup steps={group.rows} manual={manualOrder} onReorder={applyGroupReorder} renderItem={renderStep} />
                     </div>
                   ))}
                 </div>
               ) : expanded.todoRequired.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Required</h3>
-                  <div className="space-y-2">
-                    {expanded.todoRequired.map((step) => (
-                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} onSaveNotes={handleSaveNotes} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} taskSet={taskSet} />
-                    ))}
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                      {manualOrder ? 'Manual order' : 'Required'}
+                    </h3>
+                    {expanded.todoRequired.length > 1 && <SortToggleButton active={manualOrder} onClick={toggleManualOrder} />}
                   </div>
+                  <StepGroup steps={expanded.todoRequired} manual={manualOrder} onReorder={applyGroupReorder} renderItem={renderStep} />
                 </div>
               )}
 
@@ -2612,17 +2793,19 @@ export default function UserTaskDetailPage() {
                 </button>
               )}
 
-              {/* Selected optional steps */}
-              {(expanded.todoOptional.length > 0 || steps.some((s) => s.is_optional)) && (
+              {/* Selected optional steps — hidden in merged manual mode, where
+                  they're part of the single combined list above. */}
+              {!mergedManual && (expanded.todoOptional.length > 0 || steps.some((s) => s.is_optional)) && (
                 <div>
-                  <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
-                    Your Picks ({selectedOptCount}{levelOptCount > 0 ? ` of ${levelOptCount}` : ''} selected)
-                  </h3>
-                  <div className="space-y-2">
-                    {expanded.todoOptional.map((step) => (
-                      <StepItem key={`${step.id}-${step._instance}`} step={step} onToggle={handleToggle} onSaveNotes={handleSaveNotes} disabled={anyBusy} onPreviewBadge={setPreviewBadge} onFindArea={(cat, step) => setAreaBrowser({ category: cat, stepId: step?.id || null })} taskSet={taskSet} />
-                    ))}
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                      {manualOrder
+                        ? 'Manual order'
+                        : `Your Picks (${selectedOptCount}${levelOptCount > 0 ? ` of ${levelOptCount}` : ''} selected)`}
+                    </h3>
+                    {expanded.todoOptional.length > 1 && <SortToggleButton active={manualOrder} onClick={toggleManualOrder} />}
                   </div>
+                  <StepGroup steps={expanded.todoOptional} manual={manualOrder} onReorder={applyGroupReorder} renderItem={renderStep} />
 
                   {/* Once all picks are made, "Change your picks" opens the
                       same picker modal — kid can deselect a not-started
@@ -2639,6 +2822,18 @@ export default function UserTaskDetailPage() {
                     </button>
                   )}
                 </div>
+              )}
+
+              {/* Merged manual mode hides the Your Picks section, so surface
+                  "Change your picks" on its own here. */}
+              {mergedManual && !needsPicks && unselectedOptionals.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-brand-300 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                >
+                  ↻ Change your picks
+                </button>
               )}
             </>
           ) : (

@@ -220,6 +220,19 @@ CREATE TABLE IF NOT EXISTS user_step_notes (
 );
 CREATE INDEX IF NOT EXISTS idx_user_step_notes_set ON user_step_notes(user_id, task_set_id);
 
+-- Per-(user, task_set) manual step order. Each kid can arrange their badge/award
+-- steps; `position` is an absolute ordering across the set. No rows = default
+-- order (task_steps.sort_order). The order follows the user across devices and
+-- is what a parent sees when viewing that kid's badge.
+CREATE TABLE IF NOT EXISTS user_task_step_order (
+  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  task_set_id  INTEGER NOT NULL REFERENCES task_sets(id) ON DELETE CASCADE,
+  task_step_id INTEGER NOT NULL REFERENCES task_steps(id) ON DELETE CASCADE,
+  position     INTEGER NOT NULL,
+  PRIMARY KEY (user_id, task_set_id, task_step_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_task_step_order_set ON user_task_step_order(user_id, task_set_id);
+
 CREATE TABLE IF NOT EXISTS badges (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   name             TEXT    NOT NULL,

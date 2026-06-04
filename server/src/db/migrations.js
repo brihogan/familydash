@@ -775,4 +775,24 @@ export function runMigrations(db) {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_user_step_notes_set ON user_step_notes(user_id, task_set_id)`);
   } catch (_) {}
 
+  // v82: per-(user, task_set) manual step order. Lets each kid arrange their
+  //   badge/award steps in a custom order that follows them across every device
+  //   they're signed in on (and that a parent sees when viewing the kid's
+  //   badge). `position` is an absolute ordering across the set's steps; the
+  //   client only ever reorders within a group (required / each award level /
+  //   optional picks), but stores the full ordering so positions stay stable.
+  //   Absence of rows = fall back to task_steps.sort_order (the default order).
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS user_task_step_order (
+        user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        task_set_id  INTEGER NOT NULL REFERENCES task_sets(id) ON DELETE CASCADE,
+        task_step_id INTEGER NOT NULL REFERENCES task_steps(id) ON DELETE CASCADE,
+        position     INTEGER NOT NULL,
+        PRIMARY KEY (user_id, task_set_id, task_step_id)
+      );
+    `);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_user_task_step_order_set ON user_task_step_order(user_id, task_set_id)`);
+  } catch (_) {}
+
 }

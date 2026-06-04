@@ -336,16 +336,20 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, onPi
             are no other badge-enabled members to coordinate with. */}
         {otherMembers.length > 0 && (() => {
           const selected = otherMembers.find((m) => m.id === enrolledByUserId) || null;
+          const isAny    = enrolledByUserId === 'any';
+          const active   = selected || isAny;
           return (
             <label
               className={`relative text-xs font-semibold pl-3 pr-7 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 cursor-pointer ${
-                selected
+                active
                   ? 'bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700'
                   : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-violet-300'
               }`}
               title={selected
                 ? `Showing badges ${selected.name} has — click to change or clear`
-                : 'Show only badges a sibling is currently working on'}
+                : isAny
+                  ? 'Showing badges anyone else in the family is working on — click to change or clear'
+                  : 'Show only badges a sibling is currently working on'}
             >
               {selected ? (
                 <>
@@ -362,6 +366,11 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, onPi
                     )}
                   </span>
                 </>
+              ) : isAny ? (
+                <>
+                  <span className="text-[11px]">👨‍👩‍👧‍👦</span>
+                  <span>Anyone in family</span>
+                </>
               ) : (
                 <>
                   <span className="inline-block w-3 h-3 rounded-full bg-violet-200 dark:bg-violet-900/40" />
@@ -374,12 +383,13 @@ export default function BadgeBrowser({ userId, compact = false, onEnrolled, onPi
                 value={enrolledByUserId ?? ''}
                 onChange={(e) => {
                   const v = e.target.value;
-                  setEnrolledByUserId(v ? parseInt(v, 10) : null);
+                  setEnrolledByUserId(v === 'any' ? 'any' : v ? parseInt(v, 10) : null);
                   setPage(1);
                 }}
                 className="absolute inset-0 opacity-0 cursor-pointer"
               >
-                <option value="">— anyone (clear filter) —</option>
+                <option value="">Clear filter</option>
+                <option value="any">Anyone in family</option>
                 {otherMembers.map((m) => {
                   const n = sharedCounts[m.id] || 0;
                   return (

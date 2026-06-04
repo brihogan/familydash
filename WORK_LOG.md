@@ -1,5 +1,18 @@
 # Work Log
 
+## Session Start: 2026-06-04 (evening)
+
+### 2026-06-04 — Browse Badges "Anyone in family" filter + "Clear filter"
+- Browse Badges "Shared with…" dropdown: renamed the top option to "Clear filter" and added "Anyone in family" (👨‍👩‍👧‍👦), which shows badges/awards any other family member is enrolled in (excludes the viewing kid). Server `/badges` accepts `enrolledByUserId=any`, scoped to caller's family.
+
+### 2026-06-04 — Fix: co-assignee avatars vanished after picking an optional
+- Picking/removing/swapping an optional ran `setSteps(result.steps)` with steps the add/remove/swap endpoints return WITHOUT `co_assignees`, so per-step avatar stacks disappeared until refresh. Added `mergeCoAssignees` (UserTaskDetailPage.jsx) to re-attach them by stable identity (badge_opt_req_id / sort_order), pulling from current steps + optionalCoAssignees. Client-only.
+
+### 2026-06-04 — Per-user manual step ordering (drag-to-reorder)
+- Badge/award pages: a "Sort" toggle hangs to the right of each group heading (Required / each award Level / Your Picks). Toggling on relabels the heading "MANUAL ORDER", adds a left-edge drag handle to each step (@dnd-kit), and lets the kid drag steps. Drag is constrained within its group (can't cross Required↔Optional or between award levels).
+- The ORDER is per (user, task_set) on the server (new table `user_task_step_order`, migration v82 + schema.sql; `PUT /users/:id/task-assignments/:tsid/step-order`; GET detail returns `stepOrder`), so it follows the kid across devices and a parent sees the kid's order. The view-MODE toggle is per-device (localStorage `stepOrderManual:<taskSetId>`), so a parent can stay on default while the kid uses manual.
+- Server endpoint E2E-verified via minted token (GET []→PUT reversed→GET reversed; invalid/dup ids filtered). Client compiles clean; browser drag E2E pending login. Server change → prod needs image rebuild.
+
 ## Session Start: 2026-06-02 18:00 EDT (evening, session 2)
 
 ### 2026-06-02 — Co-assignee avatars on Browse Badges cards
