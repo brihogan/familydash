@@ -29,6 +29,9 @@ export const taskSetsApi = {
   deleteAssignment:    (userId, taskSetId) => client.delete(`/users/${userId}/task-assignments/${taskSetId}`).then((r) => r.data),
   setPinned:           (userId, taskSetId, pinned) => client.patch(`/users/${userId}/task-assignments/${taskSetId}/pin`, { pinned }).then((r) => r.data),
   getUserTaskSet:  (userId, taskSetId)         => client.get(`/users/${userId}/task-assignments/${taskSetId}`).then((r) => r.data),
+  // Parent-only step-completion matrix for a badge/award: every enrolled family
+  // member as a column, the union of their steps as rows, per-cell done state.
+  getTaskMatrix:   (userId, taskSetId)         => client.get(`/users/${userId}/task-assignments/${taskSetId}/matrix`).then((r) => r.data),
   toggleStep:      (userId, taskSetId, stepId, undo = false, inputResponse = null) => client.post(`/users/${userId}/task-assignments/${taskSetId}/steps/${stepId}/toggle`, { ...(undo ? { undo: true } : {}), ...(inputResponse ? { input_response: inputResponse } : {}) }).then((r) => r.data),
   // Save a step's working notes (general-notes scratchpad + draft answer),
   // upserted per (user, step). Called on blur from the focus view.

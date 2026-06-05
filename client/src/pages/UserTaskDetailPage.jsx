@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect, Fragment } from 'react';
 import { useIsDark } from '../components/tasks/TaskSetCard.jsx';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faChevronDown, faChevronRight, faStickyNote, faBoxArchive, faBoxOpen, faSitemap, faThumbtack, faCircleInfo, faTrash, faExpand, faGripVertical, faArrowDownWideShort } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faChevronDown, faChevronRight, faStickyNote, faBoxArchive, faBoxOpen, faSitemap, faThumbtack, faCircleInfo, faTrash, faExpand, faGripVertical, faArrowDownWideShort, faTableCells, faCircleCheck } from '@fortawesome/free-solid-svg-icons';
 import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -78,7 +78,7 @@ function StepDetailModal({ step, onClose }) {
 // top, the full step text (description, which holds the original long wording),
 // an answer textarea when the step asks for input, and a Mark Complete button.
 // Used instead of the cramped inline input when a step has a description.
-function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disabled, readOnly = false }) {
+function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disabled, readOnly = false, user = null, coUsers = [] }) {
   useScrollLock(true);
   const isDark = useIsDark();
   const needsInput = !!step.require_input;
@@ -86,6 +86,10 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disab
   const [generalNotes, setGeneralNotes] = useState(step._generalNotes || '');
   const [notesOpen, setNotesOpen] = useState(!!(step._generalNotes && step._generalNotes.trim()));
   const [saving, setSaving] = useState(false);
+  // Other users who share this step — toggle one on to also mark it complete
+  // for them (with the same answer) when this step is completed.
+  const [coSelected, setCoSelected] = useState(() => new Set());
+  useEffect(() => { setCoSelected(new Set()); }, [step.id]);
   const taRef = useRef(null);
 
   // Persist working notes (general notes + draft answer) on blur. No-op when
@@ -110,7 +114,8 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disab
   const handleComplete = () => {
     if (!canComplete) return;
     setSaving(true);
-    onComplete(needsInput ? value.trim() : null);
+    const alsoFor = coUsers.filter((c) => coSelected.has(c.user.id));
+    onComplete(needsInput ? value.trim() : null, alsoFor);
     // Parent refetch unmounts this modal; no need to reset state.
   };
 
@@ -132,29 +137,40 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disab
         </button>
       </div>
 
-      {/* Scrollable body */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-5">
+      {/* Scrollable body — pt-3 leaves room for the kid's avatar, which sits
+          slightly above the badge medallion (would otherwise clip at the
+          scroll container's top edge). */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 pt-3 pb-5">
         <div className="max-w-lg mx-auto flex flex-col items-center text-center">
-          {/* Badge medallion */}
-          <div
-            className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center shadow-md ring-2 ring-brand-200 dark:ring-brand-500/40 shrink-0"
-            style={!taskSet?.badge_image_file ? {
-              background: isDark
-                ? 'radial-gradient(circle at center, #4B4133 0%, #2A2520 100%)'
-                : 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)',
-            } : undefined}
-          >
-            {taskSet?.badge_image_file ? (
-              <img
-                src={`/api/uploads/badges/${taskSet.badge_image_file}`}
-                alt=""
-                className="w-full h-full object-cover dark:brightness-75 dark:contrast-110"
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
-            ) : (
-              <span className="text-5xl leading-none">
-                <IconDisplay value={taskSet?.emoji} fallback={taskSet?.is_award ? '🏆' : '📋'} />
-              </span>
+          {/* Badge medallion — with the kid's avatar tucked at the top-right
+              (shown when a specific user's view is opened, e.g. from the
+              parent progress grid). */}
+          <div className="relative shrink-0">
+            <div
+              className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center shadow-md ring-2 ring-brand-200 dark:ring-brand-500/40"
+              style={!taskSet?.badge_image_file ? {
+                background: isDark
+                  ? 'radial-gradient(circle at center, #4B4133 0%, #2A2520 100%)'
+                  : 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)',
+              } : undefined}
+            >
+              {taskSet?.badge_image_file ? (
+                <img
+                  src={`/api/uploads/badges/${taskSet.badge_image_file}`}
+                  alt=""
+                  className="w-full h-full object-cover dark:brightness-75 dark:contrast-110"
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+              ) : (
+                <span className="text-5xl leading-none">
+                  <IconDisplay value={taskSet?.emoji} fallback={taskSet?.is_award ? '🏆' : '📋'} />
+                </span>
+              )}
+            </div>
+            {user && (
+              <div className="absolute -top-1 -right-5 rounded-full ring-2 ring-white dark:ring-gray-900">
+                <Avatar name={user.name} color={user.avatar_color} emoji={user.avatar_emoji} size="sm" />
+              </div>
             )}
           </div>
           {taskSet?.name && (
@@ -249,6 +265,48 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disab
                 rows={6}
                 className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 rounded-xl px-3.5 py-3 text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-brand-400 read-only:opacity-90"
               />
+            </div>
+          )}
+
+          {/* Also-complete-for toggles — other family members who share this
+              step (and haven't done it yet). Toggling one on means "Mark
+              complete" also completes it for them, with the same answer. */}
+          {!readOnly && coUsers.length > 0 && (
+            <div className="mt-6 w-full text-left">
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">
+                Also mark complete for
+              </p>
+              <div className="flex flex-col gap-1.5">
+                {coUsers.map(({ user: cu }) => {
+                  const on = coSelected.has(cu.id);
+                  return (
+                    <button
+                      key={cu.id}
+                      type="button"
+                      onClick={() => setCoSelected((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(cu.id)) next.delete(cu.id); else next.add(cu.id);
+                        return next;
+                      })}
+                      aria-pressed={on}
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-colors ${
+                        on
+                          ? 'border-brand-400 bg-brand-50 dark:bg-brand-900/20'
+                          : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <Avatar name={cu.name} color={cu.avatar_color} emoji={cu.avatar_emoji} size="xs" />
+                      <span className="flex-1 text-sm text-gray-700 dark:text-gray-200">{cu.name}</span>
+                      <span className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${on ? 'bg-brand-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${on ? 'left-[1.125rem]' : 'left-0.5'}`} />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {needsInput && coSelected.size > 0 && (
+                <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">They'll get the same answer you wrote above.</p>
+              )}
             </div>
           )}
         </div>
@@ -1371,6 +1429,224 @@ function CompletedStepItem({ step, taskSet, onUndo, canUndo, disabled }) {
   );
 }
 
+// ── Parent "who's done what" matrix ──────────────────────────────────────────
+// Fullscreen grid for a badge/award: steps down the left, every enrolled family
+// member across the top, a check circle per cell. Tapping a cell opens that
+// kid's fullscreen focus view for the step (so a parent can read/mark it).
+// Horizontally scrollable on narrow screens; first column + header row stick.
+function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
+  useScrollLock(true);
+  const [data, setData]   = useState(null);
+  const [error, setError] = useState('');
+  const [focus, setFocus] = useState(null); // { user, cell }
+  const [rowInfo, setRowInfo] = useState(null); // { name, description } — left-row tap
+  const [selectedKey, setSelectedKey] = useState(null); // highlighted row (one at a time)
+
+  const load = useCallback(() => {
+    taskSetsApi.getTaskMatrix(userId, taskSetId)
+      .then(setData)
+      .catch((err) => setError(err?.response?.data?.error || 'Could not load the grid.'));
+  }, [userId, taskSetId]);
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key !== 'Escape') return;
+      if (rowInfo) { setRowInfo(null); return; }
+      if (!focus) onClose();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose, focus, rowInfo]);
+
+  // Build the per-column taskSet the focus modal expects (shared badge art +
+  // that kid's own level).
+  const taskSetFor = (u) => data && ({
+    name: data.badge?.name || data.taskSet?.name,
+    emoji: data.taskSet?.emoji,
+    badge_image_file: data.badge?.image_file || null,
+    badge_level: u.badge_level || null,
+    is_award: !!data.badge?.is_award,
+  });
+
+  // Other enrolled kids who share this exact step and haven't finished it —
+  // surfaced as toggles in the focus view so a parent can mark it for several
+  // kids at once with the same answer.
+  const coUsersFor = (focusUser, cell) => {
+    if (!data) return [];
+    const key = cell.step.badge_opt_req_id != null ? `o${cell.step.badge_opt_req_id}` : `r${cell.step.sort_order}`;
+    return data.users
+      .filter((u) => u.id !== focusUser.id)
+      .map((u) => ({ user: u, cell: data.cells[u.id]?.[key] }))
+      .filter((x) => x.cell && !x.cell.done);
+  };
+
+  const handleComplete = (u, cell, resp, alsoFor = []) => {
+    const targets = [
+      { id: u.id, taskSetId: cell.taskSetId, stepId: cell.stepId },
+      ...alsoFor.map((c) => ({ id: c.user.id, taskSetId: c.cell.taskSetId, stepId: c.cell.stepId })),
+    ];
+    Promise.all(targets.map((t) => taskSetsApi.toggleStep(t.id, t.taskSetId, t.stepId, false, resp)))
+      .then(() => { setFocus(null); load(); onChanged?.(); })
+      .catch((err) => setError(err?.response?.data?.error || 'Could not update.'));
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-gray-900" onClick={(e) => e.stopPropagation()}>
+      {/* Header */}
+      <div className="flex items-center gap-2 p-3 shrink-0 border-b border-gray-100 dark:border-gray-800">
+        <FontAwesomeIcon icon={faTableCells} className="text-brand-600 dark:text-brand-400" />
+        <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 flex-1 min-w-0 truncate">
+          {data?.badge?.name || data?.taskSet?.name || 'Progress grid'}
+        </h2>
+        <button
+          onClick={onClose}
+          className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          aria-label="Close"
+        >
+          <span className="text-xl leading-none">×</span>
+        </button>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-auto">
+        {error && (
+          <p className="m-4 text-sm text-red-600 dark:text-red-400">{error}</p>
+        )}
+        {!data && !error && (
+          <p className="m-4 text-sm text-gray-500 dark:text-gray-400">Loading…</p>
+        )}
+        {data && data.users.length === 0 && (
+          <p className="m-4 text-sm text-gray-500 dark:text-gray-400">No one is enrolled in this badge.</p>
+        )}
+        {data && data.users.length > 0 && (
+          <table className="border-separate border-spacing-0 text-sm">
+            <thead>
+              <tr>
+                <th className="sticky left-0 top-0 z-20 bg-white dark:bg-gray-900 text-left font-semibold text-gray-500 dark:text-gray-400 px-3 py-2 border-b border-r border-gray-200 dark:border-gray-700 min-w-[9rem]">
+                  Step
+                </th>
+                {data.users.map((u) => (
+                  <th key={u.id} className="sticky top-0 z-10 bg-white dark:bg-gray-900 px-2 py-2 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex flex-col items-center gap-1 w-14">
+                      <Avatar name={u.name} color={u.avatar_color} emoji={u.avatar_emoji} size="sm" />
+                      <span className="text-[10px] text-gray-600 dark:text-gray-300 leading-tight truncate max-w-[3.5rem]">{u.name}</span>
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.steps.map((row, i) => (
+                <Fragment key={row.key}>
+                {row.is_optional && (i === 0 || !data.steps[i - 1].is_optional) && (
+                  <tr>
+                    <td colSpan={data.users.length + 1} className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 px-3 py-1.5">
+                      <span className="sticky left-0 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Optional</span>
+                    </td>
+                  </tr>
+                )}
+                <tr className={`group ${selectedKey === row.key ? 'bg-brand-50 dark:bg-brand-900/20' : ''}`}>
+                  <th
+                    scope="row"
+                    className={`sticky left-0 z-10 text-left font-normal text-gray-700 dark:text-gray-300 border-b border-r border-gray-100 dark:border-gray-800 max-w-[12rem] p-0 ${selectedKey === row.key ? 'bg-brand-50 dark:bg-brand-900/20' : 'bg-white dark:bg-gray-900'}`}
+                  >
+                    <button
+                      type="button"
+                      title={row.label}
+                      onClick={() => {
+                        let name = row.label, description = null;
+                        for (const u of data.users) {
+                          const c = data.cells[u.id]?.[row.key];
+                          if (c) { name = c.step.name; description = c.step.description; if (description) break; }
+                        }
+                        setSelectedKey(row.key);
+                        setRowInfo({ name, description });
+                      }}
+                      className="w-full text-left px-3 py-2 truncate hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                    >
+                      {row.label}
+                    </button>
+                  </th>
+                  {data.users.map((u) => {
+                    const cell = data.cells[u.id]?.[row.key];
+                    if (!cell) {
+                      return (
+                        <td key={u.id} className="text-center px-2 py-2 border-b border-gray-100 dark:border-gray-800">
+                          <span className="text-gray-300 dark:text-gray-600">–</span>
+                        </td>
+                      );
+                    }
+                    return (
+                      <td key={u.id} className="text-center px-2 py-2 border-b border-gray-100 dark:border-gray-800">
+                        <button
+                          type="button"
+                          onClick={() => setFocus({ user: u, cell })}
+                          className="inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                          aria-label={`${u.name}: ${row.label} — ${cell.done ? 'done' : 'not done'}`}
+                          title={cell.done ? 'Done — tap to view' : 'Not done — tap to open'}
+                        >
+                          {cell.done ? (
+                            <FontAwesomeIcon icon={faCircleCheck} className="text-xl text-green-500" />
+                          ) : (
+                            <span className="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600" />
+                          )}
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {focus && (
+        <StepFocusModal
+          step={focus.cell.step}
+          taskSet={taskSetFor(focus.user)}
+          user={focus.user}
+          coUsers={coUsersFor(focus.user, focus.cell)}
+          readOnly={focus.cell.done}
+          disabled={false}
+          onComplete={(resp, alsoFor) => handleComplete(focus.user, focus.cell, resp, alsoFor)}
+          onClose={() => setFocus(null)}
+        />
+      )}
+
+      {rowInfo && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setRowInfo(null)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full max-h-[80vh] overflow-y-auto p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 leading-snug">{rowInfo.name}</h3>
+              <button
+                onClick={() => setRowInfo(null)}
+                className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                aria-label="Close"
+              >
+                <span className="text-xl leading-none">×</span>
+              </button>
+            </div>
+            {rowInfo.description && rowInfo.description !== rowInfo.name ? (
+              <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line leading-relaxed">{rowInfo.description}</p>
+            ) : (
+              <p className="text-sm text-gray-400 dark:text-gray-500 italic">No extra description for this step.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>,
+    document.body,
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function UserTaskDetailPage() {
   const { userId, taskSetId } = useParams();
@@ -1421,6 +1697,8 @@ export default function UserTaskDetailPage() {
   const [descExpanded,     setDescExpanded]     = useState(false);
   // Info popover (tags + assigned date) anchored under the Archive button.
   const [infoOpen,         setInfoOpen]         = useState(false);
+  // Parent-only "who's done what" matrix overlay.
+  const [matrixOpen,       setMatrixOpen]       = useState(false);
   // Sticky compact header — appears once the big badge has scrolled
   // offscreen. Tracks intersection of a sentinel placed at the bottom
   // of the main badge header below.
@@ -2010,6 +2288,14 @@ export default function UserTaskDetailPage() {
           onClose={() => setImageLightbox(false)}
         />
       )}
+      {matrixOpen && (
+        <StepMatrixModal
+          userId={userId}
+          taskSetId={taskSetId}
+          onClose={() => setMatrixOpen(false)}
+          onChanged={fetchDetail}
+        />
+      )}
       {previewBadge && (
         <BadgePreviewModal
           badge={previewBadge}
@@ -2560,6 +2846,17 @@ export default function UserTaskDetailPage() {
               <FontAwesomeIcon icon={faCircleInfo} className="text-lg" />
             </button>
             {infoOpen && infoPopover()}
+            {viewer?.role === 'parent' && taskSet.badge_id != null && (
+              <button
+                type="button"
+                onClick={() => setMatrixOpen(true)}
+                className="w-10 h-10 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                aria-label="Family progress grid"
+                title="Family progress grid"
+              >
+                <FontAwesomeIcon icon={faTableCells} className="text-lg" />
+              </button>
+            )}
           </div>
 
           {/* Title + description + pills.
@@ -2617,6 +2914,17 @@ export default function UserTaskDetailPage() {
                   </button>
                   {infoOpen && infoPopover()}
                 </div>
+                {viewer?.role === 'parent' && taskSet.badge_id != null && (
+                  <button
+                    type="button"
+                    onClick={() => setMatrixOpen(true)}
+                    className="w-7 h-7 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                    aria-label="Family progress grid"
+                    title="Family progress grid"
+                  >
+                    <FontAwesomeIcon icon={faTableCells} className="text-sm" />
+                  </button>
+                )}
               </div>
             </div>{/* /flex header */}
             {taskSet.description && (

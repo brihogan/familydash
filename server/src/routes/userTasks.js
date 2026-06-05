@@ -692,6 +692,119 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
   } catch (err) { next(err); }
 });
 
+// GET /api/users/:userId/task-assignments/:taskSetId/matrix
+// Parent-only "who's done what" grid for a badge/award. Returns every family
+// member enrolled in the SAME badge as columns, the UNION of their steps as
+// rows (matched across per-kid enrollments by the stable identity used
+// everywhere else: badge_opt_req_id for optionals, sort_order for required),
+// and a per-(user,step) cell carrying completion state + enough step detail to
+// open the fullscreen focus view for that kid.
+router.get('/:userId/task-assignments/:taskSetId/matrix', authenticate, (req, res, next) => {
+  try {
+    if (req.user.role !== 'parent') return res.status(403).json({ error: 'Parents only.' });
+    const userId    = parseInt(req.params.userId,    10);
+    const taskSetId = parseInt(req.params.taskSetId, 10);
+    assertUserInFamily(userId, req.user.familyId);
+
+    const taskSet = db.prepare('SELECT id, name, emoji, badge_id, badge_level FROM task_sets WHERE id = ? AND is_active = 1').get(taskSetId);
+    if (!taskSet) return res.status(404).json({ error: 'Task set not found.' });
+    if (taskSet.badge_id == null) return res.status(400).json({ error: 'Matrix is only available for badges/awards.' });
+
+    const badge = db.prepare(
+      'SELECT id, name, emoji, image_file, is_award FROM badges WHERE id = ?'
+    ).get(taskSet.badge_id);
+
+    // Every family member with an active enrollment in this badge → columns.
+    const users = db.prepare(`
+      SELECT u.id, u.name, u.avatar_color, u.avatar_emoji,
+             ots.id AS task_set_id, ots.badge_level
+      FROM task_assignments ta
+      JOIN task_sets ots ON ots.id = ta.task_set_id
+      JOIN users     u   ON u.id = ta.user_id
+      WHERE ots.badge_id = ?
+        AND ta.is_active = 1 AND ta.archived_at IS NULL AND ots.is_active = 1
+        AND u.family_id = ? AND u.is_active = 1
+      GROUP BY u.id
+      ORDER BY (u.id = ?) DESC, u.name COLLATE NOCASE ASC
+    `).all(taskSet.badge_id, req.user.familyId, userId);
+
+    // Pull every column-user's steps in one query, then bucket per user.
+    const stepRows = users.length === 0 ? [] : db.prepare(`
+      SELECT s.id, s.task_set_id, s.sort_order, s.badge_opt_req_id, s.is_optional,
+             s.name, s.description, s.image, s.require_input,
+             s.input_prompt, s.repeat_count,
+             (SELECT COUNT(*) FROM task_step_completions tsc
+                WHERE tsc.task_step_id = s.id) AS completed_count
+      FROM task_steps s
+      WHERE s.task_set_id IN (${users.map(() => '?').join(',')}) AND s.is_active = 1
+      ORDER BY s.sort_order ASC, s.id ASC
+    `).all(...users.map((u) => u.task_set_id));
+
+    const keyOf = (optReqId, sortOrder) => (optReqId != null ? `o${optReqId}` : `r${sortOrder}`);
+
+    // Union of step rows, ordered required-first (by sort_order) then optionals.
+    // First-seen step name wins as the row label (it's the short display title;
+    // the full wording lives in description).
+    const rowByKey = new Map();
+    const cells = {}; // { [userId]: { [key]: cell } }
+    for (const u of users) cells[u.id] = {};
+    const tsToUser = new Map(users.map((u) => [u.task_set_id, u.id]));
+    for (const s of stepRows) {
+      const uid = tsToUser.get(s.task_set_id);
+      if (uid == null) continue;
+      const key = keyOf(s.badge_opt_req_id, s.sort_order);
+      if (!rowByKey.has(key)) {
+        rowByKey.set(key, {
+          key,
+          label: s.name,
+          is_optional: s.is_optional === 1,
+          sort_order: s.sort_order,
+        });
+      }
+      cells[uid][key] = {
+        stepId: s.id,
+        taskSetId: s.task_set_id,
+        done: (s.completed_count || 0) >= (s.repeat_count || 1),
+        completed_count: s.completed_count || 0,
+        repeat_count: s.repeat_count || 1,
+        step: {
+          id: s.id,
+          name: s.name,
+          description: s.description || null,
+          image: s.image || null,
+          is_optional: s.is_optional === 1,
+          require_input: s.require_input === 1,
+          input_prompt: s.input_prompt || null,
+          badge_opt_req_id: s.badge_opt_req_id,
+          sort_order: s.sort_order,
+        },
+      };
+    }
+
+    const steps = [...rowByKey.values()].sort((a, b) => {
+      if (a.is_optional !== b.is_optional) return a.is_optional ? 1 : -1;
+      return a.sort_order - b.sort_order;
+    });
+
+    res.json({
+      badge: badge ? {
+        id: badge.id,
+        name: badge.name,
+        emoji: badge.emoji,
+        image_file: badge.image_file || null,
+        is_award: badge.is_award === 1,
+      } : null,
+      taskSet: { id: taskSet.id, name: taskSet.name, emoji: taskSet.emoji, badge_level: taskSet.badge_level },
+      users: users.map((u) => ({
+        id: u.id, name: u.name, avatar_color: u.avatar_color, avatar_emoji: u.avatar_emoji,
+        taskSetId: u.task_set_id, badge_level: u.badge_level,
+      })),
+      steps,
+      cells,
+    });
+  } catch (err) { next(err); }
+});
+
 // POST /api/users/:userId/task-assignments/:taskSetId/steps/:stepId/toggle
 router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authenticate, (req, res, next) => {
   try {
