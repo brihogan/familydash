@@ -1523,14 +1523,25 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
           <p className="m-4 text-sm text-gray-500 dark:text-gray-400">No one is enrolled in this badge.</p>
         )}
         {data && data.users.length > 0 && (
-          <table className="border-separate border-spacing-0 text-sm">
+          // Fixed-layout, full-width table with a dynamic min-width of
+          // (Step floor 12rem) + (5rem × user count). When the container is
+          // wide enough the Step column absorbs all slack (longest possible
+          // title) and the fixed user columns hang at the right edge. When
+          // it's too narrow the min-width forces the table past the container,
+          // so it scrolls horizontally — the Step column holds at its 12rem
+          // floor and stays frozen (sticky), revealing ~2 avatar columns at a
+          // time as you scroll.
+          <table
+            className="border-separate border-spacing-0 text-sm table-fixed w-full"
+            style={{ minWidth: `${192 + 80 * data.users.length}px` }}
+          >
             <thead>
               <tr>
-                <th className="sticky left-0 top-0 z-20 bg-white dark:bg-gray-900 text-left font-semibold text-gray-500 dark:text-gray-400 px-3 py-2 border-b border-r border-gray-200 dark:border-gray-700 min-w-[9rem]">
+                <th className="sticky left-0 top-0 z-20 bg-white dark:bg-gray-900 text-left font-semibold text-gray-500 dark:text-gray-400 px-3 py-2 border-b border-r border-gray-200 dark:border-gray-700 min-w-[12rem]">
                   Step
                 </th>
                 {data.users.map((u) => (
-                  <th key={u.id} className="sticky top-0 z-10 bg-white dark:bg-gray-900 px-2 py-2 border-b border-gray-200 dark:border-gray-700">
+                  <th key={u.id} className="sticky top-0 z-10 bg-white dark:bg-gray-900 px-2 py-2 border-b border-gray-200 dark:border-gray-700 w-20">
                     <div className="flex flex-col items-center gap-1 w-14">
                       <Avatar name={u.name} color={u.avatar_color} emoji={u.avatar_emoji} size="sm" />
                       <span className="text-[10px] text-gray-600 dark:text-gray-300 leading-tight truncate max-w-[3.5rem]">{u.name}</span>
@@ -1552,7 +1563,7 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
                 <tr className={`group ${selectedKey === row.key ? 'bg-brand-50 dark:bg-brand-900/20' : ''}`}>
                   <th
                     scope="row"
-                    className={`sticky left-0 z-10 text-left font-normal text-gray-700 dark:text-gray-300 border-b border-r border-gray-100 dark:border-gray-800 max-w-[12rem] p-0 ${selectedKey === row.key ? 'bg-brand-50 dark:bg-brand-900/20' : 'bg-white dark:bg-gray-900'}`}
+                    className={`sticky left-0 z-10 text-left font-normal text-gray-700 dark:text-gray-300 border-b border-r border-gray-100 dark:border-gray-800 p-0 ${selectedKey === row.key ? 'bg-brand-50 dark:bg-brand-900/20' : 'bg-white dark:bg-gray-900'}`}
                   >
                     <button
                       type="button"
