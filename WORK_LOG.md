@@ -2,6 +2,9 @@
 
 ## Session Start: 2026-06-05 13:58 EDT (afternoon)
 
+### 2026-06-05 — Matrix back-button + Shared close-returns-to-list
+- Browser Back now closes the matrix. Opened in-page (grid button): pushes a throwaway history entry + popstate listener so Back pops it and closes the matrix while staying on the detail page. Arrived from the Shared list (`location.state.openMatrix`, tracked via `arrivedWithMatrix` ref): the page entry already serves that role, so Back / ✕ both return to the Shared list (`navigate(-1)`), not the badge page. `closeMatrix` routes ✕ and Back through the same path. Verified all 4 flows in browser (button→Back stays on detail; Shared→badge→matrix→✕ and →Back both land on `/tasks/shared`). Client-only.
+
 ### 2026-06-05 — "Shared" view: task sets 2+ family members are doing
 - Tasks page (`/tasks/:userId`) profile-pic row now has a group icon (parent-only) → `/tasks/shared`. New `SharedTaskSetsPage` lists task sets 2+ members share REGARDLESS of level: badges/awards grouped by `badge_id` (any level counts), regular sets by `task_set_id`. Each row: medallion + title + member avatar stack; tapping opens the progress grid (navigates to a representative `/tasks/:repUserId/:repTaskSetId` with `state.openMatrix`, which `UserTaskDetailPage` auto-opens — works for non-badge sets too).
 - Server: `GET /family/shared-task-sets` (parent-only, family.js) groups assignments and returns items with ≥2 distinct members + a representative target. Generalized the matrix endpoint (userTasks.js) to handle `badge_id == null`: assignees as columns, the set's own steps as rows, per-(user,step) completion counts (scoped by user since regular sets share step ids). `KidProfilePicker` gained `sharedRoute`/`sharedSelected`; route added under ParentRoute (static `/tasks/shared` outranks `/tasks/:userId`).

@@ -1726,6 +1726,29 @@ export default function UserTaskDetailPage() {
   // Parent-only "who's done what" matrix overlay. Auto-opens when navigated
   // here from the Shared view (location state), even for non-badge sets.
   const [matrixOpen,       setMatrixOpen]       = useState(() => !!location.state?.openMatrix);
+  // Did we arrive with the matrix already open (from the Shared list)? If so,
+  // the current history entry IS the matrix, so closing/back returns to Shared.
+  const arrivedWithMatrix = useRef(!!location.state?.openMatrix);
+
+  // Make the browser Back action close the matrix. When opened in-page (grid
+  // button) we push a throwaway history entry so Back pops it and closes the
+  // matrix instead of leaving the page. When we arrived with it open (Shared),
+  // the page entry already serves that role — Back returns to Shared.
+  useEffect(() => {
+    if (!matrixOpen || arrivedWithMatrix.current) return;
+    window.history.pushState({ matrix: true }, '');
+    const onPop = () => setMatrixOpen(false);
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [matrixOpen]);
+
+  // Close handler routed through history so Back and the ✕ behave the same:
+  // arrived-from-Shared → go back to Shared; opened in-page → pop the throwaway
+  // entry (fires popstate → close).
+  const closeMatrix = useCallback(() => {
+    if (arrivedWithMatrix.current) navigate(-1);
+    else window.history.back();
+  }, [navigate]);
   // Sticky compact header — appears once the big badge has scrolled
   // offscreen. Tracks intersection of a sentinel placed at the bottom
   // of the main badge header below.
@@ -2319,7 +2342,7 @@ export default function UserTaskDetailPage() {
         <StepMatrixModal
           userId={userId}
           taskSetId={taskSetId}
-          onClose={() => setMatrixOpen(false)}
+          onClose={closeMatrix}
           onChanged={fetchDetail}
         />
       )}
