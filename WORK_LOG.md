@@ -2,6 +2,10 @@
 
 ## Session Start: 2026-06-05 13:58 EDT (afternoon)
 
+### 2026-06-05 — Fix: matrix unscrollable in installed PWA (touch)
+- `useScrollLock` (active while the matrix modal is open) had a `touchmove` guard whose `getScrollParent` only recognized VERTICAL scrollers (`overflowY` + `scrollHeight > clientHeight`). The matrix needs HORIZONTAL scroll; when content had no vertical overflow, `getScrollParent` returned null and the guard `preventDefault`-ed the swipe — blocking the pan. Only bit touch devices (the guard never fires for mouse/trackpad), so desktop tabs worked but the installed PWA on a tablet/phone didn't.
+- Fix: in the guard, let horizontal swipes through (`|dx| > |dy|` → return) — a horizontal gesture can't move the vertically-locked body anyway. Track `startX/startY` on touchstart. Verified via synthetic TouchEvents in the preview: the exact bug case (scrollableX true, scrollableY false) now reports `defaultPrevented=false` (allowed); both-overflow case also allows H+V. Needs on-device PWA confirmation. Client-only.
+
 ### 2026-06-05 — Matrix renders as a centered modal on wider displays
 - The grid was full-screen at every width (looked odd on big monitors). Now the StepMatrixModal outer div is a backdrop (`sm:items-center sm:justify-center sm:bg-black/40 sm:p-6`) and the header+body live in a panel (`w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-4xl sm:rounded-2xl sm:shadow-2xl sm:border`). Phones stay full-screen; sm+ gets a centered card. Backdrop click closes (target===currentTarget → onClose, which routes through the history-aware close). Verified in browser (1280px: 896px panel centered, backdrop covers viewport, backdrop-click closes; 375px: panel fills 375×812). Client-only.
 

@@ -26,17 +26,32 @@ export default function useScrollLock(isLocked) {
     body.style.overflow = 'hidden';
     body.style.overscrollBehavior = 'none';
     const prevent = (e) => {
+      const touch = e.touches[0];
+      if (!touch) return;
+      // A horizontal swipe can't move the (vertically) locked body, so always
+      // let it through — otherwise horizontally-scrollable content inside the
+      // modal (e.g. the progress matrix) can't be panned on touch devices.
+      // (This guard never fires for mouse/trackpad, which is why desktop tabs
+      // were fine but an installed PWA on a tablet was not.)
+      const dxTotal = touch.clientX - (prevent._startX ?? touch.clientX);
+      const dyTotal = touch.clientY - (prevent._startY ?? touch.clientY);
+      if (Math.abs(dxTotal) > Math.abs(dyTotal)) return;
+
       const scrollParent = getScrollParent(e.target);
       if (!scrollParent) { e.preventDefault(); return; }
       const { scrollTop, scrollHeight, clientHeight } = scrollParent;
       const atTop = scrollTop <= 0;
       const atBottom = scrollTop + clientHeight >= scrollHeight;
-      const touch = e.touches[0];
       const dy = touch.clientY - (prevent._lastY || touch.clientY);
       prevent._lastY = touch.clientY;
       if ((atTop && dy > 0) || (atBottom && dy < 0)) e.preventDefault();
     };
-    const trackStart = (e) => { prevent._lastY = e.touches[0].clientY; };
+    const trackStart = (e) => {
+      const t = e.touches[0];
+      prevent._lastY = t.clientY;
+      prevent._startX = t.clientX;
+      prevent._startY = t.clientY;
+    };
     document.addEventListener('touchstart', trackStart, { passive: true });
     document.addEventListener('touchmove', prevent, { passive: false });
     return () => {
