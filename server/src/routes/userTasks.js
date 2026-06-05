@@ -708,7 +708,73 @@ router.get('/:userId/task-assignments/:taskSetId/matrix', authenticate, (req, re
 
     const taskSet = db.prepare('SELECT id, name, emoji, badge_id, badge_level FROM task_sets WHERE id = ? AND is_active = 1').get(taskSetId);
     if (!taskSet) return res.status(404).json({ error: 'Task set not found.' });
-    if (taskSet.badge_id == null) return res.status(400).json({ error: 'Matrix is only available for badges/awards.' });
+
+    // ── Regular (non-badge) shared task set ──────────────────────────────────
+    // One task_set assigned to several family members: assignees are columns,
+    // the set's own steps are rows, completions are per (user, step). All users
+    // share the same step ids here, so completion counts must be scoped by user.
+    if (taskSet.badge_id == null) {
+      const rUsers = db.prepare(`
+        SELECT u.id, u.name, u.avatar_color, u.avatar_emoji
+        FROM task_assignments ta
+        JOIN users u ON u.id = ta.user_id
+        WHERE ta.task_set_id = ? AND ta.is_active = 1 AND ta.archived_at IS NULL
+          AND u.family_id = ? AND u.is_active = 1
+        GROUP BY u.id
+        ORDER BY (u.id = ?) DESC, u.name COLLATE NOCASE ASC
+      `).all(taskSetId, req.user.familyId, userId);
+
+      const stepDefs = db.prepare(`
+        SELECT s.id, s.sort_order, s.is_optional, s.name, s.description, s.image,
+               s.require_input, s.input_prompt, s.repeat_count
+        FROM task_steps s
+        WHERE s.task_set_id = ? AND s.is_active = 1
+        ORDER BY s.sort_order ASC, s.id ASC
+      `).all(taskSetId);
+
+      const compMap = new Map(); // `${stepId}:${userId}` -> count
+      if (rUsers.length > 0) {
+        const compRows = db.prepare(`
+          SELECT task_step_id, user_id, COUNT(*) AS cnt
+          FROM task_step_completions
+          WHERE task_set_id = ? AND user_id IN (${rUsers.map(() => '?').join(',')})
+          GROUP BY task_step_id, user_id
+        `).all(taskSetId, ...rUsers.map((u) => u.id));
+        for (const r of compRows) compMap.set(`${r.task_step_id}:${r.user_id}`, r.cnt);
+      }
+
+      const rCells = {};
+      for (const u of rUsers) rCells[u.id] = {};
+      for (const u of rUsers) {
+        for (const s of stepDefs) {
+          const cnt = compMap.get(`${s.id}:${u.id}`) || 0;
+          rCells[u.id][`s${s.id}`] = {
+            stepId: s.id,
+            taskSetId,
+            done: cnt >= (s.repeat_count || 1),
+            completed_count: cnt,
+            repeat_count: s.repeat_count || 1,
+            step: {
+              id: s.id, name: s.name, description: s.description || null,
+              image: s.image || null, is_optional: s.is_optional === 1,
+              require_input: s.require_input === 1, input_prompt: s.input_prompt || null,
+              badge_opt_req_id: null, sort_order: s.sort_order,
+            },
+          };
+        }
+      }
+      const rSteps = stepDefs
+        .map((s) => ({ key: `s${s.id}`, label: s.name, is_optional: s.is_optional === 1, sort_order: s.sort_order }))
+        .sort((a, b) => (a.is_optional !== b.is_optional ? (a.is_optional ? 1 : -1) : a.sort_order - b.sort_order));
+
+      return res.json({
+        badge: null,
+        taskSet: { id: taskSet.id, name: taskSet.name, emoji: taskSet.emoji, badge_level: null },
+        users: rUsers.map((u) => ({ id: u.id, name: u.name, avatar_color: u.avatar_color, avatar_emoji: u.avatar_emoji, taskSetId, badge_level: null })),
+        steps: rSteps,
+        cells: rCells,
+      });
+    }
 
     const badge = db.prepare(
       'SELECT id, name, emoji, image_file, is_award FROM badges WHERE id = ?'

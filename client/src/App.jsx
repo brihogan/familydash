@@ -21,6 +21,7 @@ import SettingsUserDetailPage from './pages/SettingsUserDetailPage.jsx';
 import SettingsChoresPage from './pages/SettingsChoresPage.jsx';
 import SettingsTasksPage from './pages/SettingsTasksPage.jsx';
 import KidTasksPage from './pages/KidTasksPage.jsx';
+import SharedTaskSetsPage from './pages/SharedTaskSetsPage.jsx';
 import KidTrophiesPage from './pages/KidTrophiesPage.jsx';
 import TaskSetDetailPage from './pages/TaskSetDetailPage.jsx';
 import UserTaskDetailPage from './pages/UserTaskDetailPage.jsx';
@@ -80,6 +81,8 @@ export default function App() {
 
               {/* Parent-only routes */}
               <Route element={<ParentRoute />}>
+                {/* Static "/tasks/shared" outranks the dynamic "/tasks/:userId" above */}
+                <Route path="/tasks/shared" element={<SharedTaskSetsPage />} />
                 <Route path="/inbox" element={<InboxPage />} />
                 <Route path="/inbox/:kidId" element={<InboxKidPage />} />
                 <Route path="/chore-history/:userId" element={<Navigate to="/dashboard" replace />} />

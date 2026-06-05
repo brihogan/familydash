@@ -2,6 +2,9 @@ import client from './client.js';
 
 export const familyApi = {
   getFamily: () => client.get('/family').then((r) => r.data),
+  // Parent-only: task sets 2+ family members share (badges by badge_id, regular
+  // sets by task_set_id), each with member avatars + a representative target.
+  getSharedTaskSets: () => client.get('/family/shared-task-sets').then((r) => r.data),
   getFamilyAccounts: () => client.get('/family/accounts').then((r) => r.data),
   addUser: (data) => client.post('/family/users', data).then((r) => r.data),
   updateUser: (id, data) => client.put(`/family/users/${id}`, data).then((r) => r.data),

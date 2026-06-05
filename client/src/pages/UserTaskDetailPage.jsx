@@ -78,7 +78,7 @@ function StepDetailModal({ step, onClose }) {
 // top, the full step text (description, which holds the original long wording),
 // an answer textarea when the step asks for input, and a Mark Complete button.
 // Used instead of the cramped inline input when a step has a description.
-function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disabled, readOnly = false, user = null, coUsers = [] }) {
+function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disabled, readOnly = false, user = null, coUsers = [], requireCoSelection = false }) {
   useScrollLock(true);
   const isDark = useIsDark();
   const { user: viewer } = useAuth();
@@ -113,7 +113,10 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disab
 
   const lvlCfg = taskSet?.badge_level && BADGE_LEVELS[taskSet.badge_level];
   const fullText = step.description || step.name;
-  const canComplete = !disabled && !saving && (!needsInput || inputOptional || value.trim().length > 0);
+  // When opened from a step row (no specific user/cell), at least one user must
+  // be toggled on so we know who completed it.
+  const coSelectionOk = !requireCoSelection || coSelected.size > 0;
+  const canComplete = !disabled && !saving && coSelectionOk && (!needsInput || inputOptional || value.trim().length > 0);
 
   const handleComplete = () => {
     if (!canComplete) return;
@@ -272,13 +275,15 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disab
             </div>
           )}
 
-          {/* Also-complete-for toggles — other family members who share this
-              step (and haven't done it yet). Toggling one on means "Mark
-              complete" also completes it for them, with the same answer. */}
+          {/* Who-completed-it toggles — family members who share this step (and
+              haven't done it yet). In requireCoSelection mode (opened from a
+              step row, no specific user) you must toggle at least one to know
+              who did it; otherwise it's an optional "also complete for" list.
+              The same answer is applied to everyone toggled on. */}
           {!readOnly && coUsers.length > 0 && (
             <div className="mt-6 w-full text-left">
               <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">
-                Also mark complete for
+                {requireCoSelection ? 'Who completed it?' : 'Also mark complete for'}
               </p>
               <div className="flex flex-col gap-1.5">
                 {coUsers.map(({ user: cu }) => {
@@ -326,7 +331,10 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disab
               disabled={!canComplete}
               className="w-full py-3 rounded-xl text-base font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
             >
-              {saving ? 'Saving…' : needsInput && !inputOptional && !value.trim() ? 'Write your answer to finish' : '✓ Mark complete'}
+              {saving ? 'Saving…'
+                : requireCoSelection && coSelected.size === 0 ? 'Select who completed it'
+                : needsInput && !inputOptional && !value.trim() ? 'Write your answer to finish'
+                : '✓ Mark complete'}
             </button>
           </div>
         </div>
@@ -1442,8 +1450,7 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
   useScrollLock(true);
   const [data, setData]   = useState(null);
   const [error, setError] = useState('');
-  const [focus, setFocus] = useState(null); // { user, cell }
-  const [rowInfo, setRowInfo] = useState(null); // { name, description } — left-row tap
+  const [focus, setFocus] = useState(null); // { user, cell, rowKey } — user null = step-row (pick who)
   const [selectedKey, setSelectedKey] = useState(null); // highlighted row (one at a time)
 
   const load = useCallback(() => {
@@ -1456,44 +1463,62 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
   useEffect(() => {
     const handler = (e) => {
       if (e.key !== 'Escape') return;
-      if (rowInfo) { setRowInfo(null); return; }
       if (!focus) onClose();
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [onClose, focus, rowInfo]);
+  }, [onClose, focus]);
 
   // Build the per-column taskSet the focus modal expects (shared badge art +
-  // that kid's own level).
+  // that kid's own level). When opened from a step row there's no single user,
+  // so no level pill.
   const taskSetFor = (u) => data && ({
     name: data.badge?.name || data.taskSet?.name,
     emoji: data.taskSet?.emoji,
     badge_image_file: data.badge?.image_file || null,
-    badge_level: u.badge_level || null,
+    badge_level: u?.badge_level || null,
     is_award: !!data.badge?.is_award,
   });
 
-  // Other enrolled kids who share this exact step and haven't finished it —
-  // surfaced as toggles in the focus view so a parent can mark it for several
-  // kids at once with the same answer.
-  const coUsersFor = (focusUser, cell) => {
+  // Enrolled kids who share this exact step (by row key) and haven't finished
+  // it — surfaced as toggles in the focus view so a parent can mark it for
+  // several kids at once with the same answer. `excludeId` drops the primary
+  // user (a clicked cell); pass null to include everyone (a step-row click).
+  const coUsersFor = (rowKey, excludeId = null) => {
     if (!data) return [];
-    const key = cell.step.badge_opt_req_id != null ? `o${cell.step.badge_opt_req_id}` : `r${cell.step.sort_order}`;
     return data.users
-      .filter((u) => u.id !== focusUser.id)
-      .map((u) => ({ user: u, cell: data.cells[u.id]?.[key] }))
+      .filter((u) => u.id !== excludeId)
+      .map((u) => ({ user: u, cell: data.cells[u.id]?.[rowKey] }))
       .filter((x) => x.cell && !x.cell.done);
   };
 
   const handleComplete = (u, cell, resp, alsoFor = []) => {
     const targets = [
-      { id: u.id, taskSetId: cell.taskSetId, stepId: cell.stepId },
+      ...(u && cell ? [{ id: u.id, taskSetId: cell.taskSetId, stepId: cell.stepId }] : []),
       ...alsoFor.map((c) => ({ id: c.user.id, taskSetId: c.cell.taskSetId, stepId: c.cell.stepId })),
     ];
     Promise.all(targets.map((t) => taskSetsApi.toggleStep(t.id, t.taskSetId, t.stepId, false, resp)))
       .then(() => { setFocus(null); load(); onChanged?.(); })
       .catch((err) => setError(err?.response?.data?.error || 'Could not update.'));
   };
+
+  // Full title + description for a row (pulled from any enrolled kid's cell).
+  const rowDetail = (row) => {
+    let name = row.label, description = null;
+    if (data) {
+      for (const u of data.users) {
+        const c = data.cells[u.id]?.[row.key];
+        if (c) { name = c.step.name; description = c.step.description; if (description) break; }
+      }
+    }
+    return { name, description };
+  };
+
+  // Hide any step that at least one enrolled kid has already completed — the
+  // grid is for tracking what's still outstanding.
+  const visibleSteps = data
+    ? data.steps.filter((row) => !data.users.some((u) => data.cells[u.id]?.[row.key]?.done))
+    : [];
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-gray-900" onClick={(e) => e.stopPropagation()}>
@@ -1551,9 +1576,19 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
               </tr>
             </thead>
             <tbody>
-              {data.steps.map((row, i) => (
+              {visibleSteps.length === 0 && (
+                <tr>
+                  <td colSpan={data.users.length + 1} className="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                    No steps left to track — every step has been completed 🎉
+                  </td>
+                </tr>
+              )}
+              {visibleSteps.map((row, i) => {
+                const { name, description } = rowDetail(row);
+                const hasDesc = !!description && description !== name;
+                return (
                 <Fragment key={row.key}>
-                {row.is_optional && (i === 0 || !data.steps[i - 1].is_optional) && (
+                {row.is_optional && (i === 0 || !visibleSteps[i - 1].is_optional) && (
                   <tr>
                     <td colSpan={data.users.length + 1} className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 px-3 py-1.5">
                       <span className="sticky left-0 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Optional</span>
@@ -1569,17 +1604,19 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
                       type="button"
                       title={row.label}
                       onClick={() => {
-                        let name = row.label, description = null;
-                        for (const u of data.users) {
-                          const c = data.cells[u.id]?.[row.key];
-                          if (c) { name = c.step.name; description = c.step.description; if (description) break; }
-                        }
                         setSelectedKey(row.key);
-                        setRowInfo({ name, description });
+                        // No specific user — open fullscreen with all kids as
+                        // toggles (must pick who completed it). Any cell gives
+                        // the step detail.
+                        const rep = data.users.map((u) => data.cells[u.id]?.[row.key]).find(Boolean);
+                        if (rep) setFocus({ user: null, cell: rep, rowKey: row.key });
                       }}
-                      className="w-full text-left px-3 py-2 truncate hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                      className="w-full flex items-center gap-1.5 px-3 py-2 text-left hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
                     >
-                      {row.label}
+                      <span className="flex-1 min-w-0 truncate">{row.label}</span>
+                      {hasDesc && (
+                        <FontAwesomeIcon icon={faStickyNote} title="Has a description" className="shrink-0 text-gray-400 dark:text-gray-500 text-[11px]" />
+                      )}
                     </button>
                   </th>
                   {data.users.map((u) => {
@@ -1595,7 +1632,7 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
                       <td key={u.id} className="text-center px-2 py-2 border-b border-gray-100 dark:border-gray-800">
                         <button
                           type="button"
-                          onClick={() => setFocus({ user: u, cell })}
+                          onClick={() => setFocus({ user: u, cell, rowKey: row.key })}
                           className="inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                           aria-label={`${u.name}: ${row.label} — ${cell.done ? 'done' : 'not done'}`}
                           title={cell.done ? 'Done — tap to view' : 'Not done — tap to open'}
@@ -1611,7 +1648,8 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
                   })}
                 </tr>
                 </Fragment>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -1622,40 +1660,13 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
           step={focus.cell.step}
           taskSet={taskSetFor(focus.user)}
           user={focus.user}
-          coUsers={coUsersFor(focus.user, focus.cell)}
+          coUsers={coUsersFor(focus.rowKey, focus.user?.id ?? null)}
+          requireCoSelection={!focus.user}
           readOnly={focus.cell.done}
           disabled={false}
           onComplete={(resp, alsoFor) => handleComplete(focus.user, focus.cell, resp, alsoFor)}
           onClose={() => setFocus(null)}
         />
-      )}
-
-      {rowInfo && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setRowInfo(null)}
-        >
-          <div
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full max-h-[80vh] overflow-y-auto p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 leading-snug">{rowInfo.name}</h3>
-              <button
-                onClick={() => setRowInfo(null)}
-                className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                aria-label="Close"
-              >
-                <span className="text-xl leading-none">×</span>
-              </button>
-            </div>
-            {rowInfo.description && rowInfo.description !== rowInfo.name ? (
-              <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line leading-relaxed">{rowInfo.description}</p>
-            ) : (
-              <p className="text-sm text-gray-400 dark:text-gray-500 italic">No extra description for this step.</p>
-            )}
-          </div>
-        </div>
       )}
     </div>,
     document.body,
@@ -1712,8 +1723,9 @@ export default function UserTaskDetailPage() {
   const [descExpanded,     setDescExpanded]     = useState(false);
   // Info popover (tags + assigned date) anchored under the Archive button.
   const [infoOpen,         setInfoOpen]         = useState(false);
-  // Parent-only "who's done what" matrix overlay.
-  const [matrixOpen,       setMatrixOpen]       = useState(false);
+  // Parent-only "who's done what" matrix overlay. Auto-opens when navigated
+  // here from the Shared view (location state), even for non-badge sets.
+  const [matrixOpen,       setMatrixOpen]       = useState(() => !!location.state?.openMatrix);
   // Sticky compact header — appears once the big badge has scrolled
   // offscreen. Tracks intersection of a sentinel placed at the bottom
   // of the main badge header below.

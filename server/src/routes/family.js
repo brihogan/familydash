@@ -63,6 +63,81 @@ router.get('/', authenticate, (req, res, next) => {
   }
 });
 
+// ─── GET /api/family/shared-task-sets ───────────────────────────────────────
+// Parent-only: task sets that 2+ family members are working on, REGARDLESS of
+// level. Badges/awards are grouped by badge_id (a kid at any level counts);
+// regular task sets are grouped by their own task_set_id. Each item carries the
+// member avatars + a representative (userId, taskSetId) for opening the grid.
+router.get('/shared-task-sets', authenticate, requireRole('parent'), (req, res, next) => {
+  try {
+    const fam = req.user.familyId;
+
+    // Badges/awards: one row per (badge, enrolled member). Group by badge_id.
+    const badgeRows = db.prepare(`
+      SELECT ts.badge_id AS group_id, ts.id AS task_set_id,
+             u.id AS user_id, u.name AS user_name, u.avatar_color, u.avatar_emoji,
+             b.name AS title, b.emoji, b.image_file, b.is_award
+      FROM task_assignments ta
+      JOIN task_sets ts ON ts.id = ta.task_set_id AND ts.is_active = 1 AND ts.badge_id IS NOT NULL
+      JOIN users    u  ON u.id = ta.user_id AND u.family_id = ? AND u.is_active = 1
+      JOIN badges   b  ON b.id = ts.badge_id
+      WHERE ta.is_active = 1 AND ta.archived_at IS NULL
+      ORDER BY b.name COLLATE NOCASE ASC
+    `).all(fam);
+
+    // Regular sets: one row per (set, assignee). Group by task_set_id.
+    const setRows = db.prepare(`
+      SELECT ts.id AS group_id, ts.id AS task_set_id,
+             u.id AS user_id, u.name AS user_name, u.avatar_color, u.avatar_emoji,
+             ts.name AS title, ts.emoji
+      FROM task_assignments ta
+      JOIN task_sets ts ON ts.id = ta.task_set_id AND ts.is_active = 1 AND ts.badge_id IS NULL
+      JOIN users    u  ON u.id = ta.user_id AND u.family_id = ? AND u.is_active = 1
+      WHERE ta.is_active = 1 AND ta.archived_at IS NULL
+      ORDER BY ts.name COLLATE NOCASE ASC
+    `).all(fam);
+
+    const groups = new Map(); // key -> item
+    const collect = (rows, kind) => {
+      for (const r of rows) {
+        const key = `${kind}:${r.group_id}`;
+        let g = groups.get(key);
+        if (!g) {
+          g = {
+            kind,
+            id: r.group_id,
+            title: r.title,
+            emoji: r.emoji || null,
+            image_file: kind === 'badge' ? (r.image_file || null) : null,
+            is_award: kind === 'badge' ? r.is_award === 1 : false,
+            // representative target for opening the grid
+            repUserId: r.user_id,
+            repTaskSetId: r.task_set_id,
+            members: [],
+            _seen: new Set(),
+          };
+          groups.set(key, g);
+        }
+        if (!g._seen.has(r.user_id)) {
+          g._seen.add(r.user_id);
+          g.members.push({ id: r.user_id, name: r.user_name, avatar_color: r.avatar_color, avatar_emoji: r.avatar_emoji });
+        }
+      }
+    };
+    collect(badgeRows, 'badge');
+    collect(setRows, 'set');
+
+    const items = [...groups.values()]
+      .filter((g) => g.members.length >= 2)
+      .map(({ _seen, ...g }) => ({ ...g, memberCount: g.members.length }))
+      .sort((a, b) => (a.is_award !== b.is_award ? (a.is_award ? -1 : 1) : a.title.localeCompare(b.title)));
+
+    res.json({ taskSets: items });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── POST /api/family/users ────────────────────────────────────────────────
 
 const AddUserSchema = z.discriminatedUnion('role', [

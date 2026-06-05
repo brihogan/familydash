@@ -293,7 +293,7 @@ export default function KidTasksPage() {
 
       {isParent && kids.length > 1 && (
         <div className="mb-5">
-          <KidProfilePicker kids={kids} currentId={userId} routePrefix="/tasks" className="flex items-center gap-2 p-1 overflow-x-auto scrollbar-hide min-w-0" />
+          <KidProfilePicker kids={kids} currentId={userId} routePrefix="/tasks" sharedRoute="/tasks/shared" className="flex items-center gap-2 p-1 overflow-x-auto scrollbar-hide min-w-0" />
         </div>
       )}
 
