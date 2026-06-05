@@ -2,6 +2,9 @@
 
 ## Session Start: 2026-06-05 13:58 EDT (afternoon)
 
+### 2026-06-05 — Matrix renders as a centered modal on wider displays
+- The grid was full-screen at every width (looked odd on big monitors). Now the StepMatrixModal outer div is a backdrop (`sm:items-center sm:justify-center sm:bg-black/40 sm:p-6`) and the header+body live in a panel (`w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-4xl sm:rounded-2xl sm:shadow-2xl sm:border`). Phones stay full-screen; sm+ gets a centered card. Backdrop click closes (target===currentTarget → onClose, which routes through the history-aware close). Verified in browser (1280px: 896px panel centered, backdrop covers viewport, backdrop-click closes; 375px: panel fills 375×812). Client-only.
+
 ### 2026-06-05 — Matrix back-button + Shared close-returns-to-list
 - Browser Back now closes the matrix. Opened in-page (grid button): pushes a throwaway history entry + popstate listener so Back pops it and closes the matrix while staying on the detail page. Arrived from the Shared list (`location.state.openMatrix`, tracked via `arrivedWithMatrix` ref): the page entry already serves that role, so Back / ✕ both return to the Shared list (`navigate(-1)`), not the badge page. `closeMatrix` routes ✕ and Back through the same path. Verified all 4 flows in browser (button→Back stays on detail; Shared→badge→matrix→✕ and →Back both land on `/tasks/shared`). Client-only.
 

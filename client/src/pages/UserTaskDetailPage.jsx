@@ -1521,7 +1521,13 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
     : [];
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-gray-900" onClick={(e) => e.stopPropagation()}>
+    // Full-screen on phones; a centered modal card with a backdrop on sm+ (the
+    // edge-to-edge grid looks odd on big displays). Backdrop click closes.
+    <div
+      className="fixed inset-0 z-50 flex sm:items-center sm:justify-center sm:bg-black/40 sm:p-6"
+      onClick={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="flex flex-col bg-white dark:bg-gray-900 w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-4xl sm:rounded-2xl sm:shadow-2xl sm:border sm:border-gray-200 dark:border-gray-700 overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 p-3 shrink-0 border-b border-gray-100 dark:border-gray-800">
         <FontAwesomeIcon icon={faTableCells} className="text-brand-600 dark:text-brand-400" />
@@ -1654,6 +1660,7 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
           </table>
         )}
       </div>
+      </div>{/* /panel */}
 
       {focus && (
         <StepFocusModal
