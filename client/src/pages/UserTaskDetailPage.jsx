@@ -81,7 +81,11 @@ function StepDetailModal({ step, onClose }) {
 function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disabled, readOnly = false, user = null, coUsers = [] }) {
   useScrollLock(true);
   const isDark = useIsDark();
+  const { user: viewer } = useAuth();
   const needsInput = !!step.require_input;
+  // A parent can check a step off without filling in the answer (input is
+  // optional for parents); a kid still has to write their response.
+  const inputOptional = viewer?.role === 'parent';
   const [value, setValue] = useState(step._inputResponse || step._responseDraft || '');
   const [generalNotes, setGeneralNotes] = useState(step._generalNotes || '');
   const [notesOpen, setNotesOpen] = useState(!!(step._generalNotes && step._generalNotes.trim()));
@@ -109,7 +113,7 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disab
 
   const lvlCfg = taskSet?.badge_level && BADGE_LEVELS[taskSet.badge_level];
   const fullText = step.description || step.name;
-  const canComplete = !disabled && !saving && (!needsInput || value.trim().length > 0);
+  const canComplete = !disabled && !saving && (!needsInput || inputOptional || value.trim().length > 0);
 
   const handleComplete = () => {
     if (!canComplete) return;
@@ -322,7 +326,7 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disab
               disabled={!canComplete}
               className="w-full py-3 rounded-xl text-base font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
             >
-              {saving ? 'Saving…' : needsInput && !value.trim() ? 'Write your answer to finish' : '✓ Mark complete'}
+              {saving ? 'Saving…' : needsInput && !inputOptional && !value.trim() ? 'Write your answer to finish' : '✓ Mark complete'}
             </button>
           </div>
         </div>

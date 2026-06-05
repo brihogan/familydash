@@ -855,6 +855,10 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
 
     const isUndo = req.body?.undo === true;
     const inputResponse = typeof req.body?.input_response === 'string' ? req.body.input_response.trim() : null;
+    // A parent toggling a step for a kid acts on the kid's behalf: it never
+    // needs parent approval, never lands in the parent inbox, and the
+    // required-input answer is optional (the parent may just be checking it off).
+    const actorIsParent = req.user.role === 'parent';
 
     // Helper: count total instances across all steps
     const getTotalInstances = () => db.prepare(
@@ -929,8 +933,8 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
         return res.status(400).json({ error: 'Already fully completed.' });
       }
 
-      // Require input validation
-      if (step.require_input && !inputResponse) {
+      // Require input validation — optional when a parent checks it off.
+      if (step.require_input && !inputResponse && !actorIsParent) {
         return res.status(400).json({ error: 'Input response is required for this step.' });
       }
 
@@ -981,7 +985,7 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
       // Skipped when the set just finished — we'd rather the completion
       // notification cover it than spam two rows in the inbox.
       const setJustFinished = totalInst > 0 && doneInst >= totalInst;
-      if (notifyMode === 'each_step' && !setJustFinished) {
+      if (notifyMode === 'each_step' && !setJustFinished && !actorIsParent) {
         const remaining = Math.max(0, totalInst - doneInst);
         insertNotification({
           familyId: user.family_id,
@@ -1027,7 +1031,7 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
         // Parent-inbox notification when the set closes (opt-in per set).
         // Fires for both 'each_step' and 'on_completion' modes so that
         // families who want per-step updates also hear about the finish.
-        if (notifyMode === 'each_step' || notifyMode === 'on_completion') {
+        if ((notifyMode === 'each_step' || notifyMode === 'on_completion') && !actorIsParent) {
           insertNotification({
             familyId: user.family_id,
             subjectUserId: userId,
