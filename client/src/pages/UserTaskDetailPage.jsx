@@ -221,9 +221,12 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, onSav
   const [subtasksOpen, setSubtasksOpen] = useState(Array.isArray(subtaskUsers) && subtaskUsers.length > 0);
   const [saving, setSaving] = useState(false);
   // Other users who share this step — toggle one on to also mark it complete
-  // for them (with the same answer) when this step is completed.
-  const [coSelected, setCoSelected] = useState(() => new Set());
-  useEffect(() => { setCoSelected(new Set()); }, [step.id]);
+  // for them (with the same answer) when this step is completed. When opened
+  // from a step row ("Who completed it?"/requireCoSelection), everyone who has
+  // the step starts toggled ON (the parent deselects whoever didn't do it).
+  const allCoIds = () => new Set(coUsers.map((c) => c.user.id));
+  const [coSelected, setCoSelected] = useState(() => (requireCoSelection ? allCoIds() : new Set()));
+  useEffect(() => { setCoSelected(requireCoSelection ? allCoIds() : new Set()); }, [step.id]);
   const taRef = useRef(null);
 
   // Persist working notes (general notes + draft answer) on blur — to the focus

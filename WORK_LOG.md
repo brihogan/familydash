@@ -2,6 +2,9 @@
 
 ## Session Start: 2026-06-05 13:58 EDT (afternoon)
 
+### 2026-06-05 — Step-title click pre-toggles everyone who has the step
+- Opening the full-screen from the step TITLE (row-click / "Who completed it?") now starts with every user who has the step toggled ON (`coSelected` defaults to `allCoIds()` when `requireCoSelection`). Parent deselects whoever didn't do it; Mark complete is enabled immediately. Cell-click "Also save for" still defaults OFF. Verified in browser (title → all 4 on; cell → all off). Client-only.
+
 ### 2026-06-05 — Fix: subtask checks not showing on the single-user page
 - On a kid's badge page the subtask checklist never showed checks: `subtaskUserId` comes from `useParams()` (a string) but `completedBy` holds numbers, so `completedBy.includes("52")` was always false. The matrix worked because it passes numeric `data.users` ids. Fix: coerce to `ctxUid = Number(ctxUserId)` in `StepSubtasks` and use it for `isDone`, the single-user toggle target, and the post-toggle done update. Verified: Brian's "Read three books" step now shows "Book 2" checked. Client-only.
 
