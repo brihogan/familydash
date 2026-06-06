@@ -3,7 +3,7 @@ import { useIsDark } from '../components/tasks/TaskSetCard.jsx';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faChevronDown, faChevronRight, faStickyNote, faBoxArchive, faBoxOpen, faSitemap, faThumbtack, faCircleInfo, faTrash, faExpand, faGripVertical, faArrowDownWideShort, faTableCells, faCircleCheck } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faChevronDown, faChevronRight, faStickyNote, faBoxArchive, faBoxOpen, faSitemap, faThumbtack, faCircleInfo, faTrash, faExpand, faGripVertical, faArrowDownWideShort, faTableCells, faCircleCheck, faCommentDots } from '@fortawesome/free-solid-svg-icons';
 import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -73,12 +73,137 @@ function StepDetailModal({ step, onClose }) {
   );
 }
 
+// ── Per-step subtasks ─────────────────────────────────────────────────────────
+// A small parent-managed checklist attached to a step, shared across everyone
+// who has the step. `users` (the mini-matrix mode, used when opened from the
+// progress grid) renders avatars across the top and a check per (subtask,user);
+// otherwise it's a single-user checklist for `ctxUserId`. Parents add/delete;
+// parents or the user toggle.
+function StepSubtasks({ stepId, ctxUserId, users = null, canEdit }) {
+  const [subtasks, setSubtasks] = useState([]);
+  const [newName, setNewName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const miniMatrix = Array.isArray(users) && users.length > 0;
+  // ctxUserId may arrive as a route-param string; completedBy holds numbers, so
+  // compare against a numeric id (otherwise single-user checks never match).
+  const ctxUid = Number(ctxUserId);
+  const isDone = (s, uid) => s.completedBy.includes(uid);
+
+  useEffect(() => {
+    let cancelled = false;
+    taskSetsApi.getSubtasks(ctxUserId, stepId)
+      .then((d) => { if (!cancelled) setSubtasks(d.subtasks || []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [stepId, ctxUserId]);
+
+  const add = () => {
+    const name = newName.trim();
+    if (!name || busy) return;
+    setBusy(true);
+    taskSetsApi.addSubtask(ctxUserId, stepId, name)
+      .then((d) => { setSubtasks((prev) => [...prev, d.subtask]); setNewName(''); })
+      .catch(() => {})
+      .finally(() => setBusy(false));
+  };
+  const del = (id) => {
+    taskSetsApi.deleteSubtask(ctxUserId, id)
+      .then(() => setSubtasks((prev) => prev.filter((s) => s.id !== id)))
+      .catch(() => {});
+  };
+  const toggle = (id, targetUserId) => {
+    taskSetsApi.toggleSubtask(targetUserId, id).then((res) => {
+      setSubtasks((prev) => prev.map((s) => {
+        if (s.id !== id) return s;
+        const set = new Set(s.completedBy);
+        if (res.done) set.add(targetUserId); else set.delete(targetUserId);
+        return { ...s, completedBy: [...set], done: targetUserId === ctxUid ? res.done : s.done };
+      }));
+    }).catch(() => {});
+  };
+
+  return (
+    <div className="mt-2">
+      {subtasks.length === 0 ? (
+        !canEdit && <p className="text-xs text-gray-400 dark:text-gray-500 italic">No subtasks yet.</p>
+      ) : miniMatrix ? (
+        <div className="overflow-x-auto">
+          <table className="text-sm border-separate border-spacing-0">
+            <thead>
+              <tr>
+                <th />
+                {users.map((u) => (
+                  <th key={u.id} className="px-1.5 pb-1 align-bottom">
+                    <Avatar name={u.name} color={u.avatar_color} emoji={u.avatar_emoji} size="xs" />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {subtasks.map((s) => (
+                <tr key={s.id}>
+                  <td className="pr-2 py-1 text-gray-700 dark:text-gray-200 align-middle">
+                    <span className="flex items-center gap-1.5">
+                      {canEdit && <button type="button" onClick={() => del(s.id)} className="text-gray-300 hover:text-red-500 leading-none" title="Delete subtask">×</button>}
+                      <span>{s.name}</span>
+                    </span>
+                  </td>
+                  {users.map((u) => (
+                    <td key={u.id} className="text-center px-1.5 py-1">
+                      <button type="button" onClick={() => toggle(s.id, u.id)} className="inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" aria-label={`${u.name}: ${s.name}`}>
+                        {isDone(s, u.id)
+                          ? <FontAwesomeIcon icon={faCircleCheck} className="text-lg text-green-500" />
+                          : <span className="w-4 h-4 rounded-full border-2 border-gray-300 dark:border-gray-600" />}
+                      </button>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {subtasks.map((s) => {
+            const done = isDone(s, ctxUid);
+            return (
+              <li key={s.id} className="flex items-center gap-2">
+                <button type="button" onClick={() => toggle(s.id, ctxUid)} className="inline-flex items-center justify-center w-6 h-6 shrink-0" aria-label={s.name}>
+                  {done
+                    ? <FontAwesomeIcon icon={faCircleCheck} className="text-lg text-green-500" />
+                    : <span className="w-4 h-4 rounded-full border-2 border-gray-300 dark:border-gray-600" />}
+                </button>
+                <span className={`flex-1 text-sm ${done ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-200'}`}>{s.name}</span>
+                {canEdit && <button type="button" onClick={() => del(s.id)} className="text-gray-300 hover:text-red-500 shrink-0 leading-none" title="Delete subtask">×</button>}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {canEdit && (
+        <div className="flex items-center gap-2 mt-2">
+          <input
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+            placeholder="Add a subtask…"
+            maxLength={200}
+            className="flex-1 min-w-0 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+          />
+          <button type="button" onClick={add} disabled={busy || !newName.trim()} className="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 disabled:opacity-40 transition-colors">Add</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Step focus mode ───────────────────────────────────────────────────────────
 // Fullscreen "do this step" view for long/summarized steps: badge medallion on
 // top, the full step text (description, which holds the original long wording),
 // an answer textarea when the step asks for input, and a Mark Complete button.
 // Used instead of the cramped inline input when a step has a description.
-function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disabled, readOnly = false, user = null, coUsers = [], requireCoSelection = false }) {
+function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, onSaveCoUserNotes, disabled, readOnly = false, user = null, coUsers = [], requireCoSelection = false, subtaskUserId = null, subtaskUsers = null }) {
   useScrollLock(true);
   const isDark = useIsDark();
   const { user: viewer } = useAuth();
@@ -89,6 +214,11 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disab
   const [value, setValue] = useState(step._inputResponse || step._responseDraft || '');
   const [generalNotes, setGeneralNotes] = useState(step._generalNotes || '');
   const [notesOpen, setNotesOpen] = useState(!!(step._generalNotes && step._generalNotes.trim()));
+  // Subtasks: default-open when opened from the grid (mini-matrix), collapsed
+  // otherwise. ctxUserId resolves the (family-scoped) shared subtask group.
+  const subtaskCtx = subtaskUserId ?? user?.id ?? null;
+  const canEditSubtasks = viewer?.role === 'parent';
+  const [subtasksOpen, setSubtasksOpen] = useState(Array.isArray(subtaskUsers) && subtaskUsers.length > 0);
   const [saving, setSaving] = useState(false);
   // Other users who share this step — toggle one on to also mark it complete
   // for them (with the same answer) when this step is completed.
@@ -96,11 +226,16 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disab
   useEffect(() => { setCoSelected(new Set()); }, [step.id]);
   const taRef = useRef(null);
 
-  // Persist working notes (general notes + draft answer) on blur. No-op when
-  // read-only (a completed step) or when no save handler is wired.
+  // Persist working notes (general notes + draft answer) on blur — to the focus
+  // user AND any toggled-on "Also save for" users (so the same text is saved to
+  // each, ready to look at later even before the step is completed). No-op when
+  // read-only.
+  const noteValues = () => ({ generalNotes, responseDraft: needsInput ? value : '' });
   const saveNotes = () => {
-    if (readOnly || !onSaveNotes) return;
-    onSaveNotes(step.id, { generalNotes, responseDraft: needsInput ? value : '' });
+    if (readOnly) return;
+    const notes = noteValues();
+    if (onSaveNotes) onSaveNotes(step.id, notes);
+    if (onSaveCoUserNotes) coUsers.forEach((co) => { if (coSelected.has(co.user.id)) onSaveCoUserNotes(co, notes); });
   };
 
   useEffect(() => {
@@ -224,6 +359,30 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disab
             />
           )}
 
+          {/* Subtasks — a collapsible parent-managed checklist (above General
+              Notes). Shared across everyone who has the step; check-off is
+              per-user. From the grid it renders as a mini-matrix. */}
+          {subtaskCtx != null && (
+            <div className="mt-5 w-full text-left">
+              <button
+                type="button"
+                onClick={() => setSubtasksOpen((o) => !o)}
+                className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
+                <FontAwesomeIcon icon={subtasksOpen ? faChevronDown : faChevronRight} className="text-[10px]" />
+                Subtasks
+              </button>
+              {subtasksOpen && (
+                <StepSubtasks
+                  stepId={step.id}
+                  ctxUserId={subtaskCtx}
+                  users={subtaskUsers}
+                  canEdit={canEditSubtasks}
+                />
+              )}
+            </div>
+          )}
+
           {/* General Notes — a collapsible scratchpad (research, links, anything
               that isn't the answer). Saved on blur, persists independent of
               completion. Hidden entirely on a read-only step with no notes. */}
@@ -275,28 +434,39 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disab
             </div>
           )}
 
-          {/* Who-completed-it toggles — family members who share this step (and
-              haven't done it yet). In requireCoSelection mode (opened from a
-              step row, no specific user) you must toggle at least one to know
-              who did it; otherwise it's an optional "also complete for" list.
-              The same answer is applied to everyone toggled on. */}
+          {/* Family members who share this step. In requireCoSelection mode
+              (opened from a step row) you must toggle at least one to record who
+              completed it. Otherwise ("Also save for"): your answer + general
+              notes are saved to each toggled user as you type / on blur (and
+              when you toggle one on, any text already entered is saved to them),
+              and Mark complete also completes them. */}
           {!readOnly && coUsers.length > 0 && (
             <div className="mt-6 w-full text-left">
               <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">
-                {requireCoSelection ? 'Who completed it?' : 'Also mark complete for'}
+                {requireCoSelection ? 'Who completed it?' : 'Also save for'}
               </p>
               <div className="flex flex-col gap-1.5">
-                {coUsers.map(({ user: cu }) => {
+                {coUsers.map((co) => {
+                  const cu = co.user;
                   const on = coSelected.has(cu.id);
                   return (
                     <button
                       key={cu.id}
                       type="button"
-                      onClick={() => setCoSelected((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(cu.id)) next.delete(cu.id); else next.add(cu.id);
-                        return next;
-                      })}
+                      onClick={() => {
+                        setCoSelected((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(cu.id)) next.delete(cu.id); else next.add(cu.id);
+                          return next;
+                        });
+                        // Toggling ON: persist any text already entered to this user.
+                        if (!on && onSaveCoUserNotes) {
+                          const notes = noteValues();
+                          if (notes.generalNotes.trim() || (notes.responseDraft && notes.responseDraft.trim())) {
+                            onSaveCoUserNotes(co, notes);
+                          }
+                        }
+                      }}
                       aria-pressed={on}
                       className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-colors ${
                         on
@@ -313,8 +483,12 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, disab
                   );
                 })}
               </div>
-              {needsInput && coSelected.size > 0 && (
-                <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">They'll get the same answer you wrote above.</p>
+              {coSelected.size > 0 && (
+                <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+                  {requireCoSelection
+                    ? "They'll get the same answer you wrote above."
+                    : 'Your answer & general notes save to each as you type.'}
+                </p>
               )}
             </div>
           )}
@@ -1157,6 +1331,7 @@ function StepItem({ step, onToggle, onSaveNotes, disabled, onPreviewBadge, onFin
           step={step}
           taskSet={taskSet}
           disabled={disabled}
+          subtaskUserId={userId}
           onComplete={(resp) => { setFocusOpen(false); onToggle(step, false, resp); }}
           onClose={() => setFocusOpen(false)}
           onSaveNotes={onSaveNotes}
@@ -1363,6 +1538,7 @@ function StepCard({ step, onToggle, disabled, done, isLast }) {
 
 // ── Completed step (list view) with lightbox support ─────────────────────────
 function CompletedStepItem({ step, taskSet, onUndo, canUndo, disabled }) {
+  const { userId } = useParams();
   const [lightbox, setLightbox] = useState(false);
   const [focusOpen, setFocusOpen] = useState(false);
   const isBadgeStep = !!taskSet?.badge_id;
@@ -1424,6 +1600,7 @@ function CompletedStepItem({ step, taskSet, onUndo, canUndo, disabled }) {
           step={step}
           taskSet={taskSet}
           readOnly
+          subtaskUserId={userId}
           onComplete={() => {}}
           onClose={() => setFocusOpen(false)}
         />
@@ -1446,7 +1623,24 @@ function CompletedStepItem({ step, taskSet, onUndo, canUndo, disabled }) {
 // member across the top, a check circle per cell. Tapping a cell opens that
 // kid's fullscreen focus view for the step (so a parent can read/mark it).
 // Horizontally scrollable on narrow screens; first column + header row stick.
-function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
+// Matrix cell indicator for a step that has subtasks: a light-orange ring with
+// a darker-orange arc showing how many of that user's subtasks are checked off.
+function SubtaskRing({ done, total }) {
+  const size = 20, r = 8, sw = 2.5;
+  const circ = 2 * Math.PI * r;
+  const pct = total > 0 ? Math.min(1, done / total) : 0;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }} aria-hidden="true">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#FED7AA" strokeWidth={sw} />
+      {pct > 0 && (
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#EA580C" strokeWidth={sw}
+          strokeDasharray={circ} strokeDashoffset={circ * (1 - pct)} strokeLinecap="round" />
+      )}
+    </svg>
+  );
+}
+
+export function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
   useScrollLock(true);
   const [data, setData]   = useState(null);
   const [error, setError] = useState('');
@@ -1655,14 +1849,19 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
                         <button
                           type="button"
                           onClick={() => setFocus({ user: u, cell, rowKey: row.key })}
-                          className="inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                          aria-label={`${u.name}: ${row.label} — ${cell.done ? 'done' : 'not done'}`}
-                          title={cell.done ? 'Done — tap to view' : 'Not done — tap to open'}
+                          className="relative inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                          aria-label={`${u.name}: ${row.label} — ${cell.done ? 'done' : 'not done'}${cell.hasComment ? ' — has a comment' : ''}`}
+                          title={cell.hasComment ? 'Has a comment — tap to view' : cell.done ? 'Done — tap to view' : 'Not done — tap to open'}
                         >
                           {cell.done ? (
                             <FontAwesomeIcon icon={faCircleCheck} className="text-xl text-green-500" />
+                          ) : cell.subtaskTotal > 0 ? (
+                            <SubtaskRing done={cell.subtaskDone} total={cell.subtaskTotal} />
                           ) : (
                             <span className="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600" />
+                          )}
+                          {cell.hasComment && (
+                            <FontAwesomeIcon icon={faCommentDots} className="absolute -top-1 -right-1 text-[10px] text-amber-500" />
                           )}
                         </button>
                       </td>
@@ -1680,15 +1879,28 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
 
       {focus && (
         <StepFocusModal
-          step={focus.cell.step}
+          step={focus.user ? {
+            ...focus.cell.step,
+            _inputResponse: focus.cell.note?.inputResponse || null,
+            _responseDraft: focus.cell.note?.responseDraft || null,
+            _generalNotes: focus.cell.note?.generalNotes || null,
+          } : focus.cell.step}
           taskSet={taskSetFor(focus.user)}
           user={focus.user}
           coUsers={coUsersFor(focus.rowKey, focus.user?.id ?? null)}
           requireCoSelection={!focus.user}
+          subtaskUserId={focus.user?.id ?? userId}
+          subtaskUsers={data.users.filter((u) => data.cells[u.id]?.[focus.rowKey])}
           readOnly={focus.cell.done}
           disabled={false}
           onComplete={(resp, alsoFor) => handleComplete(focus.user, focus.cell, resp, alsoFor)}
-          onClose={() => setFocus(null)}
+          onSaveNotes={(stepId, notes) => {
+            if (focus.user) taskSetsApi.saveStepNotes(focus.user.id, focus.cell.taskSetId, focus.cell.stepId, notes).catch(() => {});
+          }}
+          onSaveCoUserNotes={(co, notes) => {
+            taskSetsApi.saveStepNotes(co.user.id, co.cell.taskSetId, co.cell.stepId, notes).catch(() => {});
+          }}
+          onClose={() => { setFocus(null); load(); }}
         />
       )}
     </div>,

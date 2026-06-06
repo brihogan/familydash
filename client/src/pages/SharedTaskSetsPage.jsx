@@ -1,19 +1,19 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUserGroup, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
 import KidProfilePicker from '../components/shared/KidProfilePicker.jsx';
 import Avatar from '../components/shared/Avatar.jsx';
 import { IconDisplay } from '../components/shared/IconPicker.jsx';
+import { StepMatrixModal } from './UserTaskDetailPage.jsx';
 import { familyApi } from '../api/family.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
 // Parent view of task sets that 2+ family members are doing (regardless of
 // level). Each row shows the badge/set + who's enrolled; tapping opens the
-// "who's done what" progress grid for that set.
+// "who's done what" progress grid for that set — as a modal OVER this list, so
+// closing/back leaves you right here.
 export default function SharedTaskSetsPage() {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const isParent = user?.role === 'parent';
 
@@ -21,31 +21,39 @@ export default function SharedTaskSetsPage() {
   const [kids,    setKids]    = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
+  const [matrixTarget, setMatrixTarget] = useState(null); // { userId, taskSetId }
+
+  const load = useCallback(async () => {
+    try {
+      const [shared, family] = await Promise.all([
+        familyApi.getSharedTaskSets(),
+        familyApi.getFamily(),
+      ]);
+      setItems(shared.taskSets || []);
+      setKids((family.members || []).filter((m) => (m.role === 'kid' || !!m.chores_enabled) && m.is_active));
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Failed to load shared task sets.');
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const [shared, family] = await Promise.all([
-          familyApi.getSharedTaskSets(),
-          familyApi.getFamily(),
-        ]);
-        if (cancelled) return;
-        setItems(shared.taskSets || []);
-        setKids((family.members || []).filter((m) => (m.role === 'kid' || !!m.chores_enabled) && m.is_active));
-      } catch (err) {
-        if (!cancelled) setError(err?.response?.data?.error || 'Failed to load shared task sets.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+    (async () => { setLoading(true); await load(); if (!cancelled) setLoading(false); })();
     return () => { cancelled = true; };
-  }, []);
+  }, [load]);
 
-  const openGrid = (item) => {
-    navigate(`/tasks/${item.repUserId}/${item.repTaskSetId}`, { state: { openMatrix: true } });
-  };
+  // Browser Back closes the matrix (instead of leaving the page): push a
+  // throwaway entry when it opens, pop it on close.
+  useEffect(() => {
+    if (!matrixTarget) return;
+    window.history.pushState({ matrix: true }, '');
+    const onPop = () => setMatrixTarget(null);
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [matrixTarget]);
+
+  const openGrid = (item) => setMatrixTarget({ userId: item.repUserId, taskSetId: item.repTaskSetId });
+  const closeMatrix = () => window.history.back(); // pops the pushed entry → popstate → close
 
   const kindLabel = (item) => (item.is_award ? 'Award' : item.kind === 'badge' ? 'Badge' : 'Task set');
 
@@ -150,6 +158,15 @@ export default function SharedTaskSetsPage() {
             </button>
           ))}
         </div>
+      )}
+
+      {matrixTarget && (
+        <StepMatrixModal
+          userId={matrixTarget.userId}
+          taskSetId={matrixTarget.taskSetId}
+          onClose={closeMatrix}
+          onChanged={load}
+        />
       )}
     </div>
   );

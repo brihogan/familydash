@@ -795,4 +795,32 @@ export function runMigrations(db) {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_user_task_step_order_set ON user_task_step_order(user_id, task_set_id)`);
   } catch (_) {}
 
+  // v83: per-step subtasks — a small parent-managed checklist attached to a
+  //   step, SHARED across every user who has that step (badges are per-kid, so
+  //   the shared identity is a `group_key` = badge:<badge_id>:<r|o><sortOrder|optReqId>
+  //   for badge steps, or set:<task_set_id>:<sort_order> for a regular shared
+  //   set). The subtask definitions are shared; only WHICH ones a user has
+  //   checked off is per-user (step_subtask_completions). Parents add/delete;
+  //   anyone can check off.
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS step_subtasks (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_key  TEXT NOT NULL,
+        name       TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_step_subtasks_group ON step_subtasks(group_key)`);
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS step_subtask_completions (
+        subtask_id   INTEGER NOT NULL REFERENCES step_subtasks(id) ON DELETE CASCADE,
+        user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (subtask_id, user_id)
+      );
+    `);
+  } catch (_) {}
+
 }

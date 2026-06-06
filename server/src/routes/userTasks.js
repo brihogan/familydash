@@ -733,27 +733,55 @@ router.get('/:userId/task-assignments/:taskSetId/matrix', authenticate, (req, re
       `).all(taskSetId);
 
       const compMap = new Map(); // `${stepId}:${userId}` -> count
+      const inputMap = new Map(); // `${stepId}:${userId}` -> latest completion input_response
+      const noteMap = new Map();  // `${stepId}:${userId}` -> { responseDraft, generalNotes }
       if (rUsers.length > 0) {
+        const userIds = rUsers.map((u) => u.id);
         const compRows = db.prepare(`
           SELECT task_step_id, user_id, COUNT(*) AS cnt
           FROM task_step_completions
-          WHERE task_set_id = ? AND user_id IN (${rUsers.map(() => '?').join(',')})
+          WHERE task_set_id = ? AND user_id IN (${userIds.map(() => '?').join(',')})
           GROUP BY task_step_id, user_id
-        `).all(taskSetId, ...rUsers.map((u) => u.id));
+        `).all(taskSetId, ...userIds);
         for (const r of compRows) compMap.set(`${r.task_step_id}:${r.user_id}`, r.cnt);
+
+        if (stepDefs.length > 0) {
+          const stepIds = stepDefs.map((s) => s.id);
+          const noteRows = db.prepare(`
+            SELECT task_step_id, user_id, response_draft, general_notes FROM user_step_notes
+            WHERE task_step_id IN (${stepIds.map(() => '?').join(',')}) AND user_id IN (${userIds.map(() => '?').join(',')})
+          `).all(...stepIds, ...userIds);
+          for (const r of noteRows) noteMap.set(`${r.task_step_id}:${r.user_id}`, { responseDraft: r.response_draft || null, generalNotes: r.general_notes || null });
+          // Latest non-empty completion answer per (step, user) — ASC so the
+          // highest instance overwrites and wins.
+          const inputRows = db.prepare(`
+            SELECT task_step_id, user_id, input_response FROM task_step_completions
+            WHERE task_set_id = ? AND user_id IN (${userIds.map(() => '?').join(',')}) AND COALESCE(input_response,'') <> ''
+            ORDER BY instance ASC
+          `).all(taskSetId, ...userIds);
+          for (const r of inputRows) inputMap.set(`${r.task_step_id}:${r.user_id}`, r.input_response);
+        }
       }
 
       const rCells = {};
       for (const u of rUsers) rCells[u.id] = {};
       for (const u of rUsers) {
         for (const s of stepDefs) {
-          const cnt = compMap.get(`${s.id}:${u.id}`) || 0;
+          const ck = `${s.id}:${u.id}`;
+          const cnt = compMap.get(ck) || 0;
+          const note = {
+            inputResponse: inputMap.get(ck) || null,
+            responseDraft: noteMap.get(ck)?.responseDraft || null,
+            generalNotes: noteMap.get(ck)?.generalNotes || null,
+          };
           rCells[u.id][`s${s.id}`] = {
             stepId: s.id,
             taskSetId,
             done: cnt >= (s.repeat_count || 1),
             completed_count: cnt,
             repeat_count: s.repeat_count || 1,
+            hasComment: !!(note.inputResponse || (note.responseDraft && note.responseDraft.trim()) || (note.generalNotes && note.generalNotes.trim())),
+            note,
             step: {
               id: s.id, name: s.name, description: s.description || null,
               image: s.image || null, is_optional: s.is_optional === 1,
@@ -763,6 +791,9 @@ router.get('/:userId/task-assignments/:taskSetId/matrix', authenticate, (req, re
           };
         }
       }
+      // Subtask progress per cell. Regular group key = f<fam>:s<task_set_id>:<sort_order>.
+      attachSubtaskProgress(rCells, (key, cell) => `f${req.user.familyId}:s${taskSetId}:${cell.step.sort_order}`, rUsers.map((u) => u.id));
+
       const rSteps = stepDefs
         .map((s) => ({ key: `s${s.id}`, label: s.name, is_optional: s.is_optional === 1, sort_order: s.sort_order }))
         .sort((a, b) => (a.is_optional !== b.is_optional ? (a.is_optional ? 1 : -1) : a.sort_order - b.sort_order));
@@ -800,7 +831,12 @@ router.get('/:userId/task-assignments/:taskSetId/matrix', authenticate, (req, re
              s.name, s.description, s.image, s.require_input,
              s.input_prompt, s.repeat_count,
              (SELECT COUNT(*) FROM task_step_completions tsc
-                WHERE tsc.task_step_id = s.id) AS completed_count
+                WHERE tsc.task_step_id = s.id) AS completed_count,
+             (SELECT tsc2.input_response FROM task_step_completions tsc2
+                WHERE tsc2.task_step_id = s.id AND COALESCE(tsc2.input_response,'') <> ''
+                ORDER BY tsc2.instance DESC LIMIT 1) AS input_response,
+             (SELECT n.response_draft FROM user_step_notes n WHERE n.task_step_id = s.id LIMIT 1) AS response_draft,
+             (SELECT n.general_notes  FROM user_step_notes n WHERE n.task_step_id = s.id LIMIT 1) AS general_notes
       FROM task_steps s
       WHERE s.task_set_id IN (${users.map(() => '?').join(',')}) AND s.is_active = 1
       ORDER BY s.sort_order ASC, s.id ASC
@@ -827,12 +863,19 @@ router.get('/:userId/task-assignments/:taskSetId/matrix', authenticate, (req, re
           sort_order: s.sort_order,
         });
       }
+      const note = {
+        inputResponse: s.input_response || null,
+        responseDraft: s.response_draft || null,
+        generalNotes: s.general_notes || null,
+      };
       cells[uid][key] = {
         stepId: s.id,
         taskSetId: s.task_set_id,
         done: (s.completed_count || 0) >= (s.repeat_count || 1),
         completed_count: s.completed_count || 0,
         repeat_count: s.repeat_count || 1,
+        hasComment: !!(note.inputResponse || (note.responseDraft && note.responseDraft.trim()) || (note.generalNotes && note.generalNotes.trim())),
+        note,
         step: {
           id: s.id,
           name: s.name,
@@ -846,6 +889,10 @@ router.get('/:userId/task-assignments/:taskSetId/matrix', authenticate, (req, re
         },
       };
     }
+
+    // Subtask progress per cell. Badge group key = f<fam>:b<badge_id>:<rowKey>
+    // (rowKey is already o<optReqId>/r<sortOrder>, matching stepGroupKey()).
+    attachSubtaskProgress(cells, (key) => `f${req.user.familyId}:b${taskSet.badge_id}:${key}`, users.map((u) => u.id));
 
     const steps = [...rowByKey.values()].sort((a, b) => {
       if (a.is_optional !== b.is_optional) return a.is_optional ? 1 : -1;
@@ -1441,6 +1488,135 @@ router.patch('/:userId/task-assignments/:taskSetId/steps/:stepId/link', authenti
 
     db.prepare('UPDATE task_steps SET linked_task_set_id = ? WHERE id = ?').run(linkedTaskSetId, stepId);
     res.json({ ok: true, linked_task_set_id: linkedTaskSetId });
+  } catch (err) { next(err); }
+});
+
+// ── Per-step subtasks ─────────────────────────────────────────────────────────
+// Subtask definitions are SHARED across everyone who has the step (so adding one
+// adds it for all), matched by a family-scoped group key; only the checked-off
+// state is per-user. Parents add/delete; parents or the user can check off.
+function stepGroupKey(stepId, familyId) {
+  const s = db.prepare(`
+    SELECT s.badge_opt_req_id, s.sort_order, ts.badge_id, ts.id AS task_set_id
+    FROM task_steps s JOIN task_sets ts ON ts.id = s.task_set_id
+    WHERE s.id = ? AND s.is_active = 1
+  `).get(stepId);
+  if (!s) return null;
+  if (s.badge_id != null) {
+    return s.badge_opt_req_id != null
+      ? `f${familyId}:b${s.badge_id}:o${s.badge_opt_req_id}`
+      : `f${familyId}:b${s.badge_id}:r${s.sort_order}`;
+  }
+  return `f${familyId}:s${s.task_set_id}:${s.sort_order}`;
+}
+
+// Attach { subtaskTotal, subtaskDone } to every cell in a matrix `cells` map.
+// groupKeyOf(key, cell) → the shared subtask group key for that cell's step.
+function attachSubtaskProgress(cellsByUser, groupKeyOf, userIds) {
+  const groupKeys = new Set();
+  for (const uid of Object.keys(cellsByUser)) {
+    for (const key of Object.keys(cellsByUser[uid])) groupKeys.add(groupKeyOf(key, cellsByUser[uid][key]));
+  }
+  const gkArr = [...groupKeys];
+  const idsByGroup = new Map();
+  if (gkArr.length) {
+    const rows = db.prepare(`SELECT id, group_key FROM step_subtasks WHERE group_key IN (${gkArr.map(() => '?').join(',')})`).all(...gkArr);
+    for (const r of rows) { if (!idsByGroup.has(r.group_key)) idsByGroup.set(r.group_key, []); idsByGroup.get(r.group_key).push(r.id); }
+  }
+  const allIds = [...idsByGroup.values()].flat();
+  const doneSet = new Set(); // `${subtaskId}:${userId}`
+  if (allIds.length && userIds.length) {
+    const comps = db.prepare(
+      `SELECT subtask_id, user_id FROM step_subtask_completions WHERE subtask_id IN (${allIds.map(() => '?').join(',')}) AND user_id IN (${userIds.map(() => '?').join(',')})`
+    ).all(...allIds, ...userIds);
+    for (const c of comps) doneSet.add(`${c.subtask_id}:${c.user_id}`);
+  }
+  for (const uid of Object.keys(cellsByUser)) {
+    for (const key of Object.keys(cellsByUser[uid])) {
+      const cell = cellsByUser[uid][key];
+      const ids = idsByGroup.get(groupKeyOf(key, cell)) || [];
+      cell.subtaskTotal = ids.length;
+      cell.subtaskDone = ids.filter((id) => doneSet.has(`${id}:${uid}`)).length;
+    }
+  }
+}
+
+function subtaskWithCompletions(groupKey, viewerUserId) {
+  const subtasks = db.prepare(
+    'SELECT id, name, sort_order FROM step_subtasks WHERE group_key = ? ORDER BY sort_order ASC, id ASC'
+  ).all(groupKey);
+  if (subtasks.length === 0) return [];
+  const ids = subtasks.map((s) => s.id);
+  const comps = db.prepare(
+    `SELECT subtask_id, user_id FROM step_subtask_completions WHERE subtask_id IN (${ids.map(() => '?').join(',')})`
+  ).all(...ids);
+  const byId = new Map();
+  for (const c of comps) { if (!byId.has(c.subtask_id)) byId.set(c.subtask_id, []); byId.get(c.subtask_id).push(c.user_id); }
+  return subtasks.map((s) => ({
+    id: s.id, name: s.name, sort_order: s.sort_order,
+    completedBy: byId.get(s.id) || [],
+    done: (byId.get(s.id) || []).includes(viewerUserId),
+  }));
+}
+
+// GET subtasks for a step (definitions shared, plus per-user completion).
+router.get('/:userId/steps/:stepId/subtasks', authenticate, (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.userId, 10);
+    const stepId = parseInt(req.params.stepId, 10);
+    assertUserInFamily(userId, req.user.familyId);
+    const groupKey = stepGroupKey(stepId, req.user.familyId);
+    if (!groupKey) return res.status(404).json({ error: 'Step not found.' });
+    res.json({ subtasks: subtaskWithCompletions(groupKey, userId) });
+  } catch (err) { next(err); }
+});
+
+// POST add a subtask to the step's shared group (parent only).
+router.post('/:userId/steps/:stepId/subtasks', authenticate, (req, res, next) => {
+  try {
+    if (req.user.role !== 'parent') return res.status(403).json({ error: 'Parents only.' });
+    const userId = parseInt(req.params.userId, 10);
+    const stepId = parseInt(req.params.stepId, 10);
+    assertUserInFamily(userId, req.user.familyId);
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+    if (!name) return res.status(400).json({ error: 'A name is required.' });
+    const groupKey = stepGroupKey(stepId, req.user.familyId);
+    if (!groupKey) return res.status(404).json({ error: 'Step not found.' });
+    const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM step_subtasks WHERE group_key = ?').get(groupKey).m;
+    const r = db.prepare('INSERT INTO step_subtasks (group_key, name, sort_order) VALUES (?, ?, ?)').run(groupKey, name, maxOrder + 1);
+    res.status(201).json({ subtask: { id: Number(r.lastInsertRowid), name, sort_order: maxOrder + 1, completedBy: [], done: false } });
+  } catch (err) { next(err); }
+});
+
+// DELETE a subtask (parent only; cascades completions).
+router.delete('/:userId/subtasks/:subtaskId', authenticate, (req, res, next) => {
+  try {
+    if (req.user.role !== 'parent') return res.status(403).json({ error: 'Parents only.' });
+    const subtaskId = parseInt(req.params.subtaskId, 10);
+    const st = db.prepare('SELECT group_key FROM step_subtasks WHERE id = ?').get(subtaskId);
+    if (!st || !st.group_key.startsWith(`f${req.user.familyId}:`)) return res.status(404).json({ error: 'Subtask not found.' });
+    db.prepare('DELETE FROM step_subtask_completions WHERE subtask_id = ?').run(subtaskId);
+    db.prepare('DELETE FROM step_subtasks WHERE id = ?').run(subtaskId);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// POST toggle a subtask's checked-off state for :userId (parent or the user).
+router.post('/:userId/subtasks/:subtaskId/toggle', authenticate, (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.userId, 10);
+    const subtaskId = parseInt(req.params.subtaskId, 10);
+    assertUserInFamily(userId, req.user.familyId);
+    if (req.user.userId !== userId && req.user.role !== 'parent') return res.status(403).json({ error: 'Forbidden.' });
+    const st = db.prepare('SELECT group_key FROM step_subtasks WHERE id = ?').get(subtaskId);
+    if (!st || !st.group_key.startsWith(`f${req.user.familyId}:`)) return res.status(404).json({ error: 'Subtask not found.' });
+    const existing = db.prepare('SELECT 1 FROM step_subtask_completions WHERE subtask_id = ? AND user_id = ?').get(subtaskId, userId);
+    if (existing) {
+      db.prepare('DELETE FROM step_subtask_completions WHERE subtask_id = ? AND user_id = ?').run(subtaskId, userId);
+      return res.json({ done: false });
+    }
+    db.prepare('INSERT INTO step_subtask_completions (subtask_id, user_id) VALUES (?, ?)').run(subtaskId, userId);
+    res.json({ done: true });
   } catch (err) { next(err); }
 });
 

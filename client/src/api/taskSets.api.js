@@ -32,6 +32,12 @@ export const taskSetsApi = {
   // Parent-only step-completion matrix for a badge/award: every enrolled family
   // member as a column, the union of their steps as rows, per-cell done state.
   getTaskMatrix:   (userId, taskSetId)         => client.get(`/users/${userId}/task-assignments/${taskSetId}/matrix`).then((r) => r.data),
+  // Per-step subtasks (definitions shared across everyone who has the step;
+  // checked-off state is per-user). Parents add/delete; anyone can toggle.
+  getSubtasks:     (userId, stepId)            => client.get(`/users/${userId}/steps/${stepId}/subtasks`).then((r) => r.data),
+  addSubtask:      (userId, stepId, name)      => client.post(`/users/${userId}/steps/${stepId}/subtasks`, { name }).then((r) => r.data),
+  deleteSubtask:   (userId, subtaskId)         => client.delete(`/users/${userId}/subtasks/${subtaskId}`).then((r) => r.data),
+  toggleSubtask:   (userId, subtaskId)         => client.post(`/users/${userId}/subtasks/${subtaskId}/toggle`).then((r) => r.data),
   toggleStep:      (userId, taskSetId, stepId, undo = false, inputResponse = null) => client.post(`/users/${userId}/task-assignments/${taskSetId}/steps/${stepId}/toggle`, { ...(undo ? { undo: true } : {}), ...(inputResponse ? { input_response: inputResponse } : {}) }).then((r) => r.data),
   // Save a step's working notes (general-notes scratchpad + draft answer),
   // upserted per (user, step). Called on blur from the focus view.

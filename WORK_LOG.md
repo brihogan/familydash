@@ -2,6 +2,31 @@
 
 ## Session Start: 2026-06-05 13:58 EDT (afternoon)
 
+### 2026-06-05 — Fix: subtask checks not showing on the single-user page
+- On a kid's badge page the subtask checklist never showed checks: `subtaskUserId` comes from `useParams()` (a string) but `completedBy` holds numbers, so `completedBy.includes("52")` was always false. The matrix worked because it passes numeric `data.users` ids. Fix: coerce to `ctxUid = Number(ctxUserId)` in `StepSubtasks` and use it for `isDone`, the single-user toggle target, and the post-toggle done update. Verified: Brian's "Read three books" step now shows "Book 2" checked. Client-only.
+
+### 2026-06-05 — Matrix cell shows subtask progress (orange ring)
+- A matrix cell whose step has subtasks now shows a light-orange ring (#FED7AA) instead of the gray one, with a darker-orange arc (#EA580C) = that user's checked-off subtasks ÷ total (`SubtaskRing` SVG). Done cells still show the green check; steps with no subtasks keep the gray ring.
+- Server: matrix endpoint attaches `subtaskTotal` + `subtaskDone` per cell via `attachSubtaskProgress()` (batched: group keys → step_subtasks → per-user completions), both badge (`f<fam>:b<badge_id>:<rowKey>`) and regular (`f<fam>:s<taskSetId>:<sort_order>`) branches.
+- Verified against Brian's real subtask data (r1 0/3 all → light rings; r2 Daniel 1/2, Ellie 2/2; r5 Brian/Daniel 1/3 → darker arcs): 5 light-only + 4 with progress arcs, matching. (Cleaned up accidental test toggles on his data.) Server change → prod needs image rebuild.
+
+### 2026-06-05 — Per-step subtasks (shared defs, per-user check-off) + mini-matrix
+- New "Subtasks" collapsible above General Notes in the step full-screen. A parent-managed checklist (text input + Add) attached to a step and SHARED across everyone who has that step; only the checked-off state is per-user. Parents add/delete; parents or the kid check off.
+- DB v83 (+ schema.sql): `step_subtasks` (id, group_key, name, sort_order) + `step_subtask_completions` (subtask_id, user_id). `group_key` is family-scoped + step-identity (`f<fam>:b<badge_id>:<r|o><sortOrder|optReqId>` for badge steps, `f<fam>:s<task_set_id>:<sort_order>` for regular shared sets) so the same step across per-kid badge enrollments shares one subtask list.
+- Server (userTasks.js): `stepGroupKey()` + GET/POST `/users/:userId/steps/:stepId/subtasks`, DELETE `/users/:userId/subtasks/:id` (parent), POST `/users/:userId/subtasks/:id/toggle` (parent or self). Client: `taskSetsApi` get/add/delete/toggleSubtask; new `StepSubtasks` component with two modes.
+- Opened from the grid → mini-matrix (avatars across the top, a check per (subtask,user); default-open). Opened normally → single-user checklist (default-collapsed). `StepFocusModal` gained `subtaskUserId` + `subtaskUsers`; wired from the matrix (all users who have the step) and the kid page (StepItem/CompletedStepItem, single user).
+- E2E-verified: add via Brian's r0 step (994) appears via Daniel's r0 step (1400) → shared; toggle for Daniel → completedBy:[53], Brian done:false → per-user; browser — mini-matrix (4 avatars, Daniel checked, parent add/delete) + single-user checklist. Test data cleaned up. Server change → prod needs image rebuild.
+
+### 2026-06-05 — Matrix: "Also save for" live note-saving + per-user comment icon
+- Renamed the cell-click toggle section "Also mark complete for" → "Also save for". Your answer + general notes now save (via `saveStepNotes`) to the focus user AND each toggled-on user — on blur, and when you toggle a user on (any text already entered is saved to them then). Mark complete still also completes the toggled users (unchanged). So you get notes-to-look-at-later even without completing. (Row-click "Who completed it?" mode unchanged.)
+- StepFocusModal gained `onSaveCoUserNotes`; `saveNotes` fans out to focus + selected co-users; toggle-on persists existing text. Matrix wires both save handlers (per-user `saveStepNotes`) and refetches on focus close so icons update.
+- Server matrix endpoint returns `hasComment` per cell (non-empty general_notes/response_draft in user_step_notes OR non-empty completion input_response), both badge + regular branches. Client renders a small amber comment-dots icon at the top-right corner of each user's check when they have any saved text.
+- E2E-verified: server hasComment (8 Goosebumps cells from answers); browser — "Also save for" heading, toggle-on save (Daniel) + blur save (Brian, via real focusout) both persisted and showed comment icons; test notes cleaned up. Server change → prod needs image rebuild.
+- Fix: opening a cell with a comment showed empty fields — the matrix returned the step definition but not the saved text. Server now returns `cell.note { inputResponse (latest completion answer), responseDraft, generalNotes }` per cell (both branches); the matrix merges them into `step._inputResponse/_responseDraft/_generalNotes` (only for cell-click, not the row-click "Who completed it?" rep). Verified: completed cell pre-fills the answer ("Cool") + general notes; a not-done draft cell pre-fills the editable draft answer + notes.
+
+### 2026-06-05 — Shared list opens the matrix as an overlay (no badge page behind)
+- Clicking a shared badge/award/set used to `navigate()` to the rep's badge detail with `openMatrix`, so the badge page loaded behind the grid. Now `StepMatrixModal` is exported from UserTaskDetailPage and rendered directly on SharedTaskSetsPage over the list (state `matrixTarget`); URL stays `/tasks/shared`, so ✕/Back land back on the shared list. Back-button handled with a pushState/popstate pair (same pattern as the in-page open). `onChanged` refetches the shared list. The direct badge→grid-button flow is unchanged (badge detail still behind the grid). Verified all flows in browser (no console errors). Client-only.
+
 ### 2026-06-05 — Matrix: hide-when-all-done, green finished columns, frozen Optional header
 - Hide rule changed: a step hides only once EVERY owner (kid who has it) has completed it (single-owner step hides when that kid finishes) — `ownersOf(rowKey).some(notDone)`. A step still shows while anyone who has it still needs it.
 - Kids who've completed every step they have get a subtle-green column (`completeUserIds` → green header bg + green name + faint green cell wash). Verified by temporarily finishing Daniel's Test Project (then undone).

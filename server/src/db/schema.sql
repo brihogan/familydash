@@ -233,6 +233,23 @@ CREATE TABLE IF NOT EXISTS user_task_step_order (
 );
 CREATE INDEX IF NOT EXISTS idx_user_task_step_order_set ON user_task_step_order(user_id, task_set_id);
 
+-- Per-step subtasks: a parent-managed checklist shared across everyone who has
+-- the step (matched by group_key); only the checked-off state is per-user.
+CREATE TABLE IF NOT EXISTS step_subtasks (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  group_key  TEXT NOT NULL,
+  name       TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_step_subtasks_group ON step_subtasks(group_key);
+CREATE TABLE IF NOT EXISTS step_subtask_completions (
+  subtask_id   INTEGER NOT NULL REFERENCES step_subtasks(id) ON DELETE CASCADE,
+  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (subtask_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS badges (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   name             TEXT    NOT NULL,
