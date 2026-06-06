@@ -2,6 +2,14 @@
 
 ## Session Start: 2026-06-05 13:58 EDT (afternoon)
 
+### 2026-06-05 — Matrix: hide-when-all-done, green finished columns, frozen Optional header
+- Hide rule changed: a step hides only once EVERY owner (kid who has it) has completed it (single-owner step hides when that kid finishes) — `ownersOf(rowKey).some(notDone)`. A step still shows while anyone who has it still needs it.
+- Kids who've completed every step they have get a subtle-green column (`completeUserIds` → green header bg + green name + faint green cell wash). Verified by temporarily finishing Daniel's Test Project (then undone).
+- Optional group-header label moved into a sticky `th` (left-0) + a band `td colSpan=users`, so it stays frozen during horizontal scroll instead of partly scrolling (was a `sticky` span inside a colSpan td). Verified left=0 holds through scroll. Client-only.
+
+### 2026-06-05 — Matrix shows ALL steps (stop hiding completed ones)
+- Reversed the earlier "hide any step ≥1 kid completed" rule — it was hiding e.g. the Accessories first step (both kids had completed it), which the parent expected to still see. `visibleSteps` is now the full union (`data.steps`), so every step any enrolled kid has shows, including completed ones (they render with their check marks) and steps only one kid has (others get "–"). Empty-state text → "No steps to show yet." Verified in browser (Accessories: first step back with ✓✓, all 14 steps listed, per-kid "–" for unowned steps). Client-only.
+
 ### 2026-06-05 — Fix: matrix unscrollable in installed PWA (touch)
 - `useScrollLock` (active while the matrix modal is open) had a `touchmove` guard whose `getScrollParent` only recognized VERTICAL scrollers (`overflowY` + `scrollHeight > clientHeight`). The matrix needs HORIZONTAL scroll; when content had no vertical overflow, `getScrollParent` returned null and the guard `preventDefault`-ed the swipe — blocking the pan. Only bit touch devices (the guard never fires for mouse/trackpad), so desktop tabs worked but the installed PWA on a tablet/phone didn't.
 - Fix: in the guard, let horizontal swipes through (`|dx| > |dy|` → return) — a horizontal gesture can't move the vertically-locked body anyway. Track `startX/startY` on touchstart. Verified via synthetic TouchEvents in the preview: the exact bug case (scrollableX true, scrollableY false) now reports `defaultPrevented=false` (allowed); both-overflow case also allows H+V. Needs on-device PWA confirmation. Client-only.

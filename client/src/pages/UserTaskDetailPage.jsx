@@ -1514,11 +1514,23 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
     return { name, description };
   };
 
-  // Hide any step that at least one enrolled kid has already completed — the
-  // grid is for tracking what's still outstanding.
+  // Owners of a step = the enrolled kids who actually have it. Hide a step only
+  // once EVERY owner has completed it (so a step still shows while anyone who
+  // has it still needs to do it); a single-owner step hides when that kid is done.
+  const ownersOf = (rowKey) => (data ? data.users.filter((u) => data.cells[u.id]?.[rowKey]) : []);
   const visibleSteps = data
-    ? data.steps.filter((row) => !data.users.some((u) => data.cells[u.id]?.[row.key]?.done))
+    ? data.steps.filter((row) => ownersOf(row.key).some((u) => !data.cells[u.id][row.key].done))
     : [];
+
+  // Kids who've finished every step they have → their column gets a subtle green.
+  const completeUserIds = new Set(
+    (data ? data.users : [])
+      .filter((u) => {
+        const cells = data.cells[u.id] ? Object.values(data.cells[u.id]) : [];
+        return cells.length > 0 && cells.every((c) => c.done);
+      })
+      .map((u) => u.id),
+  );
 
   return createPortal(
     // Full-screen on phones; a centered modal card with a backdrop on sm+ (the
@@ -1572,10 +1584,10 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
                   Step
                 </th>
                 {data.users.map((u) => (
-                  <th key={u.id} className="sticky top-0 z-10 bg-white dark:bg-gray-900 px-2 py-2 border-b border-gray-200 dark:border-gray-700 w-20">
+                  <th key={u.id} className={`sticky top-0 z-10 px-2 py-2 border-b border-gray-200 dark:border-gray-700 w-20 ${completeUserIds.has(u.id) ? 'bg-green-50 dark:bg-green-900/25' : 'bg-white dark:bg-gray-900'}`}>
                     <div className="flex flex-col items-center gap-1 w-14">
                       <Avatar name={u.name} color={u.avatar_color} emoji={u.avatar_emoji} size="sm" />
-                      <span className="text-[10px] text-gray-600 dark:text-gray-300 leading-tight truncate max-w-[3.5rem]">{u.name}</span>
+                      <span className={`text-[10px] leading-tight truncate max-w-[3.5rem] ${completeUserIds.has(u.id) ? 'text-green-700 dark:text-green-400 font-semibold' : 'text-gray-600 dark:text-gray-300'}`}>{u.name}</span>
                     </div>
                   </th>
                 ))}
@@ -1585,7 +1597,7 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
               {visibleSteps.length === 0 && (
                 <tr>
                   <td colSpan={data.users.length + 1} className="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-                    No steps left to track — every step has been completed 🎉
+                    No steps to show yet.
                   </td>
                 </tr>
               )}
@@ -1596,9 +1608,12 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
                 <Fragment key={row.key}>
                 {row.is_optional && (i === 0 || !visibleSteps[i - 1].is_optional) && (
                   <tr>
-                    <td colSpan={data.users.length + 1} className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 px-3 py-1.5">
-                      <span className="sticky left-0 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Optional</span>
-                    </td>
+                    {/* Label lives in a sticky cell (like the Step column) so it
+                        stays frozen on horizontal scroll; the band fills the rest. */}
+                    <th scope="row" className="sticky left-0 z-10 bg-gray-50 dark:bg-gray-800/60 border-b border-r border-gray-200 dark:border-gray-700 px-3 py-1.5 text-left">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Optional</span>
+                    </th>
+                    <td colSpan={data.users.length} className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700" />
                   </tr>
                 )}
                 <tr className={`group ${selectedKey === row.key ? 'bg-brand-50 dark:bg-brand-900/20' : ''}`}>
@@ -1627,15 +1642,16 @@ function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
                   </th>
                   {data.users.map((u) => {
                     const cell = data.cells[u.id]?.[row.key];
+                    const colDone = completeUserIds.has(u.id) ? 'bg-green-50/70 dark:bg-green-900/15' : '';
                     if (!cell) {
                       return (
-                        <td key={u.id} className="text-center px-2 py-2 border-b border-gray-100 dark:border-gray-800">
+                        <td key={u.id} className={`text-center px-2 py-2 border-b border-gray-100 dark:border-gray-800 ${colDone}`}>
                           <span className="text-gray-300 dark:text-gray-600">–</span>
                         </td>
                       );
                     }
                     return (
-                      <td key={u.id} className="text-center px-2 py-2 border-b border-gray-100 dark:border-gray-800">
+                      <td key={u.id} className={`text-center px-2 py-2 border-b border-gray-100 dark:border-gray-800 ${colDone}`}>
                         <button
                           type="button"
                           onClick={() => setFocus({ user: u, cell, rowKey: row.key })}
