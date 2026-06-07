@@ -4,8 +4,10 @@ import { API_BASE_URL } from './baseUrl.js';
 
 const isNative = Capacitor.isNativePlatform();
 
-// Use plain axios (no auth interceptor) for auth calls
-const plainClient = axios.create({ baseURL: API_BASE_URL, withCredentials: true });
+// Use plain axios (no auth interceptor) for auth calls. Timeout so a stalled
+// silent-refresh on boot can't hang the app — it fails fast and the cached
+// session takes over instead of spinning for a minute+.
+const plainClient = axios.create({ baseURL: API_BASE_URL, withCredentials: true, timeout: 15000 });
 
 // In native apps, store refresh token in localStorage (cookies don't work with CapacitorHttp)
 const RT_KEY = 'fd_refresh_token';

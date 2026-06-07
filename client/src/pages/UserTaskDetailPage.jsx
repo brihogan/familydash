@@ -1643,7 +1643,7 @@ function SubtaskRing({ done, total }) {
   );
 }
 
-export function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
+export function StepMatrixModal({ userId, taskSetId, onClose, onChanged, onNavigateUser }) {
   useScrollLock(true);
   const [data, setData]   = useState(null);
   const [error, setError] = useState('');
@@ -1782,10 +1782,15 @@ export function StepMatrixModal({ userId, taskSetId, onClose, onChanged }) {
                 </th>
                 {data.users.map((u) => (
                   <th key={u.id} className={`sticky top-0 z-10 px-2 py-2 border-b border-gray-200 dark:border-gray-700 w-20 ${completeUserIds.has(u.id) ? 'bg-green-50 dark:bg-green-900/25' : 'bg-white dark:bg-gray-900'}`}>
-                    <div className="flex flex-col items-center gap-1 w-14">
+                    <button
+                      type="button"
+                      onClick={() => onNavigateUser?.(u)}
+                      title={`Open ${u.name}'s page`}
+                      className="flex flex-col items-center gap-1 w-14 group/av"
+                    >
                       <Avatar name={u.name} color={u.avatar_color} emoji={u.avatar_emoji} size="sm" />
-                      <span className={`text-[10px] leading-tight truncate max-w-[3.5rem] ${completeUserIds.has(u.id) ? 'text-green-700 dark:text-green-400 font-semibold' : 'text-gray-600 dark:text-gray-300'}`}>{u.name}</span>
-                    </div>
+                      <span className={`text-[10px] leading-tight truncate max-w-[3.5rem] group-hover/av:text-brand-600 dark:group-hover/av:text-brand-400 ${completeUserIds.has(u.id) ? 'text-green-700 dark:text-green-400 font-semibold' : 'text-gray-600 dark:text-gray-300'}`}>{u.name}</span>
+                    </button>
                   </th>
                 ))}
               </tr>
@@ -1949,6 +1954,7 @@ export default function UserTaskDetailPage() {
   const [deleteBusy,       setDeleteBusy]       = useState(false);
   const [isPinned,         setIsPinned]         = useState(false);
   const [pinBusy,          setPinBusy]          = useState(false);
+  const [owner,            setOwner]            = useState(null); // whose page this is
   const [pendingApproval,  setPendingApproval]  = useState(false);
   const completedAtRef = useRef(null);
 
@@ -1987,6 +1993,14 @@ export default function UserTaskDetailPage() {
     if (arrivedWithMatrix.current) navigate(-1);
     else window.history.back();
   }, [navigate]);
+
+  // Reopen the grid when we return here via a user-page back chevron (the back
+  // target carries `reopenDetailMatrix`). This component instance persists
+  // across /tasks/:id navigations, so reopen on each navigation that asks for it.
+  useEffect(() => {
+    if (location.state?.reopenDetailMatrix) setMatrixOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
   // Sticky compact header — appears once the big badge has scrolled
   // offscreen. Tracks intersection of a sentinel placed at the bottom
   // of the main badge header below.
@@ -2119,6 +2133,7 @@ export default function UserTaskDetailPage() {
       setCompletionStatus(data.completionStatus ?? null);
       setArchivedAt(data.archivedAt ?? null);
       setIsPinned(!!data.isPinned);
+      setOwner(data.owner ?? null);
     } catch {
       setError('Failed to load task set.');
     } finally {
@@ -2423,6 +2438,18 @@ export default function UserTaskDetailPage() {
   // Falls back to the matching group page when there's no chain (deep
   // links, fresh loads), then to the kid's tasks page.
   const goBack = () => {
+    // Returned here by clicking a profile pic in a progress grid? Send the back
+    // chevron back to that grid (with the shared list behind it when that's
+    // where the grid was opened from).
+    const st = location.state || {};
+    if (st.backToShared) {
+      return navigate('/tasks/shared', { state: { reopenMatrix: st.backToShared } });
+    }
+    if (st.backToDetailMatrix) {
+      return navigate(`/tasks/${st.backToDetailMatrix.userId}/${st.backToDetailMatrix.taskSetId}`, {
+        state: { reopenDetailMatrix: true, chain: st.chain },
+      });
+    }
     const chain = location.state?.chain;
     if (Array.isArray(chain) && chain.length > 0) {
       const last = chain[chain.length - 1];
@@ -2582,6 +2609,12 @@ export default function UserTaskDetailPage() {
           taskSetId={taskSetId}
           onClose={closeMatrix}
           onChanged={fetchDetail}
+          onNavigateUser={(u) => {
+            setMatrixOpen(false);
+            navigate(`/tasks/${u.id}/${u.taskSetId}`, {
+              state: { backToDetailMatrix: { userId, taskSetId }, chain: location.state?.chain },
+            });
+          }}
         />
       )}
       {previewBadge && (
@@ -3085,6 +3118,13 @@ export default function UserTaskDetailPage() {
                     </span>
                   )}
                 </div>
+                {/* Whose page this is — shown to a parent viewing a kid's
+                    badge/award/set (not their own), tucked top-right. */}
+                {viewer?.role === 'parent' && owner && viewer?.id != null && String(viewer.id) !== String(userId) && (
+                  <div className="absolute -top-1 -right-1 z-10 rounded-full ring-2 ring-white dark:ring-gray-900" title={owner.name}>
+                    <Avatar name={owner.name} color={owner.avatar_color} emoji={owner.avatar_emoji} size="sm" />
+                  </div>
+                )}
               </div>
               </div>
             );

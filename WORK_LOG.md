@@ -2,6 +2,20 @@
 
 ## Session Start: 2026-06-05 13:58 EDT (afternoon)
 
+### 2026-06-05 — Owner avatar on the detail-page badge medallion
+- On `/tasks/:userId/:taskSetId`, a parent viewing someone else's badge/award/set now sees that owner's profile pic tucked at the top-right of the medallion (so they know whose page it is). Hidden on their own page and for kids. Server: detail endpoint returns `owner {id,name,avatar_color,avatar_emoji}`; client stores it + renders an `Avatar` overlay when `viewer.role==='parent' && String(viewer.id)!==String(userId)`. Verified: Daniel's page (as Brian) shows Daniel's avatar; Brian's own page shows none; no console errors. Server change → prod needs image rebuild.
+- (env note) Local dev API server was down — `better-sqlite3` is built for Node v22 (NODE_MODULE_VERSION 127) but the shell default is now v26; restarted the server on nvm v22 to test. The default `node` won't run the server until better-sqlite3 is rebuilt or v22 is selected.
+
+### 2026-06-05 — Fix: app stuck on spinner 1-2 min on flaky mobile
+- Root cause: every protected screen sits behind ProtectedRoute's spinner until the on-mount `authApi.refresh()` settles, and NEITHER axios instance had a `timeout`. On a stalled mobile connection the refresh (and any data fetch) hung until the OS killed the socket (~1-2 min) before the cached-session fallback ran. Not reproducible on a stable laptop. Cache didn't help because boot always blocked on the network refresh first.
+- Fixes: (1) `client` timeout 25s, `plainClient` (auth) timeout 15s — nothing hangs forever now. (2) AuthContext boot now renders from the cached session after a 2.5s grace period if the refresh is slow, and lets the refresh finish in the background (upgrades to the fresh token when it lands). `isOfflineSession` isn't shown anywhere, so no flash. Verified happy-path boot still fast; timing logic reasoned through. Needs on-device confirmation on the flaky Android. Client-only.
+
+### 2026-06-05 — Back chevron from an avatar-jump returns to the grid
+- After clicking a grid avatar → that user's page, the page's back chevron now reopens the grid you came from (with the Shared list behind it when that's the origin). The avatar nav records `backToShared` (from the Shared overlay) or `backToDetailMatrix {userId,taskSetId}` + chain (from an in-page grid); `goBack` handles both — navigating to `/tasks/shared` with `reopenMatrix` (SharedTaskSetsPage inits `matrixTarget` from it) or back to the detail page with `reopenDetailMatrix` (UserTaskDetailPage reopens via a `location.key` effect, since the component persists across `/tasks/:id` navigations). Verified both flows incl. closing the reopened grid lands on the right place (shared list / detail page). Client-only.
+
+### 2026-06-05 — Matrix avatar → that user's task-set page
+- Clicking a column's profile pic in the matrix now navigates to that user's badge/award/project detail page (`/tasks/<u.id>/<u.taskSetId>`) and closes the grid. `StepMatrixModal` gained `onNavigateUser`; header avatar is now a button. Wired from UserTaskDetailPage (`setMatrixOpen(false)` + navigate) and SharedTaskSetsPage (re-added `useNavigate`; `setMatrixTarget(null)` + navigate). Verified both flows (badge-detail matrix → Daniel → /tasks/53/78; shared matrix → Ellie → /tasks/54/77; grid closed, no console errors). Client-only.
+
 ### 2026-06-05 — Step-title click pre-toggles everyone who has the step
 - Opening the full-screen from the step TITLE (row-click / "Who completed it?") now starts with every user who has the step toggled ON (`coSelected` defaults to `allCoIds()` when `requireCoSelection`). Parent deselects whoever didn't do it; Mark complete is enabled immediately. Cell-click "Also save for" still defaults OFF. Verified in browser (title → all 4 on; cell → all off). Client-only.
 

@@ -53,32 +53,48 @@ export function AuthProvider({ children }) {
     });
   }, []);
 
-  // Attempt silent refresh on mount; fall back to cached session if offline
+  // Attempt silent refresh on mount; fall back to cached session if offline.
   useEffect(() => {
+    let done = false;
+    const finish = () => { if (!done) { done = true; setLoading(false); } };
+    const useCached = async () => {
+      const cached = await getCachedSession();
+      if (cached && !done) {
+        setUser({
+          id: cached.userId,
+          familyId: cached.familyId,
+          role: cached.role,
+          name: cached.name,
+          avatarColor: cached.avatarColor,
+          avatarEmoji: cached.avatarEmoji,
+        });
+        setIsOfflineSession(true);
+        return true;
+      }
+      return false;
+    };
+
+    // Don't block the whole app on a slow refresh. If it hasn't returned within
+    // a short grace period and we have a cached session, render from cache and
+    // let the refresh finish in the background (it upgrades to the fresh token
+    // when it lands). This is what stops the 1-2 min "stuck on spinner" on a
+    // flaky mobile connection.
+    const graceTimer = setTimeout(() => { useCached().then((ok) => { if (ok) finish(); }); }, 2500);
+
     authApi.refresh()
       .then((data) => {
         setAccessToken(data.accessToken);
         const u = userFromToken(data.accessToken);
         setUser(u);
+        setIsOfflineSession(false);
         cacheSession(u);
         prefetchAllData(u);
       })
       .catch(async () => {
-        // Network error or no valid refresh token — try offline fallback
-        const cached = await getCachedSession();
-        if (cached) {
-          setUser({
-            id: cached.userId,
-            familyId: cached.familyId,
-            role: cached.role,
-            name: cached.name,
-            avatarColor: cached.avatarColor,
-            avatarEmoji: cached.avatarEmoji,
-          });
-          setIsOfflineSession(true);
-        }
+        // Network error or no valid refresh token — try offline fallback.
+        await useCached();
       })
-      .finally(() => setLoading(false));
+      .finally(() => { clearTimeout(graceTimer); finish(); });
   }, []);
 
   const login = useCallback(async (credentials) => {

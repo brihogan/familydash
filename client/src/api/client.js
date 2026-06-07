@@ -17,6 +17,11 @@ export function setRefreshHandler(fn) {
 const client = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true, // send httpOnly cookie
+  // Cap hung requests. Without this, a stalled mobile connection (radio sleep,
+  // network handoff, a dead socket through the CF tunnel) leaves a request
+  // pending until the OS kills the TCP connection — ~1-2 minutes — which froze
+  // whole screens. 25s is generous for slow uploads but catches true hangs.
+  timeout: 25000,
 });
 
 // Attach access token to every request

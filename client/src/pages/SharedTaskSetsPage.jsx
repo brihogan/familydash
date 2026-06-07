@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUserGroup, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import LoadingSkeleton from '../components/shared/LoadingSkeleton.jsx';
@@ -14,6 +15,8 @@ import { useAuth } from '../context/AuthContext.jsx';
 // "who's done what" progress grid for that set — as a modal OVER this list, so
 // closing/back leaves you right here.
 export default function SharedTaskSetsPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const isParent = user?.role === 'parent';
 
@@ -21,7 +24,9 @@ export default function SharedTaskSetsPage() {
   const [kids,    setKids]    = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
-  const [matrixTarget, setMatrixTarget] = useState(null); // { userId, taskSetId }
+  // Reopen the grid if we came back here from a user's page (via that page's
+  // back chevron, which carries `reopenMatrix`).
+  const [matrixTarget, setMatrixTarget] = useState(() => location.state?.reopenMatrix || null);
 
   const load = useCallback(async () => {
     try {
@@ -166,6 +171,11 @@ export default function SharedTaskSetsPage() {
           taskSetId={matrixTarget.taskSetId}
           onClose={closeMatrix}
           onChanged={load}
+          onNavigateUser={(u) => {
+            const target = matrixTarget; // so the back chevron can reopen this grid
+            setMatrixTarget(null);
+            navigate(`/tasks/${u.id}/${u.taskSetId}`, { state: { backToShared: target } });
+          }}
         />
       )}
     </div>

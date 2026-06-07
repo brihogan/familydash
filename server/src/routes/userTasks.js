@@ -688,7 +688,11 @@ router.get('/:userId/task-assignments/:taskSetId', authenticate, (req, res, next
         WHERE user_id = ? AND task_set_id = ? ORDER BY position ASC`
     ).all(userId, taskSetId).map((r) => r.task_step_id);
 
-    res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at, assignedBy: assignment.assigned_by, completions, notes, optionalCoAssignees, stepOrder, completionStatus: assignment.completion_status, archivedAt: assignment.archived_at, isPinned: !!assignment.is_pinned });
+    // Owner's avatar info — so a parent viewing a kid's page can show whose
+    // badge/award/set it is (the kid's profile pic on the medallion).
+    const owner = db.prepare('SELECT id, name, avatar_color, avatar_emoji FROM users WHERE id = ?').get(userId);
+
+    res.json({ taskSet: parseRow(taskSet), steps, assignedAt: assignment.assigned_at, assignedBy: assignment.assigned_by, completions, notes, optionalCoAssignees, stepOrder, completionStatus: assignment.completion_status, archivedAt: assignment.archived_at, isPinned: !!assignment.is_pinned, owner: owner || null });
   } catch (err) { next(err); }
 });
 
