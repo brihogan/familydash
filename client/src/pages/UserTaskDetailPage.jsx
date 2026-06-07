@@ -13,6 +13,7 @@ import { IconDisplay } from '../components/shared/IconPicker.jsx';
 import Avatar from '../components/shared/Avatar.jsx';
 import { taskSetsApi } from '../api/taskSets.api.js';
 import { badgesApi } from '../api/badges.api.js';
+import { familyApi } from '../api/family.api.js';
 import { BADGE_LEVELS } from '../constants/badgeLevels.js';
 import BadgeImageLightbox from '../components/badges/BadgeImageLightbox.jsx';
 import BadgePreviewModal from '../components/badges/BadgePreviewModal.jsx';
@@ -1671,6 +1672,16 @@ export function StepMatrixModal({ userId, taskSetId, onClose, onChanged, onNavig
   }, [userId, taskSetId]);
   useEffect(() => { load(); }, [load]);
 
+  // Pin/unpin this task set so it sorts to the top of /tasks/shared.
+  const togglePin = () => {
+    if (!data?.pin) return;
+    const next = !data.pin.pinned;
+    setData((d) => (d ? { ...d, pin: { ...d.pin, pinned: next } } : d)); // optimistic
+    familyApi.setSharedPin(data.pin.kind, data.pin.refId, next)
+      .then(() => onChanged?.())
+      .catch(() => setData((d) => (d ? { ...d, pin: { ...d.pin, pinned: !next } } : d)));
+  };
+
   useEffect(() => {
     const handler = (e) => {
       if (e.key !== 'Escape') return;
@@ -1758,6 +1769,20 @@ export function StepMatrixModal({ userId, taskSetId, onClose, onChanged, onNavig
         <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 flex-1 min-w-0 truncate">
           {data?.badge?.name || data?.taskSet?.name || 'Progress grid'}
         </h2>
+        {data?.pin && (
+          <button
+            onClick={togglePin}
+            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+              data.pin.pinned
+                ? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30'
+                : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+            }`}
+            aria-label={data.pin.pinned ? 'Unpin from top of Shared' : 'Pin to top of Shared'}
+            title={data.pin.pinned ? 'Pinned to top of Shared' : 'Pin to top of Shared'}
+          >
+            <FontAwesomeIcon icon={faThumbtack} className={`text-base ${data.pin.pinned ? '' : 'rotate-45'}`} />
+          </button>
+        )}
         <button
           onClick={onClose}
           className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"

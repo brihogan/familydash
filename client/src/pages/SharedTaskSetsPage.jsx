@@ -62,6 +62,81 @@ export default function SharedTaskSetsPage() {
 
   const kindLabel = (item) => (item.is_award ? 'Award' : item.kind === 'badge' ? 'Badge' : 'Task set');
 
+  const pinnedItems   = items.filter((i) => i.pinned);
+  const unpinnedItems = items.filter((i) => !i.pinned);
+
+  const medallion = (item, sizeClass, iconSize) => (
+    <div
+      className={`${sizeClass} rounded-full overflow-hidden flex items-center justify-center shrink-0 shadow-inner`}
+      style={item.kind === 'badge' && !item.image_file ? { background: 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)' } : { backgroundColor: '#6366f11A' }}
+    >
+      {item.kind === 'badge' && item.image_file ? (
+        <img src={`/api/uploads/badges/${item.image_file}`} alt="" className="w-full h-full object-cover dark:brightness-90" onError={(e) => { e.target.style.display = 'none'; }} />
+      ) : (
+        <span className={`${iconSize} leading-none`}>
+          <IconDisplay value={item.emoji} fallback={item.is_award ? '🏆' : item.kind === 'badge' ? '🏅' : '📋'} />
+        </span>
+      )}
+    </div>
+  );
+
+  const memberStack = (item, max = 4) => (
+    <div className="flex items-center -space-x-2 shrink-0">
+      {item.members.slice(0, max).map((m) => (
+        <div key={m.id} className="ring-2 ring-white dark:ring-gray-800 rounded-full" title={m.name}>
+          <Avatar name={m.name} color={m.avatar_color || '#6366f1'} emoji={m.avatar_emoji} size="xs" />
+        </div>
+      ))}
+      {item.members.length > max && (
+        <span className="ring-2 ring-white dark:ring-gray-800 w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-600 text-[10px] font-semibold text-gray-600 dark:text-gray-200 flex items-center justify-center">
+          +{item.members.length - max}
+        </span>
+      )}
+    </div>
+  );
+
+  // Full-width row card (pinned items).
+  const renderRowCard = (item) => (
+    <button
+      key={`${item.kind}-${item.id}`}
+      type="button"
+      onClick={() => openGrid(item)}
+      className="flex items-center gap-3 w-full text-left p-3 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-brand-300 dark:hover:border-brand-500/50 shadow-sm hover:shadow transition-all"
+    >
+      {medallion(item, 'w-12 h-12', 'text-2xl')}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm sm:text-base font-semibold text-gray-900 dark:text-gray-100 truncate">{item.title}</p>
+        <p className="text-xs text-gray-400 dark:text-gray-500">{kindLabel(item)} · {item.memberCount} people</p>
+      </div>
+      {memberStack(item)}
+      <FontAwesomeIcon icon={faChevronRight} className="text-gray-300 dark:text-gray-600 shrink-0" />
+    </button>
+  );
+
+  // Compact card (unpinned items) — 3 across on mobile, 7 on wide desktop.
+  const renderTile = (item) => (
+    <button
+      key={`${item.kind}-${item.id}`}
+      type="button"
+      onClick={() => openGrid(item)}
+      title={`${item.title} · ${item.memberCount} people`}
+      className="flex flex-col items-center gap-1.5 w-full p-2.5 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm hover:border-brand-300 dark:hover:border-brand-500/50 hover:shadow transition-all"
+    >
+      {medallion(item, 'w-16 h-16', 'text-3xl')}
+      <span className="text-[11px] text-center text-gray-700 dark:text-gray-200 leading-tight line-clamp-2 w-full">{item.title}</span>
+      <div className="flex items-center -space-x-1.5">
+        {item.members.slice(0, 3).map((m) => (
+          <div key={m.id} className="ring-2 ring-white dark:ring-gray-900 rounded-full" title={m.name}>
+            <Avatar name={m.name} color={m.avatar_color || '#6366f1'} emoji={m.avatar_emoji} size="xs" />
+          </div>
+        ))}
+        {item.members.length > 3 && (
+          <span className="ring-2 ring-white dark:ring-gray-900 w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-600 text-[9px] font-semibold text-gray-600 dark:text-gray-200 flex items-center justify-center">+{item.members.length - 3}</span>
+        )}
+      </div>
+    </button>
+  );
+
   if (!isParent) {
     return (
       <div className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
@@ -112,57 +187,18 @@ export default function SharedTaskSetsPage() {
           No task sets are shared by 2 or more people yet.
         </div>
       ) : (
-        <div className="flex flex-col gap-2.5">
-          {items.map((item) => (
-            <button
-              key={`${item.kind}-${item.id}`}
-              type="button"
-              onClick={() => openGrid(item)}
-              className="flex items-center gap-3 w-full text-left p-3 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-brand-300 dark:hover:border-brand-500/50 shadow-sm hover:shadow transition-all"
-            >
-              {/* Medallion */}
-              <div
-                className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center shrink-0 shadow-inner"
-                style={item.kind === 'badge' && !item.image_file ? { background: 'radial-gradient(circle at center, #FFFCF0 0%, #F5E6C8 100%)' } : { backgroundColor: '#6366f11A' }}
-              >
-                {item.kind === 'badge' && item.image_file ? (
-                  <img
-                    src={`/api/uploads/badges/${item.image_file}`}
-                    alt=""
-                    className="w-full h-full object-cover dark:brightness-90"
-                    onError={(e) => { e.target.style.display = 'none'; }}
-                  />
-                ) : (
-                  <span className="text-2xl leading-none">
-                    <IconDisplay value={item.emoji} fallback={item.is_award ? '🏆' : item.kind === 'badge' ? '🏅' : '📋'} />
-                  </span>
-                )}
-              </div>
-
-              {/* Title + kind */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm sm:text-base font-semibold text-gray-900 dark:text-gray-100 truncate">{item.title}</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">{kindLabel(item)} · {item.memberCount} people</p>
-              </div>
-
-              {/* Member avatar stack */}
-              <div className="flex items-center -space-x-2 shrink-0">
-                {item.members.slice(0, 4).map((m) => (
-                  <div key={m.id} className="ring-2 ring-white dark:ring-gray-800 rounded-full" title={m.name}>
-                    <Avatar name={m.name} color={m.avatar_color || '#6366f1'} emoji={m.avatar_emoji} size="xs" />
-                  </div>
-                ))}
-                {item.members.length > 4 && (
-                  <span className="ring-2 ring-white dark:ring-gray-800 w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-600 text-[10px] font-semibold text-gray-600 dark:text-gray-200 flex items-center justify-center">
-                    +{item.members.length - 4}
-                  </span>
-                )}
-              </div>
-
-              <FontAwesomeIcon icon={faChevronRight} className="text-gray-300 dark:text-gray-600 shrink-0" />
-            </button>
-          ))}
-        </div>
+        <>
+          {pinnedItems.length > 0 && (
+            <div className="flex flex-col gap-2.5 mb-5">
+              {pinnedItems.map(renderRowCard)}
+            </div>
+          )}
+          {unpinnedItems.length > 0 && (
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-x-2 gap-y-4 justify-items-center">
+              {unpinnedItems.map(renderTile)}
+            </div>
+          )}
+        </>
       )}
 
       {matrixTarget && (

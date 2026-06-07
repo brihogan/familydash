@@ -127,12 +127,42 @@ router.get('/shared-task-sets', authenticate, requireRole('parent'), (req, res, 
     collect(badgeRows, 'badge');
     collect(setRows, 'set');
 
+    // Pinned items (per family) sort to the top.
+    const pinned = new Set(
+      db.prepare('SELECT kind, ref_id FROM shared_task_set_pins WHERE family_id = ?').all(fam).map((r) => `${r.kind}:${r.ref_id}`),
+    );
+
     const items = [...groups.values()]
       .filter((g) => g.members.length >= 2)
-      .map(({ _seen, ...g }) => ({ ...g, memberCount: g.members.length }))
-      .sort((a, b) => (a.is_award !== b.is_award ? (a.is_award ? -1 : 1) : a.title.localeCompare(b.title)));
+      .map(({ _seen, ...g }) => ({ ...g, memberCount: g.members.length, pinned: pinned.has(`${g.kind}:${g.id}`) }))
+      .sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        if (a.is_award !== b.is_award) return a.is_award ? -1 : 1;
+        return a.title.localeCompare(b.title);
+      });
 
     res.json({ taskSets: items });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /api/family/shared-pins ───────────────────────────────────────────
+// Pin/unpin a shared task set for the family (parent only). { kind, refId, pinned }
+router.post('/shared-pins', authenticate, requireRole('parent'), (req, res, next) => {
+  try {
+    const kind = req.body?.kind;
+    const refId = parseInt(req.body?.refId, 10);
+    const pinned = req.body?.pinned === true;
+    if ((kind !== 'badge' && kind !== 'set') || !Number.isFinite(refId)) {
+      return res.status(400).json({ error: 'kind and refId are required.' });
+    }
+    if (pinned) {
+      db.prepare('INSERT OR IGNORE INTO shared_task_set_pins (family_id, kind, ref_id) VALUES (?, ?, ?)').run(req.user.familyId, kind, refId);
+    } else {
+      db.prepare('DELETE FROM shared_task_set_pins WHERE family_id = ? AND kind = ? AND ref_id = ?').run(req.user.familyId, kind, refId);
+    }
+    res.json({ pinned });
   } catch (err) {
     next(err);
   }

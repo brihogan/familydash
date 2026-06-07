@@ -802,12 +802,14 @@ router.get('/:userId/task-assignments/:taskSetId/matrix', authenticate, (req, re
         .map((s) => ({ key: `s${s.id}`, label: s.name, is_optional: s.is_optional === 1, sort_order: s.sort_order }))
         .sort((a, b) => (a.is_optional !== b.is_optional ? (a.is_optional ? 1 : -1) : a.sort_order - b.sort_order));
 
+      const rPinned = !!db.prepare('SELECT 1 FROM shared_task_set_pins WHERE family_id = ? AND kind = ? AND ref_id = ?').get(req.user.familyId, 'set', taskSetId);
       return res.json({
         badge: null,
         taskSet: { id: taskSet.id, name: taskSet.name, emoji: taskSet.emoji, badge_level: null },
         users: rUsers.map((u) => ({ id: u.id, name: u.name, avatar_color: u.avatar_color, avatar_emoji: u.avatar_emoji, taskSetId, badge_level: null })),
         steps: rSteps,
         cells: rCells,
+        pin: { kind: 'set', refId: taskSetId, pinned: rPinned },
       });
     }
 
@@ -903,6 +905,7 @@ router.get('/:userId/task-assignments/:taskSetId/matrix', authenticate, (req, re
       return a.sort_order - b.sort_order;
     });
 
+    const bPinned = !!db.prepare('SELECT 1 FROM shared_task_set_pins WHERE family_id = ? AND kind = ? AND ref_id = ?').get(req.user.familyId, 'badge', taskSet.badge_id);
     res.json({
       badge: badge ? {
         id: badge.id,
@@ -918,6 +921,7 @@ router.get('/:userId/task-assignments/:taskSetId/matrix', authenticate, (req, re
       })),
       steps,
       cells,
+      pin: { kind: 'badge', refId: taskSet.badge_id, pinned: bPinned },
     });
   } catch (err) { next(err); }
 });

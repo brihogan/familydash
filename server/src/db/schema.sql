@@ -250,6 +250,15 @@ CREATE TABLE IF NOT EXISTS step_subtask_completions (
   PRIMARY KEY (subtask_id, user_id)
 );
 
+-- Per-family pins for the Shared progress view (kind 'badge'→badge_id / 'set'→task_set_id).
+CREATE TABLE IF NOT EXISTS shared_task_set_pins (
+  family_id  INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+  kind       TEXT NOT NULL,
+  ref_id     INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (family_id, kind, ref_id)
+);
+
 CREATE TABLE IF NOT EXISTS badges (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   name             TEXT    NOT NULL,
