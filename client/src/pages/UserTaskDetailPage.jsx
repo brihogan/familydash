@@ -222,9 +222,10 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, onSav
   const [saving, setSaving] = useState(false);
   // Other users who share this step — toggle one on to also mark it complete
   // for them (with the same answer) when this step is completed. When opened
-  // from a step row ("Who completed it?"/requireCoSelection), everyone who has
-  // the step starts toggled ON (the parent deselects whoever didn't do it).
-  const allCoIds = () => new Set(coUsers.map((c) => c.user.id));
+  // from a step row ("Who completed it?"/requireCoSelection), everyone who
+  // hasn't done it yet starts toggled ON (the parent deselects whoever didn't
+  // do it); already-done kids are shown as a check, not a toggle.
+  const allCoIds = () => new Set(coUsers.filter((c) => !c.cell?.done).map((c) => c.user.id));
   const [coSelected, setCoSelected] = useState(() => (requireCoSelection ? allCoIds() : new Set()));
   useEffect(() => { setCoSelected(requireCoSelection ? allCoIds() : new Set()); }, [step.id]);
   const taRef = useRef(null);
@@ -451,6 +452,19 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, onSav
               <div className="flex flex-col gap-1.5">
                 {coUsers.map((co) => {
                   const cu = co.user;
+                  // Already done → static row with a check (can't toggle).
+                  if (co.cell?.done) {
+                    return (
+                      <div
+                        key={cu.id}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl border border-green-200 dark:border-green-800/50 bg-green-50/60 dark:bg-green-900/15"
+                      >
+                        <Avatar name={cu.name} color={cu.avatar_color} emoji={cu.avatar_emoji} size="xs" />
+                        <span className="flex-1 text-sm text-gray-500 dark:text-gray-400">{cu.name}</span>
+                        <FontAwesomeIcon icon={faCircleCheck} title="Already completed" className="shrink-0 text-green-500 text-lg" />
+                      </div>
+                    );
+                  }
                   const on = coSelected.has(cu.id);
                   return (
                     <button
@@ -1677,16 +1691,17 @@ export function StepMatrixModal({ userId, taskSetId, onClose, onChanged, onNavig
     is_award: !!data.badge?.is_award,
   });
 
-  // Enrolled kids who share this exact step (by row key) and haven't finished
-  // it — surfaced as toggles in the focus view so a parent can mark it for
-  // several kids at once with the same answer. `excludeId` drops the primary
-  // user (a clicked cell); pass null to include everyone (a step-row click).
-  const coUsersFor = (rowKey, excludeId = null) => {
+  // Enrolled kids who share this exact step (by row key) — surfaced in the focus
+  // view so a parent can mark/save for several kids at once. `excludeId` drops
+  // the primary user (a clicked cell). By default only kids who haven't finished
+  // are returned; `includeDone` also returns those already done (shown as a
+  // check, not a toggle) so a step-row click can show who's still outstanding.
+  const coUsersFor = (rowKey, excludeId = null, includeDone = false) => {
     if (!data) return [];
     return data.users
       .filter((u) => u.id !== excludeId)
       .map((u) => ({ user: u, cell: data.cells[u.id]?.[rowKey] }))
-      .filter((x) => x.cell && !x.cell.done);
+      .filter((x) => x.cell && (includeDone || !x.cell.done));
   };
 
   const handleComplete = (u, cell, resp, alsoFor = []) => {
@@ -1895,11 +1910,15 @@ export function StepMatrixModal({ userId, taskSetId, onClose, onChanged, onNavig
           } : focus.cell.step}
           taskSet={taskSetFor(focus.user)}
           user={focus.user}
-          coUsers={coUsersFor(focus.rowKey, focus.user?.id ?? null)}
+          coUsers={coUsersFor(focus.rowKey, focus.user?.id ?? null, !focus.user)}
           requireCoSelection={!focus.user}
           subtaskUserId={focus.user?.id ?? userId}
           subtaskUsers={data.users.filter((u) => data.cells[u.id]?.[focus.rowKey])}
-          readOnly={focus.cell.done}
+          readOnly={focus.user
+            ? focus.cell.done
+            // Step-row click: read-only only when EVERYONE who has the step is
+            // done. If any kid still needs it, stay active (Mark complete shows).
+            : data.users.every((u) => { const c = data.cells[u.id]?.[focus.rowKey]; return !c || c.done; })}
           disabled={false}
           onComplete={(resp, alsoFor) => handleComplete(focus.user, focus.cell, resp, alsoFor)}
           onSaveNotes={(stepId, notes) => {
