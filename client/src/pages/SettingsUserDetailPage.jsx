@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faListCheck, faPen, faTrash, faKey } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faListCheck, faPen, faTrash, faKey, faCircleCheck, faCoins } from '@fortawesome/free-solid-svg-icons';
 import Modal from '../components/shared/Modal.jsx';
 import { familyApi } from '../api/family.api.js';
 import { claudeApi } from '../api/claude.api.js';
@@ -211,8 +211,8 @@ export default function SettingsUserDetailPage() {
     if (e.key === 'Escape') cancelEditName();
   };
 
-  const openCredentials = () => {
-    setCredLogin(!!member.allow_login);
+  const openCredentials = (prefillLogin = false) => {
+    setCredLogin(prefillLogin || !!member.allow_login);
     setCredUsername(member.username || '');
     setCredPin('');
     setCredError('');
@@ -430,12 +430,49 @@ export default function SettingsUserDetailPage() {
               </p>
             </div>
             <button
-              onClick={openCredentials}
+              onClick={() => openCredentials()}
               className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 text-sm font-medium hover:border-brand-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
             >
               <FontAwesomeIcon icon={faKey} className="mr-1.5 text-xs" />
               Edit
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── What login unlocks (kids only, shown while login is disabled) ── */}
+      {isKid && !hasLogin && (
+        <div className="mb-6 space-y-3">
+          <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Enable login to unlock</h2>
+          <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl space-y-4">
+            <button
+              type="button"
+              onClick={() => openCredentials(true)}
+              className="w-full flex items-start gap-3 text-left rounded-lg -m-1 p-1 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+            >
+              <FontAwesomeIcon icon={faCircleCheck} className="text-brand-500 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-gray-900 dark:text-gray-100">{choreLabel} approval controls</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                  Require {member.name}'s {choresLabelLower} and task sets to land in your inbox for approval first, so they can't just check everything off themselves.
+                </p>
+              </div>
+            </button>
+            {useBanking && (
+              <button
+                type="button"
+                onClick={() => openCredentials(true)}
+                className="w-full flex items-start gap-3 text-left rounded-lg -m-1 p-1 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+              >
+                <FontAwesomeIcon icon={faCoins} className="text-amber-500 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 dark:text-gray-100">Hands-on banking</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                    Turn on "Require Working with Currency" so {member.name} drags real bills and coins around to receive, spend, and transfer — learning how money works instead of watching a number change.
+                  </p>
+                </div>
+              </button>
+            )}
           </div>
         </div>
       )}
