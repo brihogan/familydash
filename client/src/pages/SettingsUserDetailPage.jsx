@@ -686,15 +686,21 @@ export default function SettingsUserDetailPage() {
                 When to send parents an inbox notification as {member.name} works on badges and awards.
               </p>
             </div>
-            <select
-              value={member.badge_notify_mode ?? 'off'}
-              onChange={(e) => handleToggle('badge_notify_mode', e.target.value)}
-              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none shrink-0"
-            >
-              <option value="off">Off</option>
-              <option value="each_step">On each step completion</option>
-              <option value="on_completion">On set (final step) completion</option>
-            </select>
+            {hasLogin ? (
+              <select
+                value={member.badge_notify_mode ?? 'off'}
+                onChange={(e) => handleToggle('badge_notify_mode', e.target.value)}
+                className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none shrink-0"
+              >
+                <option value="off">Off</option>
+                <option value="each_step">On each step completion</option>
+                <option value="on_completion">On set (final step) completion</option>
+              </select>
+            ) : (
+              <p className="text-sm text-gray-400 dark:text-gray-500 italic shrink-0 max-w-[9rem] text-right">
+                Enable login to set this.
+              </p>
+            )}
           </div>
         </div>
       </div>
