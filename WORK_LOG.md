@@ -6,6 +6,7 @@
 - Investigated why `/settings/users/:id` Banking section "disappeared": it's still there (`SettingsUserDetailPage.jsx`) but gated on `isKid && useBanking && hasLogin` — so disabling a kid's login hides it. The "must drag money" mode is the `require_currency_work` toggle.
 - Added an "Enable login to unlock" section (kids only, shown while login disabled) with two rows — chore approval controls + hands-on banking (banking row gated on `useBanking`). Both rows are now clickable buttons that open the credentials editor with login pre-enabled (`openCredentials(true)`); fixed the existing Edit button to `() => openCredentials()` so the click event isn't passed as the prefill flag. Verified in preview: section renders for Ellie, clicking banking row opens modal with "Allow login" ON, no console errors. Client-only.
 - Diagnosed (not yet fixed) the money-counter touch bug: empty action-zone drop band is only `AZ_H_MIN`=78px tall (vertically centered) in `MoneyPopover.jsx`; thumb-drag arcs overshoot it on small phones. Mouse/precise + big screens don't hit it. Fix would widen the empty hit-band.
+- Badge & Award Notifications dropdown now only shows when login is enabled; otherwise replaced with an "Enable login to set this." note. Verified for Ellie, no errors. Client-only.
 
 ## Session Start: 2026-06-05 13:58 EDT (afternoon)
 
