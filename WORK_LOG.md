@@ -7,6 +7,7 @@
 - Added an "Enable login to unlock" section (kids only, shown while login disabled) with two rows — chore approval controls + hands-on banking (banking row gated on `useBanking`). Both rows are now clickable buttons that open the credentials editor with login pre-enabled (`openCredentials(true)`); fixed the existing Edit button to `() => openCredentials()` so the click event isn't passed as the prefill flag. Verified in preview: section renders for Ellie, clicking banking row opens modal with "Allow login" ON, no console errors. Client-only.
 - Diagnosed (not yet fixed) the money-counter touch bug: empty action-zone drop band is only `AZ_H_MIN`=78px tall (vertically centered) in `MoneyPopover.jsx`; thumb-drag arcs overshoot it on small phones. Mouse/precise + big screens don't hit it. Fix would widen the empty hit-band.
 - Badge & Award Notifications dropdown now only shows when login is enabled; otherwise replaced with an "Enable login to set this." note. Verified for Ellie, no errors. Client-only.
+- Badge/award matrix modal columns now use the same order as the profile switcher (`sort_order ASC, role DESC, name ASC`) instead of "clicked-user-first, then name". Changed both ORDER BY clauses in `server/src/routes/userTasks.js` (badge + regular branches) and dropped the now-unused userId param. Verified in UI from Ellie's page: columns are Brian, Daniel, Ellie, Mikey (not Ellie-first). Server change → prod needs image rebuild.
 
 ## Session Start: 2026-06-05 13:58 EDT (afternoon)
 

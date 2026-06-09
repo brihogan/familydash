@@ -725,8 +725,8 @@ router.get('/:userId/task-assignments/:taskSetId/matrix', authenticate, (req, re
         WHERE ta.task_set_id = ? AND ta.is_active = 1 AND ta.archived_at IS NULL
           AND u.family_id = ? AND u.is_active = 1
         GROUP BY u.id
-        ORDER BY (u.id = ?) DESC, u.name COLLATE NOCASE ASC
-      `).all(taskSetId, req.user.familyId, userId);
+        ORDER BY u.sort_order ASC, u.role DESC, u.name COLLATE NOCASE ASC
+      `).all(taskSetId, req.user.familyId);
 
       const stepDefs = db.prepare(`
         SELECT s.id, s.sort_order, s.is_optional, s.name, s.description, s.image,
@@ -828,8 +828,8 @@ router.get('/:userId/task-assignments/:taskSetId/matrix', authenticate, (req, re
         AND ta.is_active = 1 AND ta.archived_at IS NULL AND ots.is_active = 1
         AND u.family_id = ? AND u.is_active = 1
       GROUP BY u.id
-      ORDER BY (u.id = ?) DESC, u.name COLLATE NOCASE ASC
-    `).all(taskSet.badge_id, req.user.familyId, userId);
+      ORDER BY u.sort_order ASC, u.role DESC, u.name COLLATE NOCASE ASC
+    `).all(taskSet.badge_id, req.user.familyId);
 
     // Pull every column-user's steps in one query, then bucket per user.
     const stepRows = users.length === 0 ? [] : db.prepare(`
