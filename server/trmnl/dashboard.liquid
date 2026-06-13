@@ -25,20 +25,19 @@
 
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="width:48px;height:48px;flex:0 0 48px;border:2px solid #000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;line-height:1;">{% if u.emoji and u.emoji != '' %}{{ u.emoji }}{% else %}{{ u.initial }}{% endif %}</div>
-          <span style="font-size:24px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ u.name | split: ' ' | first }}{% if u.is_parent %} <span style="font-size:13px;font-weight:normal;color:#5a5a5a;">grown-up</span>{% endif %}</span>
-        </div>
-
-        <div style="display:flex;align-items:baseline;margin-top:6px;font-size:18px;font-weight:bold;">
-          <span>{{ u.tickets }} &#127903;</span>
-          <span style="margin-left:auto;{% if u.money_negative %}color:#555;text-decoration:line-through;{% endif %}">{{ u.money }}</span>
+          <span style="flex:1 1 auto;min-width:0;font-size:24px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ u.name | split: ' ' | first }}{% if u.is_parent %} <span style="font-size:13px;font-weight:normal;color:#5a5a5a;">grown-up</span>{% endif %}</span>
+          <div style="flex:0 0 auto;text-align:right;font-size:18px;font-weight:bold;line-height:1.25;">
+            <div>{{ u.tickets }} &#127903;</div>
+            <div{% if u.money_negative %} style="color:#555;text-decoration:line-through;"{% endif %}>{{ u.money }}</div>
+          </div>
         </div>
 
         {% if u.tiles.size > 0 %}
-          <div style="display:flex;flex-wrap:wrap;margin-top:8px;">
+          <div style="display:flex;flex-wrap:wrap;margin-top:12px;">
             {% for t in u.tiles %}
-              <div style="width:25%;box-sizing:border-box;display:flex;justify-content:center;margin-bottom:8px;">
-                <div style="width:46px;height:46px;border-radius:50%;background:conic-gradient(#000 {{ t.pct }}%, #cfcfcf 0);display:flex;align-items:center;justify-content:center;">
-                  <div style="width:34px;height:34px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1;">{% if t.pct == 100 %}&#10003;{% else %}{{ t.emoji }}{% endif %}</div>
+              <div style="width:33.33%;box-sizing:border-box;display:flex;justify-content:center;margin-bottom:10px;">
+                <div style="width:62px;height:62px;border-radius:50%;background:conic-gradient(#000 {{ t.pct }}%, #cfcfcf 0);display:flex;align-items:center;justify-content:center;">
+                  <div style="width:48px;height:48px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;line-height:1;">{% if t.pct == 100 %}&#10003;{% else %}{{ t.emoji }}{% endif %}</div>
                 </div>
               </div>
             {% endfor %}
