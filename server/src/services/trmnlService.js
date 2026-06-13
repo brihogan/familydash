@@ -6,7 +6,7 @@ import { localDateISO } from '../utils/dateHelpers.js';
 const lastPushByFamily = new Map();
 const THROTTLE_MS = 5 * 60 * 1000;
 
-const MAX_TILES = 8; // chores + tasksets combined, per user
+const MAX_TILES = 9; // chores + tasksets combined, per user (3x3 grid)
 
 function formatCents(cents) {
   const n = cents || 0;
@@ -91,12 +91,13 @@ export function buildDashboardPayload(familyId) {
 
     // Active task sets (not yet completed) per member — mirrors the main dashboard.
     const taskRows = db.prepare(`
-      SELECT user_id, name, emoji, type, badge_image_file, step_count, completed_count FROM (
+      SELECT user_id, name, emoji, type, badge_id, badge_image_file, step_count, completed_count FROM (
         SELECT
           ta.user_id,
           ts.name,
           ts.emoji,
           ts.type,
+          ts.badge_id AS badge_id,
           b.image_file AS badge_image_file,
           (SELECT COALESCE(SUM(s.repeat_count), 0) FROM task_steps s WHERE s.task_set_id = ts.id AND s.is_active = 1)
             + CASE WHEN ts.badge_id IS NOT NULL
@@ -126,28 +127,22 @@ export function buildDashboardPayload(familyId) {
   const users = rows.map((r) => {
     const latest = buildLatest(r.latest_description, r.extra_count);
 
-    // Combined tiles: chores first (when assigned), then task sets, capped at
-    // MAX_TILES. Only {emoji, pct} are sent — the markup derives "complete" from
-    // pct === 100 — to stay under TRMNL's 2KB webhook payload cap.
-    // Only kids get tiles. Parents show just name + activity — and omitting their
-    // tiles keeps the whole payload under TRMNL's 2KB webhook cap so the kids'
-    // badge images (the expensive part) actually fit.
+    // Combined tiles (chores first, then task sets), capped at MAX_TILES. Encoded
+    // as compact arrays to fit under TRMNL's 2KB webhook cap:
+    //   badge tile:  [badge_id, pct]        -> markup renders /badges/by-id/<id>
+    //   emoji tile:  [emoji, pct, 1]        -> markup renders the emoji (3rd slot = flag)
     const tiles = [];
-    if (r.role !== 'parent') {
-      if (r.chore_total > 0) {
-        tiles.push({ emoji: '🧹', pct: pct(r.chore_done, r.chore_total) });
-      }
-      for (const t of tasksByUser[r.id] || []) {
-        if (tiles.length >= MAX_TILES) break;
-        const p = pct(t.completed_count, t.step_count);
-        // Prefer the actual badge image (bare filename — markup prepends the
-        // public /api/uploads/badges/ base); fall back to emoji when no badge.
-        tiles.push(
-          t.badge_image_file
-            ? { img: t.badge_image_file, pct: p }
-            : { emoji: t.emoji || (t.type === 'Project' ? '📋' : '⭐'), pct: p }
-        );
-      }
+    if (r.chore_total > 0) {
+      tiles.push(['🧹', pct(r.chore_done, r.chore_total), 1]);
+    }
+    for (const t of tasksByUser[r.id] || []) {
+      if (tiles.length >= MAX_TILES) break;
+      const p = pct(t.completed_count, t.step_count);
+      tiles.push(
+        t.badge_id && t.badge_image_file
+          ? [t.badge_id, p]
+          : [t.emoji || (t.type === 'Project' ? '📋' : '⭐'), p, 1]
+      );
     }
 
     return {
@@ -166,19 +161,20 @@ export function buildDashboardPayload(familyId) {
   const payload = { family_name: family?.name || 'Family', users };
 
   // TRMNL's free-tier webhook hard-rejects bodies >2KB (HTTP 422). Degrade
-  // gracefully so a push never silently fails: first drop badge images (the
-  // markup falls back to a generic emoji), then shorten activity lines.
+  // gracefully so a push never silently fails: first shorten activity lines
+  // (cheap, low-value), then trim tiles from whoever has the most.
   const CAP = 2000;
   const bodyLen = () => JSON.stringify({ merge_variables: payload }).length;
-  // Trim activity text first (cheap, low-value) and only drop badge images as a
-  // last resort — images are the high-value content we want to preserve.
   if (bodyLen() > CAP) {
     for (const u of users) u.latest = (u.latest || '').slice(0, 24);
   }
-  if (bodyLen() > CAP) {
-    for (const u of users) for (const t of u.tiles) {
-      if (t.img) { delete t.img; t.emoji = '⭐'; }
+  while (bodyLen() > CAP) {
+    let fullest = null;
+    for (const u of users) {
+      if (u.tiles.length && (!fullest || u.tiles.length > fullest.tiles.length)) fullest = u;
     }
+    if (!fullest) break;
+    fullest.tiles.pop();
   }
   return payload;
 }

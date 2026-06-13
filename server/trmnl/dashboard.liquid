@@ -34,21 +34,19 @@
           {% endunless %}
         </div>
 
-        {% unless u.is_parent %}
-          {% if u.tiles.size > 0 %}
-            <div style="display:flex;flex-wrap:wrap;margin-top:12px;">
-              {% for t in u.tiles %}
-                <div style="width:33.33%;box-sizing:border-box;display:flex;justify-content:center;margin-bottom:10px;">
-                  <div style="width:62px;height:62px;border-radius:50%;background:conic-gradient(#000 {{ t.pct }}%, #cfcfcf 0);display:flex;align-items:center;justify-content:center;">
-                    <div style="width:48px;height:48px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;line-height:1;overflow:hidden;">{% if t.img %}<img class="image" src="https://dash.straychips.com/api/uploads/badges/{{ t.img }}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;">{% elsif t.pct == 100 %}&#10003;{% else %}{{ t.emoji }}{% endif %}</div>
-                  </div>
+        {% if u.tiles.size > 0 %}
+          <div style="display:flex;flex-wrap:wrap;margin-top:12px;">
+            {% for t in u.tiles %}
+              <div style="width:33.33%;box-sizing:border-box;display:flex;justify-content:center;margin-bottom:10px;">
+                <div style="width:62px;height:62px;border-radius:50%;background:conic-gradient(#000 {{ t[1] }}%, #cfcfcf 0);display:flex;align-items:center;justify-content:center;">
+                  <div style="width:48px;height:48px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;line-height:1;overflow:hidden;">{% if t[2] %}{% if t[1] == 100 %}&#10003;{% else %}{{ t[0] }}{% endif %}{% else %}<img class="image" src="https://dash.straychips.com/api/uploads/badges/by-id/{{ t[0] }}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;">{% endif %}</div>
                 </div>
-              {% endfor %}
-            </div>
-          {% else %}
-            <div style="margin-top:8px;color:#666;font-size:15px;">All clear &#10024;</div>
-          {% endif %}
-        {% endunless %}
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div style="margin-top:8px;color:#666;font-size:15px;">All clear &#10024;</div>
+        {% endif %}
 
         <div style="margin-top:auto;padding-top:10px;border-top:1px dotted #aaa;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;{% if u.latest == '' %}color:#999;{% endif %}">{% if u.latest != '' %}{{ u.latest | truncate: 48 }}{% else %}&mdash;{% endif %}</div>
 

@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync } from 'fs';
+import db from './db/db.js';
 
 import authRouter from './routes/auth.js';
 import familyRouter from './routes/family.js';
@@ -173,10 +174,19 @@ const badgeImagesDir = join(dataDir, 'uploads', 'badges');
 // workers fetching them for the e-ink dashboard). Helmet's default
 // Cross-Origin-Resource-Policy: same-origin otherwise blocks the headless
 // browser from loading these <img> sources.
-app.use('/api/uploads/badges', (req, res, next) => {
+const allowBadgeCors = (req, res, next) => {
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   next();
-}, express.static(badgeImagesDir));
+};
+// Resolve a badge by numeric id to its image file. Lets the TRMNL payload
+// reference badges by short id (/by-id/247) instead of long filenames, keeping
+// the webhook payload well under TRMNL's 2KB cap.
+app.get('/api/uploads/badges/by-id/:id', allowBadgeCors, (req, res) => {
+  const row = db.prepare('SELECT image_file FROM badges WHERE id = ?').get(req.params.id);
+  if (!row || !row.image_file) return res.status(404).end();
+  res.sendFile(join(badgeImagesDir, row.image_file));
+});
+app.use('/api/uploads/badges', allowBadgeCors, express.static(badgeImagesDir));
 
 // Serve compiled React build in production
 const publicDir = join(__dirname, '..', 'public');
