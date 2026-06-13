@@ -129,20 +129,25 @@ export function buildDashboardPayload(familyId) {
     // Combined tiles: chores first (when assigned), then task sets, capped at
     // MAX_TILES. Only {emoji, pct} are sent — the markup derives "complete" from
     // pct === 100 — to stay under TRMNL's 2KB webhook payload cap.
+    // Only kids get tiles. Parents show just name + activity — and omitting their
+    // tiles keeps the whole payload under TRMNL's 2KB webhook cap so the kids'
+    // badge images (the expensive part) actually fit.
     const tiles = [];
-    if (r.chore_total > 0) {
-      tiles.push({ emoji: '🧹', pct: pct(r.chore_done, r.chore_total) });
-    }
-    for (const t of tasksByUser[r.id] || []) {
-      if (tiles.length >= MAX_TILES) break;
-      const p = pct(t.completed_count, t.step_count);
-      // Prefer the actual badge image (bare filename — markup prepends the public
-      // /api/uploads/badges/ base); fall back to an emoji when there's no badge.
-      tiles.push(
-        t.badge_image_file
-          ? { img: t.badge_image_file, pct: p }
-          : { emoji: t.emoji || (t.type === 'Project' ? '📋' : '⭐'), pct: p }
-      );
+    if (r.role !== 'parent') {
+      if (r.chore_total > 0) {
+        tiles.push({ emoji: '🧹', pct: pct(r.chore_done, r.chore_total) });
+      }
+      for (const t of tasksByUser[r.id] || []) {
+        if (tiles.length >= MAX_TILES) break;
+        const p = pct(t.completed_count, t.step_count);
+        // Prefer the actual badge image (bare filename — markup prepends the
+        // public /api/uploads/badges/ base); fall back to emoji when no badge.
+        tiles.push(
+          t.badge_image_file
+            ? { img: t.badge_image_file, pct: p }
+            : { emoji: t.emoji || (t.type === 'Project' ? '📋' : '⭐'), pct: p }
+        );
+      }
     }
 
     return {
