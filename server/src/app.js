@@ -169,7 +169,14 @@ const dataDir = process.env.DATABASE_PATH ? dirname(process.env.DATABASE_PATH) :
 const stepsUploadsDir = join(dataDir, 'uploads', 'steps');
 app.use('/api/uploads/steps', express.static(stepsUploadsDir));
 const badgeImagesDir = join(dataDir, 'uploads', 'badges');
-app.use('/api/uploads/badges', express.static(badgeImagesDir));
+// Allow cross-origin embedding of the public badge images (e.g. TRMNL's render
+// workers fetching them for the e-ink dashboard). Helmet's default
+// Cross-Origin-Resource-Policy: same-origin otherwise blocks the headless
+// browser from loading these <img> sources.
+app.use('/api/uploads/badges', (req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(badgeImagesDir));
 
 // Serve compiled React build in production
 const publicDir = join(__dirname, '..', 'public');
