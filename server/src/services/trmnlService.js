@@ -7,12 +7,28 @@ import { localDateISO } from '../utils/dateHelpers.js';
 const lastPushByFamily = new Map();
 const THROTTLE_MS = 5 * 60 * 1000;
 
+const MAX_TILES = 8; // chores + tasksets combined, per user
+
 function formatCents(cents) {
-  const abs = Math.abs(cents || 0);
-  return `$${(abs / 100).toFixed(2)}`;
+  const n = cents || 0;
+  const sign = n < 0 ? '-' : '';
+  return `${sign}$${(Math.abs(n) / 100).toFixed(2)}`;
 }
 
-function buildDashboardPayload(familyId) {
+function pct(done, total) {
+  return total > 0 ? Math.round((done / total) * 100) : 0;
+}
+
+// Compact one-line activity string: trim the (sometimes huge) description, then
+// append the "+N more..." suffix when there were other recent events.
+function buildLatest(description, extraCount) {
+  if (!description) return '';
+  let text = description.trim();
+  if (text.length > 90) text = `${text.slice(0, 89).trimEnd()}…`;
+  return extraCount > 0 ? `${text} +${extraCount} more...` : text;
+}
+
+export function buildDashboardPayload(familyId) {
   const family = db.prepare('SELECT name FROM families WHERE id = ?').get(familyId);
   const today = localDateISO();
 
@@ -24,6 +40,7 @@ function buildDashboardPayload(familyId) {
     getOrGenerateLogs(m.id, today);
   }
 
+  // Every active member (parents + kids) gets a square on the TRMNL grid.
   const rows = db.prepare(`
     WITH latest_activity AS (
       SELECT subject_user_id, MAX(created_at) AS latest_at
@@ -46,7 +63,7 @@ function buildDashboardPayload(familyId) {
       GROUP BY af.subject_user_id
     )
     SELECT
-      u.id, u.name, u.avatar_emoji, u.role, u.ticket_balance, u.show_on_dashboard,
+      u.id, u.name, u.avatar_emoji, u.avatar_color, u.role, u.ticket_balance,
       a.balance_cents AS main_balance_cents,
       COALESCE(ch.total, 0) AS chore_total,
       COALESCE(ch.done, 0)  AS chore_done,
@@ -62,15 +79,50 @@ function buildDashboardPayload(familyId) {
       FROM chore_logs WHERE log_date = ?
       GROUP BY user_id
     ) ch ON ch.user_id = u.id
-    WHERE u.family_id = ? AND u.is_active = 1 AND u.role = 'kid' AND u.show_on_dashboard = 1
-    ORDER BY u.sort_order ASC, u.name ASC
+    WHERE u.family_id = ? AND u.is_active = 1
+    ORDER BY u.sort_order ASC, u.role DESC, u.name ASC
   `).all(familyId, familyId, familyId, today, familyId);
 
-  // Trophy counts
   const memberIds = rows.map((r) => r.id);
   const trophyMap = {};
+  const tasksByUser = {};
+
   if (memberIds.length > 0) {
     const ph = memberIds.map(() => '?').join(',');
+
+    // Active task sets (not yet completed) per member — mirrors the main dashboard.
+    const taskRows = db.prepare(`
+      SELECT user_id, name, emoji, type, step_count, completed_count FROM (
+        SELECT
+          ta.user_id,
+          ts.name,
+          ts.emoji,
+          ts.type,
+          (SELECT COALESCE(SUM(s.repeat_count), 0) FROM task_steps s WHERE s.task_set_id = ts.id AND s.is_active = 1)
+            + CASE WHEN ts.badge_id IS NOT NULL
+                THEN MAX(0, COALESCE(CAST(json_extract(b.level_opt_counts, '$.' || ts.badge_level) AS INTEGER), 0)
+                          - (SELECT COUNT(DISTINCT COALESCE(badge_opt_req_id, -1))
+                             FROM task_steps WHERE task_set_id = ts.id AND is_active = 1 AND is_optional = 1))
+                ELSE 0
+              END AS step_count,
+          (SELECT COUNT(*) FROM task_step_completions c WHERE c.task_set_id = ts.id AND c.user_id = ta.user_id) AS completed_count,
+          (SELECT MAX(completed_at) FROM task_step_completions c WHERE c.task_set_id = ts.id AND c.user_id = ta.user_id) AS earned_at
+        FROM task_assignments ta
+        JOIN task_sets ts ON ts.id = ta.task_set_id
+        LEFT JOIN badges b ON b.id = ts.badge_id
+        WHERE ta.user_id IN (${ph}) AND ta.is_active = 1 AND ts.is_active = 1
+      ) WHERE NOT (
+        step_count > 0 AND completed_count = step_count
+        AND type = 'One-Off'
+        AND date(earned_at, 'localtime') < ?
+      )
+      ORDER BY user_id, CASE type WHEN 'Project' THEN 0 ELSE 1 END, name
+    `).all(...memberIds, today);
+    for (const row of taskRows) {
+      (tasksByUser[row.user_id] ||= []).push(row);
+    }
+
+    // Trophy counts (completed Awards) + King of Crowns moving trophy.
     const trophyRows = db.prepare(`
       SELECT ta.user_id, COUNT(*) AS trophy_count
       FROM task_assignments ta
@@ -94,13 +146,54 @@ function buildDashboardPayload(familyId) {
     }
   }
 
-  const kids = rows.map((r) => {
-    const latest = r.latest_description
-      ? r.extra_count > 0
-        ? `${r.latest_description} +${r.extra_count} more...`
-        : r.latest_description
-      : '';
+  const users = rows.map((r) => {
+    const latest = buildLatest(r.latest_description, r.extra_count);
+
+    // Combined tiles: chores first (when assigned), then task sets, capped at MAX_TILES.
+    const tiles = [];
+    if (r.chore_total > 0) {
+      tiles.push({
+        emoji: '🧹',
+        label: 'Chores',
+        done: r.chore_done,
+        total: r.chore_total,
+        pct: pct(r.chore_done, r.chore_total),
+        complete: r.chore_done >= r.chore_total,
+      });
+    }
+    for (const t of tasksByUser[r.id] || []) {
+      if (tiles.length >= MAX_TILES) break;
+      tiles.push({
+        emoji: t.emoji || (t.type === 'Project' ? '📋' : '⭐'),
+        label: t.name,
+        done: t.completed_count,
+        total: t.step_count,
+        pct: pct(t.completed_count, t.step_count),
+        complete: t.step_count > 0 && t.completed_count >= t.step_count,
+      });
+    }
+
     return {
+      name: r.name,
+      emoji: r.avatar_emoji || '',
+      initial: (r.name || '?').trim().charAt(0).toUpperCase(),
+      color: r.avatar_color || '#000000',
+      is_parent: r.role === 'parent',
+      money: formatCents(r.main_balance_cents),
+      money_negative: (r.main_balance_cents || 0) < 0,
+      tickets: r.ticket_balance,
+      trophies: trophyMap[r.id] || 0,
+      tiles,
+      has_tiles: tiles.length > 0,
+      latest,
+    };
+  });
+
+  // Backward-compat: keep the old `kids`-only shape so an unmigrated TRMNL
+  // template keeps rendering until the new markup is pasted in.
+  const kids = rows
+    .filter((r) => r.role === 'kid')
+    .map((r) => ({
       name: r.name,
       emoji: r.avatar_emoji || '',
       money: formatCents(r.main_balance_cents),
@@ -108,14 +201,14 @@ function buildDashboardPayload(familyId) {
       chores_done: r.chore_done,
       chores_total: r.chore_total,
       chores_left: r.chore_total - r.chore_done,
-      chores_pct: r.chore_total > 0 ? Math.round((r.chore_done / r.chore_total) * 100) : 0,
+      chores_pct: pct(r.chore_done, r.chore_total),
       trophies: trophyMap[r.id] || 0,
-      latest,
-    };
-  });
+      latest: buildLatest(r.latest_description, r.extra_count),
+    }));
 
   return {
     family_name: family?.name || 'Family',
+    users,
     kids,
   };
 }
