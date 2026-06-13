@@ -26,10 +26,12 @@
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="width:48px;height:48px;flex:0 0 48px;border:2px solid #000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;line-height:1;">{% if u.emoji and u.emoji != '' %}{{ u.emoji }}{% else %}{{ u.initial }}{% endif %}</div>
           <span style="flex:1 1 auto;min-width:0;font-size:24px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ u.name | split: ' ' | first }}{% if u.is_parent %} <span style="font-size:13px;font-weight:normal;color:#5a5a5a;">grown-up</span>{% endif %}</span>
+          {% unless u.is_parent %}
           <div style="flex:0 0 auto;text-align:right;font-size:18px;font-weight:bold;line-height:1.25;">
             <div>{{ u.tickets }} &#127903;</div>
             <div{% if u.money_negative %} style="color:#555;text-decoration:line-through;"{% endif %}>{{ u.money }}</div>
           </div>
+          {% endunless %}
         </div>
 
         {% if u.tiles.size > 0 %}
