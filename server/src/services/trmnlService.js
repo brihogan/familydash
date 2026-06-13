@@ -165,13 +165,15 @@ export function buildDashboardPayload(familyId) {
   // markup falls back to a generic emoji), then shorten activity lines.
   const CAP = 2000;
   const bodyLen = () => JSON.stringify({ merge_variables: payload }).length;
+  // Trim activity text first (cheap, low-value) and only drop badge images as a
+  // last resort — images are the high-value content we want to preserve.
+  if (bodyLen() > CAP) {
+    for (const u of users) u.latest = (u.latest || '').slice(0, 24);
+  }
   if (bodyLen() > CAP) {
     for (const u of users) for (const t of u.tiles) {
       if (t.img) { delete t.img; t.emoji = '⭐'; }
     }
-  }
-  if (bodyLen() > CAP) {
-    for (const u of users) u.latest = (u.latest || '').slice(0, 24);
   }
   return payload;
 }
