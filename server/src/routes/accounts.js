@@ -229,9 +229,7 @@ router.post('/:id/accounts/:aid/transactions', authenticate, requireOwnOrParent,
       if (!destAccount) return res.status(404).json({ error: 'Destination account not found.' });
       if (destAccount.id === accountId) return res.status(400).json({ error: 'Cannot transfer to the same account.' });
 
-      if (account.balance_cents < body.amount_cents) {
-        return res.status(400).json({ error: 'Insufficient balance.' });
-      }
+      // Negative balances are intentionally allowed — a transfer may overdraw the source account.
 
       const senderName = db.prepare('SELECT name FROM users WHERE id = ?').get(userId).name;
       const amountStr = `$${(body.amount_cents / 100).toFixed(2)}`;
@@ -285,9 +283,7 @@ router.post('/:id/accounts/:aid/transactions', authenticate, requireOwnOrParent,
     const isCredit = ['deposit', 'allowance', 'manual_adjustment'].includes(body.type);
     const amountSigned = isCredit ? body.amount_cents : -body.amount_cents;
 
-    if (!isCredit && account.balance_cents < body.amount_cents) {
-      return res.status(400).json({ error: 'Insufficient balance.' });
-    }
+    // Negative balances are intentionally allowed — a withdrawal may overdraw the account.
 
     // If this is a credit to a kid with require_currency_work, create a pending deposit (unless bypassed)
     if (isCredit && targetUser && !body.bypass_currency_work) {

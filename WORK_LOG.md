@@ -1,5 +1,13 @@
 # Work Log
 
+## Session Start: 2026-06-13 10:58 EDT (morning)
+
+### 2026-06-13 — Bank: allow negative balances (overdraw); surface rejected transactions
+- Diagnosed "withdraw looks like it works but never persists": the server rejected any withdraw/transfer that overdrew the account (400 "Insufficient balance." in `accounts.js`), and the client silently swallowed the 4xx. The optimistic IndexedDB write made it look successful, then the next `useOfflineBank.refresh()` pulled server truth and erased it — exactly the "went back and it never happened" symptom.
+- Per request, removed BOTH insufficient-balance guards in `server/src/routes/accounts.js` (withdraw + transfer) so balances may go negative. Verified via throwaway-account E2E: a withdraw on a $0 account now returns 201 and balance = -$75.00 (was 400); test data fully cleaned up.
+- Also made rejected transactions visible instead of vanishing: a 4xx now shows a toast with the server's reason in both `UnifiedBankDialog.jsx` and `useOfflineBank.createTransaction`. `formatCents` already renders negatives (-$5.00), so no UI clamp was needed.
+- Server change → prod (dash.straychips.com) needs a container image rebuild to take effect.
+
 ## Session Start: 2026-06-08 09:22 EDT (morning)
 
 ### 2026-06-08 — "Enable login to unlock" teaser on kid settings; diagnosed money-counter drag bug

@@ -558,6 +558,11 @@ export default function UnifiedBankDialog({
           if (!err.response || err.response.status >= 500) {
             await enqueue('BANK_TRANSACTION', { userId, accountId: effectiveSrcId, data });
             showToast('Saved locally — will sync when online');
+          } else {
+            // Server rejected this transaction (4xx). The optimistic write gets
+            // reconciled away on the next bank refresh — surface the reason so it
+            // doesn't silently "un-happen" with no explanation.
+            showToast(err.response.data?.error || 'Transaction was rejected.', 5000);
           }
         }
       } else {

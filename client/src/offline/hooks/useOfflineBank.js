@@ -174,7 +174,10 @@ export default function useOfflineBank(userId) {
         return;
       } catch (err) {
         if (err.response?.status >= 400 && err.response?.status < 500) {
-          return; // Server rejected — sync will reconcile
+          // Server rejected (4xx). The optimistic write reconciles away on the next
+          // refresh — surface the reason so it doesn't silently vanish.
+          showToast(err.response.data?.error || 'Transaction was rejected.', 5000);
+          return;
         }
       }
     }
