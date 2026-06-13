@@ -37,7 +37,7 @@
             {% for t in u.tiles %}
               <div style="width:33.33%;box-sizing:border-box;display:flex;justify-content:center;margin-bottom:10px;">
                 <div style="width:62px;height:62px;border-radius:50%;background:conic-gradient(#000 {{ t.pct }}%, #cfcfcf 0);display:flex;align-items:center;justify-content:center;">
-                  <div style="width:48px;height:48px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;line-height:1;">{% if t.pct == 100 %}&#10003;{% else %}{{ t.emoji }}{% endif %}</div>
+                  <div style="width:48px;height:48px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;line-height:1;overflow:hidden;">{% if t.img %}<img class="image" src="https://dash.straychips.com/api/uploads/badges/{{ t.img }}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;">{% elsif t.pct == 100 %}&#10003;{% else %}{{ t.emoji }}{% endif %}</div>
                 </div>
               </div>
             {% endfor %}

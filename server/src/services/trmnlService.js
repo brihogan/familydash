@@ -91,12 +91,13 @@ export function buildDashboardPayload(familyId) {
 
     // Active task sets (not yet completed) per member — mirrors the main dashboard.
     const taskRows = db.prepare(`
-      SELECT user_id, name, emoji, type, step_count, completed_count FROM (
+      SELECT user_id, name, emoji, type, badge_image_file, step_count, completed_count FROM (
         SELECT
           ta.user_id,
           ts.name,
           ts.emoji,
           ts.type,
+          b.image_file AS badge_image_file,
           (SELECT COALESCE(SUM(s.repeat_count), 0) FROM task_steps s WHERE s.task_set_id = ts.id AND s.is_active = 1)
             + CASE WHEN ts.badge_id IS NOT NULL
                 THEN MAX(0, COALESCE(CAST(json_extract(b.level_opt_counts, '$.' || ts.badge_level) AS INTEGER), 0)
@@ -134,10 +135,14 @@ export function buildDashboardPayload(familyId) {
     }
     for (const t of tasksByUser[r.id] || []) {
       if (tiles.length >= MAX_TILES) break;
-      tiles.push({
-        emoji: t.emoji || (t.type === 'Project' ? '📋' : '⭐'),
-        pct: pct(t.completed_count, t.step_count),
-      });
+      const p = pct(t.completed_count, t.step_count);
+      // Prefer the actual badge image (bare filename — markup prepends the public
+      // /api/uploads/badges/ base); fall back to an emoji when there's no badge.
+      tiles.push(
+        t.badge_image_file
+          ? { img: t.badge_image_file, pct: p }
+          : { emoji: t.emoji || (t.type === 'Project' ? '📋' : '⭐'), pct: p }
+      );
     }
 
     return {
@@ -153,10 +158,22 @@ export function buildDashboardPayload(familyId) {
     };
   });
 
-  return {
-    family_name: family?.name || 'Family',
-    users,
-  };
+  const payload = { family_name: family?.name || 'Family', users };
+
+  // TRMNL's free-tier webhook hard-rejects bodies >2KB (HTTP 422). Degrade
+  // gracefully so a push never silently fails: first drop badge images (the
+  // markup falls back to a generic emoji), then shorten activity lines.
+  const CAP = 2000;
+  const bodyLen = () => JSON.stringify({ merge_variables: payload }).length;
+  if (bodyLen() > CAP) {
+    for (const u of users) for (const t of u.tiles) {
+      if (t.img) { delete t.img; t.emoji = '⭐'; }
+    }
+  }
+  if (bodyLen() > CAP) {
+    for (const u of users) u.latest = (u.latest || '').slice(0, 24);
+  }
+  return payload;
 }
 
 /**
