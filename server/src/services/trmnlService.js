@@ -1,5 +1,4 @@
 import db from '../db/db.js';
-import { getKingOfCrowns } from './streakService.js';
 import { getOrGenerateLogs } from './choreService.js';
 import { localDateISO } from '../utils/dateHelpers.js';
 
@@ -20,11 +19,12 @@ function pct(done, total) {
 }
 
 // Compact one-line activity string: trim the (sometimes huge) description, then
-// append the "+N more..." suffix when there were other recent events.
+// append the "+N more..." suffix when there were other recent events. Kept short
+// because TRMNL's free-tier webhook rejects payloads over 2KB.
 function buildLatest(description, extraCount) {
   if (!description) return '';
   let text = description.trim();
-  if (text.length > 90) text = `${text.slice(0, 89).trimEnd()}…`;
+  if (text.length > 38) text = `${text.slice(0, 37).trimEnd()}…`;
   return extraCount > 0 ? `${text} +${extraCount} more...` : text;
 }
 
@@ -84,7 +84,6 @@ export function buildDashboardPayload(familyId) {
   `).all(familyId, familyId, familyId, today, familyId);
 
   const memberIds = rows.map((r) => r.id);
-  const trophyMap = {};
   const tasksByUser = {};
 
   if (memberIds.length > 0) {
@@ -121,55 +120,23 @@ export function buildDashboardPayload(familyId) {
     for (const row of taskRows) {
       (tasksByUser[row.user_id] ||= []).push(row);
     }
-
-    // Trophy counts (completed Awards) + King of Crowns moving trophy.
-    const trophyRows = db.prepare(`
-      SELECT ta.user_id, COUNT(*) AS trophy_count
-      FROM task_assignments ta
-      JOIN task_sets ts ON ts.id = ta.task_set_id
-      WHERE ta.user_id IN (${ph})
-        AND ts.type = 'One-Off'
-        AND ts.is_active = 1
-        AND ta.is_active = 1
-        AND COALESCE(ta.completion_status, 'approved') != 'pending'
-        AND (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1) > 0
-        AND (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ta.user_id)
-            >= (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)
-        AND (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ta.user_id AND approval_status = 'pending') = 0
-      GROUP BY ta.user_id
-    `).all(...memberIds);
-    for (const r of trophyRows) trophyMap[r.user_id] = r.trophy_count;
-
-    const kingHolders = getKingOfCrowns(familyId);
-    for (const id of memberIds) {
-      if (kingHolders.has(id)) trophyMap[id] = (trophyMap[id] || 0) + 1;
-    }
   }
 
   const users = rows.map((r) => {
     const latest = buildLatest(r.latest_description, r.extra_count);
 
-    // Combined tiles: chores first (when assigned), then task sets, capped at MAX_TILES.
+    // Combined tiles: chores first (when assigned), then task sets, capped at
+    // MAX_TILES. Only {emoji, pct} are sent — the markup derives "complete" from
+    // pct === 100 — to stay under TRMNL's 2KB webhook payload cap.
     const tiles = [];
     if (r.chore_total > 0) {
-      tiles.push({
-        emoji: '🧹',
-        label: 'Chores',
-        done: r.chore_done,
-        total: r.chore_total,
-        pct: pct(r.chore_done, r.chore_total),
-        complete: r.chore_done >= r.chore_total,
-      });
+      tiles.push({ emoji: '🧹', pct: pct(r.chore_done, r.chore_total) });
     }
     for (const t of tasksByUser[r.id] || []) {
       if (tiles.length >= MAX_TILES) break;
       tiles.push({
         emoji: t.emoji || (t.type === 'Project' ? '📋' : '⭐'),
-        label: t.name,
-        done: t.completed_count,
-        total: t.step_count,
         pct: pct(t.completed_count, t.step_count),
-        complete: t.step_count > 0 && t.completed_count >= t.step_count,
       });
     }
 
@@ -177,39 +144,18 @@ export function buildDashboardPayload(familyId) {
       name: r.name,
       emoji: r.avatar_emoji || '',
       initial: (r.name || '?').trim().charAt(0).toUpperCase(),
-      color: r.avatar_color || '#000000',
       is_parent: r.role === 'parent',
       money: formatCents(r.main_balance_cents),
       money_negative: (r.main_balance_cents || 0) < 0,
       tickets: r.ticket_balance,
-      trophies: trophyMap[r.id] || 0,
       tiles,
-      has_tiles: tiles.length > 0,
       latest,
     };
   });
 
-  // Backward-compat: keep the old `kids`-only shape so an unmigrated TRMNL
-  // template keeps rendering until the new markup is pasted in.
-  const kids = rows
-    .filter((r) => r.role === 'kid')
-    .map((r) => ({
-      name: r.name,
-      emoji: r.avatar_emoji || '',
-      money: formatCents(r.main_balance_cents),
-      tickets: r.ticket_balance,
-      chores_done: r.chore_done,
-      chores_total: r.chore_total,
-      chores_left: r.chore_total - r.chore_done,
-      chores_pct: pct(r.chore_done, r.chore_total),
-      trophies: trophyMap[r.id] || 0,
-      latest: buildLatest(r.latest_description, r.extra_count),
-    }));
-
   return {
     family_name: family?.name || 'Family',
     users,
-    kids,
   };
 }
 

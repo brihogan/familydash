@@ -1,62 +1,61 @@
 {% comment %}
   FamilyDash → TRMNL dashboard markup (TRMNL X, landscape, 16-gray).
 
-  IMPORTANT: this template uses ONLY inline `style` attributes + a few framework
-  classes (title/label/title_bar) and NO <style> block and NO CSS grid — TRMNL's
-  renderer chokes on both. Layout is plain inline flexbox (flex-wrap), exactly the
-  pattern that renders reliably on the device.
+  Inline styles only (no <style>, no CSS grid). The outer 3×2 grid is a TABLE
+  (table-layout:fixed) — robust on TRMNL's renderer and immune to the framework
+  `.layout` flex/justify-content rules that wrapped a flexbox grid raggedly.
+  Each cell: avatar + first name, tickets (left) + money (right), a 4-across
+  flex row of conic-gradient progress rings (chores + task sets, 8 max), and a
+  latest-activity line. The last row is padded with empty cells.
 
-  One bordered square per active member (parents + kids), 3 across × 2 rows:
-  avatar + first name, tickets (left) + money (right), a 4-across row of progress
-  rings (chores + task sets, 8 max — no counter), and a latest-activity line.
-
-  Data from server/src/services/trmnlService.js as `merge_variables`:
+  Data (server/src/services/trmnlService.js, kept under TRMNL's 2KB webhook cap):
     { family_name, users: [ { name, emoji, initial, is_parent, money,
-      money_negative, tickets, has_tiles, tiles: [ { emoji, pct, complete } ],
-      latest } ], kids: [...legacy...] }
-
-  If the rings render as wrong shapes, this device's renderer lacks conic-gradient;
-  swap the ring <div> for the bar fallback documented in WORK_LOG / the chat.
+      money_negative, tickets, has_tiles, tiles:[{emoji,pct,complete}], latest } ] }
 {% endcomment %}
 
-<div class="layout" style="display:flex;flex-wrap:wrap;align-content:flex-start;width:100%;box-sizing:border-box;border:2px solid #000;">
-  {% for u in users %}
-    <div style="width:33.3%;box-sizing:border-box;border:1px solid #000;padding:10px 12px;display:flex;flex-direction:column;overflow:hidden;">
+<div class="layout">
+  <table style="width:100%;border-collapse:collapse;table-layout:fixed;border:2px solid #000;">
+    <tr>
+    {% for u in users %}
+      <td style="width:33.33%;border:1px solid #000;padding:10px 12px;vertical-align:top;">
 
-      <div style="display:flex;align-items:center;gap:8px;">
-        <div style="width:48px;height:48px;flex:0 0 48px;border:2px solid #000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;line-height:1;">{% if u.emoji and u.emoji != '' %}{{ u.emoji }}{% else %}{{ u.initial }}{% endif %}</div>
-        <span class="title title--small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ u.name | split: ' ' | first }}</span>
-      </div>
-
-      <div style="display:flex;align-items:baseline;margin-top:6px;font-size:18px;font-weight:bold;">
-        <span>{{ u.tickets }} 🎟</span>
-        <span style="margin-left:auto;{% if u.money_negative %}color:#555;text-decoration:line-through;{% endif %}">{{ u.money }}</span>
-      </div>
-
-      {% if u.has_tiles %}
-        <div style="display:flex;flex-wrap:wrap;margin-top:8px;">
-          {% for t in u.tiles %}
-            <div style="width:25%;box-sizing:border-box;display:flex;justify-content:center;margin-bottom:8px;">
-              <div style="width:46px;height:46px;border-radius:50%;background:conic-gradient(#000 {{ t.pct }}%, #cfcfcf 0);display:flex;align-items:center;justify-content:center;">
-                <div style="width:34px;height:34px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1;">{% if t.complete %}✓{% else %}{{ t.emoji }}{% endif %}</div>
-              </div>
-            </div>
-          {% endfor %}
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:48px;height:48px;flex:0 0 48px;border:2px solid #000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;line-height:1;">{% if u.emoji and u.emoji != '' %}{{ u.emoji }}{% else %}{{ u.initial }}{% endif %}</div>
+          <span style="font-size:24px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ u.name | split: ' ' | first }}{% if u.is_parent %} <span style="font-size:13px;font-weight:normal;color:#5a5a5a;">grown-up</span>{% endif %}</span>
         </div>
-      {% else %}
-        <div style="margin-top:8px;color:#666;font-size:15px;">All clear ✨</div>
-      {% endif %}
 
-      <div style="margin-top:auto;padding-top:6px;border-top:1px solid #000;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;{% if u.latest == '' %}color:#999;{% endif %}">{% if u.latest != '' %}{{ u.latest | truncate: 48 }}{% else %}—{% endif %}</div>
+        <div style="display:flex;align-items:baseline;margin-top:6px;font-size:18px;font-weight:bold;">
+          <span>{{ u.tickets }} 🎟</span>
+          <span style="margin-left:auto;{% if u.money_negative %}color:#555;text-decoration:line-through;{% endif %}">{{ u.money }}</span>
+        </div>
 
-    </div>
-  {% endfor %}
+        {% if u.tiles.size > 0 %}
+          <div style="display:flex;flex-wrap:wrap;margin-top:8px;">
+            {% for t in u.tiles %}
+              <div style="width:25%;box-sizing:border-box;display:flex;justify-content:center;margin-bottom:8px;">
+                <div style="width:46px;height:46px;border-radius:50%;background:conic-gradient(#000 {{ t.pct }}%, #cfcfcf 0);display:flex;align-items:center;justify-content:center;">
+                  <div style="width:34px;height:34px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1;">{% if t.pct == 100 %}✓{% else %}{{ t.emoji }}{% endif %}</div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div style="margin-top:8px;color:#666;font-size:15px;">All clear ✨</div>
+        {% endif %}
 
-  {% assign rem = users.size | modulo: 3 %}
-  {% if rem > 0 %}
-    {% assign pad = 3 | minus: rem %}
-    {% for i in (1..pad) %}<div style="width:33.3%;box-sizing:border-box;border:1px solid #000;"></div>{% endfor %}
-  {% endif %}
+        <div style="margin-top:8px;padding-top:6px;border-top:1px solid #000;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;{% if u.latest == '' %}color:#999;{% endif %}">{% if u.latest != '' %}{{ u.latest | truncate: 48 }}{% else %}—{% endif %}</div>
+
+      </td>
+      {% assign m = forloop.index | modulo: 3 %}
+      {% if m == 0 and forloop.last == false %}</tr><tr>{% endif %}
+    {% endfor %}
+    {% assign rem = users.size | modulo: 3 %}
+    {% if rem > 0 %}
+      {% assign pad = 3 | minus: rem %}
+      {% for i in (1..pad) %}<td style="width:33.33%;border:1px solid #000;"></td>{% endfor %}
+    {% endif %}
+    </tr>
+  </table>
 </div>
 
 <div class="title_bar">
