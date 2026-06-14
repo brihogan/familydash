@@ -6,7 +6,8 @@ import { localDateISO } from '../utils/dateHelpers.js';
 const lastPushByFamily = new Map();
 const THROTTLE_MS = 5 * 60 * 1000;
 
-const MAX_TILES = 9; // chores + tasksets combined, per user (3x3 grid)
+const TOP_TILES = 6;  // in-progress/not-started zone (top 2 rows of the 3x3)
+const DONE_TILES = 3; // completed-badge zone (bottom row), newest completion first
 
 function formatCents(cents) {
   const n = cents || 0;
@@ -89,9 +90,9 @@ export function buildDashboardPayload(familyId) {
   if (memberIds.length > 0) {
     const ph = memberIds.map(() => '?').join(',');
 
-    // Active task sets (not yet completed) per member — mirrors the main dashboard.
+    // Active task sets per member (incl. completed — split into in-progress vs done below).
     const taskRows = db.prepare(`
-      SELECT user_id, name, emoji, type, badge_id, badge_image_file, step_count, completed_count FROM (
+      SELECT user_id, name, emoji, type, badge_id, badge_image_file, step_count, completed_count, earned_at FROM (
         SELECT
           ta.user_id,
           ts.name,
@@ -112,13 +113,9 @@ export function buildDashboardPayload(familyId) {
         JOIN task_sets ts ON ts.id = ta.task_set_id
         LEFT JOIN badges b ON b.id = ts.badge_id
         WHERE ta.user_id IN (${ph}) AND ta.is_active = 1 AND ts.is_active = 1
-      ) WHERE NOT (
-        step_count > 0 AND completed_count = step_count
-        AND type = 'One-Off'
-        AND date(earned_at, 'localtime') < ?
       )
-      ORDER BY user_id, CASE type WHEN 'Project' THEN 0 ELSE 1 END, name
-    `).all(...memberIds, today);
+      ORDER BY user_id, name
+    `).all(...memberIds);
     for (const row of taskRows) {
       (tasksByUser[row.user_id] ||= []).push(row);
     }
@@ -127,25 +124,34 @@ export function buildDashboardPayload(familyId) {
   const users = rows.map((r) => {
     const latest = buildLatest(r.latest_description, r.extra_count);
 
-    // Combined tiles (chores first, then task sets), capped at MAX_TILES. Encoded
-    // as compact arrays to fit under TRMNL's 2KB webhook cap:
-    //   badge tile:  [badge_id, pct]        -> markup renders /badges/by-id/<id>
-    //   emoji tile:  [emoji, pct, 1]        -> markup renders the emoji (3rd slot = flag)
+    // Tiles are compact arrays to fit under TRMNL's 2KB webhook cap:
+    //   badge tile: [badge_id, pct]     -> markup renders /badges/by-id/<id>
+    //   emoji tile: [emoji, pct, 1]     -> markup renders the emoji (3rd slot = flag)
+    const tileFor = (t) => {
+      const p = pct(t.completed_count, t.step_count);
+      return t.badge_id && t.badge_image_file
+        ? [t.badge_id, p]
+        : [t.emoji || (t.type === 'Project' ? '📋' : '⭐'), p, 1];
+    };
+    const isComplete = (t) => t.step_count > 0 && t.completed_count >= t.step_count;
+    const taskList = tasksByUser[r.id] || [];
+
+    // Top zone (up to TOP_TILES): chores + in-progress/not-started, most complete first.
     const tiles = [];
     if (r.chore_total > 0) {
       tiles.push(['🧹', pct(r.chore_done, r.chore_total), 1]);
     }
-    for (const t of tasksByUser[r.id] || []) {
-      const p = pct(t.completed_count, t.step_count);
-      tiles.push(
-        t.badge_id && t.badge_image_file
-          ? [t.badge_id, p]
-          : [t.emoji || (t.type === 'Project' ? '📋' : '⭐'), p, 1]
-      );
-    }
-    // Sort by completion (most complete first → top-left), then keep the top MAX_TILES.
-    tiles.sort((a, b) => b[1] - a[1]);
-    if (tiles.length > MAX_TILES) tiles.length = MAX_TILES;
+    taskList
+      .filter((t) => !isComplete(t))
+      .sort((a, b) => pct(b.completed_count, b.step_count) - pct(a.completed_count, a.step_count))
+      .forEach((t) => { if (tiles.length < TOP_TILES) tiles.push(tileFor(t)); });
+
+    // Bottom zone (up to DONE_TILES): completed badges, newest completion first (left).
+    const done = taskList
+      .filter(isComplete)
+      .sort((a, b) => String(b.earned_at || '').localeCompare(String(a.earned_at || '')))
+      .slice(0, DONE_TILES)
+      .map(tileFor);
 
     return {
       name: r.name,
@@ -156,6 +162,7 @@ export function buildDashboardPayload(familyId) {
       money_negative: (r.main_balance_cents || 0) < 0,
       tickets: r.ticket_balance,
       tiles,
+      done,
       latest,
     };
   });
@@ -170,13 +177,15 @@ export function buildDashboardPayload(familyId) {
   if (bodyLen() > CAP) {
     for (const u of users) u.latest = (u.latest || '').slice(0, 24);
   }
+  const tileCount = (u) => u.tiles.length + u.done.length;
   while (bodyLen() > CAP) {
     let fullest = null;
     for (const u of users) {
-      if (u.tiles.length && (!fullest || u.tiles.length > fullest.tiles.length)) fullest = u;
+      if (tileCount(u) && (!fullest || tileCount(u) > tileCount(fullest))) fullest = u;
     }
     if (!fullest) break;
-    fullest.tiles.pop();
+    if (fullest.done.length) fullest.done.pop();
+    else fullest.tiles.pop();
   }
   return payload;
 }
