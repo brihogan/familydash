@@ -136,7 +136,6 @@ export function buildDashboardPayload(familyId) {
       tiles.push(['🧹', pct(r.chore_done, r.chore_total), 1]);
     }
     for (const t of tasksByUser[r.id] || []) {
-      if (tiles.length >= MAX_TILES) break;
       const p = pct(t.completed_count, t.step_count);
       tiles.push(
         t.badge_id && t.badge_image_file
@@ -144,6 +143,9 @@ export function buildDashboardPayload(familyId) {
           : [t.emoji || (t.type === 'Project' ? '📋' : '⭐'), p, 1]
       );
     }
+    // Sort by completion (most complete first → top-left), then keep the top MAX_TILES.
+    tiles.sort((a, b) => b[1] - a[1]);
+    if (tiles.length > MAX_TILES) tiles.length = MAX_TILES;
 
     return {
       name: r.name,
