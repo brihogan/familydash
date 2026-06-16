@@ -39,6 +39,7 @@ const API_HANDLERS = {
     }
     return accountsApi.claimPendingDeposit(p.userId, pdId, p.amountCents, p.allocations);
   },
+  DELETE_PENDING_DEPOSIT: (p) => accountsApi.deletePendingDeposit(p.userId, p.pdId),
 };
 
 async function processQueue() {

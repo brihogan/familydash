@@ -2,6 +2,9 @@
 
 ## Session Start: 2026-06-13 10:58 EDT (morning)
 
+### 2026-06-16 — Parents can delete a "Money to receive" pending deposit (set up by mistake)
+- Added a parent-only trash button next to each pending deposit on `KidBankPage.jsx`; confirms, then removes it (no money moves). Full offline-first path: `DELETE /api/users/:id/pending-deposits/:pdid` (parent-only, family-scoped) in `accounts.js`; `accountsApi.deletePendingDeposit`; `useOfflineBank.deletePendingDeposit` (optimistic delete + decrement the dashboard "to receive" dot); `DELETE_PENDING_DEPOSIT` mutation-queue handler in `syncEngine.js`. Verified: server route wired (401 w/o auth), client builds clean. Server change → prod needs a container rebuild.
+
 ### 2026-06-13 — TRMNL dashboard redesigned as a per-member square grid
 - Rebuilt the TRMNL payload + markup so every active member (parents + kids) gets a bordered square in a 3-col grid: avatar+name, money+tickets (+trophy), a progress-ring grid of chores+task sets (8 max, mirroring the main dashboard), and a one-line latest-activity footer.
 - `trmnlService.js`: `buildDashboardPayload` now emits `users[]` (all active members, ordered like the profile switcher) each with `tiles[]` (chores tile first when assigned, then task sets), plus `initial`/`color`/`is_parent`/`money_negative`. `formatCents` keeps the sign for negatives; activity strings truncated to ~90 chars via new `buildLatest()`. Legacy `kids[]` shape kept so an unmigrated TRMNL template still renders until the new markup is pasted. Exported `buildDashboardPayload` for testing.

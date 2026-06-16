@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPiggyBank, faPlus } from '@fortawesome/free-solid-svg-icons';
+import { faPiggyBank, faPlus, faTrashCan } from '@fortawesome/free-solid-svg-icons';
 import { accountsApi } from '../api/accounts.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import useOfflineBank from '../offline/hooks/useOfflineBank.js';
@@ -149,7 +149,7 @@ export default function KidBankPage() {
   const [receivePopover, setReceivePopover] = useState(null);
 
   // Offline hooks
-  const { accounts, getTransactionsForAccount, pendingDeposits, recurringRules: rules, loading, claimPendingDeposit, refresh, refreshRules } =
+  const { accounts, getTransactionsForAccount, pendingDeposits, recurringRules: rules, loading, claimPendingDeposit, deletePendingDeposit, refresh, refreshRules } =
     useOfflineBank(userId);
   const { kids, members } = useOfflineFamily();
 
@@ -291,17 +291,27 @@ export default function KidBankPage() {
           {pendingDeposits.length > 0 && (
             <div className="mb-4 space-y-2">
               {pendingDeposits.map((pd) => (
-                <button key={pd.id} onClick={() => setReceivePopover(pd)}
-                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border-2 border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
-                  <div className="text-left">
-                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Money to receive!</p>
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                      {formatCents(pd.amount_cents)} — {pd.account_name}
-                      {pd.description ? ` · ${pd.description}` : ''}
-                    </p>
-                  </div>
-                  <span className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-semibold">Receive</span>
-                </button>
+                <div key={pd.id} className="flex items-stretch gap-2">
+                  <button onClick={() => setReceivePopover(pd)}
+                    className="flex-1 flex items-center justify-between gap-3 px-4 py-3 rounded-lg border-2 border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Money to receive!</p>
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        {formatCents(pd.amount_cents)} — {pd.account_name}
+                        {pd.description ? ` · ${pd.description}` : ''}
+                      </p>
+                    </div>
+                    <span className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-semibold">Receive</span>
+                  </button>
+                  {isParent && (
+                    <button
+                      onClick={() => { if (window.confirm(`Delete this "Money to receive" of ${formatCents(pd.amount_cents)}? No money will be added — use this only if it was set up by mistake.`)) deletePendingDeposit(pd.id); }}
+                      title="Delete (set up by mistake)" aria-label="Delete pending deposit"
+                      className="shrink-0 px-3 rounded-lg border-2 border-red-300 dark:border-red-700 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                      <FontAwesomeIcon icon={faTrashCan} />
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           )}

@@ -282,6 +282,36 @@ export default function useOfflineBank(userId) {
     if (!navigator.onLine) showToast('Saved locally — will sync when online');
   }, [userId, uid]);
 
+  // Delete (cancel) a pending deposit — parent only, e.g. set up by mistake.
+  // No money moves; just remove the pending record.
+  const deletePendingDeposit = useCallback(async (pdId) => {
+    const pd = await db.pendingDeposits.get(pdId);
+    if (!pd) return;
+
+    // Optimistic: remove + decrement the dashboard "money to receive" dot
+    await db.pendingDeposits.delete(pdId);
+    await db.dashboardMembers.where('id').equals(uid).modify((member) => {
+      member.pendingDepositCount = Math.max(0, (member.pendingDepositCount || 0) - 1);
+    });
+
+    if (navigator.onLine) {
+      try {
+        await accountsApi.deletePendingDeposit(userId, pdId);
+        const { tryFlush } = await import('../syncEngine.js');
+        tryFlush();
+        return;
+      } catch (err) {
+        if (err.response?.status >= 400 && err.response?.status < 500) {
+          showToast(err.response.data?.error || 'Could not delete pending deposit.', 5000);
+          return;
+        }
+      }
+    }
+
+    await enqueue('DELETE_PENDING_DEPOSIT', { userId, pdId });
+    if (!navigator.onLine) showToast('Saved locally — will sync when online');
+  }, [userId, uid]);
+
   const refreshRules = useCallback(async () => {
     try {
       const rulesData = await accountsApi.getRecurringRules(userId);
@@ -303,6 +333,7 @@ export default function useOfflineBank(userId) {
     loading: loading && accounts === undefined,
     createTransaction,
     claimPendingDeposit,
+    deletePendingDeposit,
     refresh,
     refreshRules,
   };

@@ -567,4 +567,24 @@ router.post('/:id/pending-deposits/:pdid/claim', authenticate, requireOwnOrParen
   }
 });
 
+// Delete (cancel) a pending deposit — parent only, e.g. one set up by mistake.
+// No money has moved yet, so this just removes the pending record.
+router.delete('/:id/pending-deposits/:pdid', authenticate, requireRole('parent'), (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const pdId = parseInt(req.params.pdid, 10);
+    assertSameFamily(userId, req.user.familyId);
+
+    const result = db.prepare(`
+      DELETE FROM pending_deposits
+      WHERE id = ? AND account_id IN (SELECT id FROM accounts WHERE user_id = ?)
+    `).run(pdId, userId);
+
+    if (!result.changes) return res.status(404).json({ error: 'Pending deposit not found.' });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

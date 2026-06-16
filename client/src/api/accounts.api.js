@@ -24,4 +24,6 @@ export const accountsApi = {
     client.get(`/users/${userId}/pending-deposits`).then((r) => r.data),
   claimPendingDeposit: (userId, pdId, amount_cents, allocations) =>
     client.post(`/users/${userId}/pending-deposits/${pdId}/claim`, { amount_cents, allocations }).then((r) => r.data),
+  deletePendingDeposit: (userId, pdId) =>
+    client.delete(`/users/${userId}/pending-deposits/${pdId}`).then((r) => r.data),
 };
