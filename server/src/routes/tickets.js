@@ -4,8 +4,8 @@ import db from '../db/db.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { requireOwnOrParent } from '../middleware/requireOwnOrParent.js';
-import { insertActivity } from '../services/activityService.js';
 import { assertSameFamily } from '../utils/assertions.js';
+import { adjustTickets } from '../services/ticketService.js';
 
 const router = Router();
 
@@ -53,31 +53,14 @@ router.post('/:id/tickets/adjust', authenticate, requireRole('parent'), (req, re
     assertSameFamily(userId, req.user.familyId);
     const body = AdjustSchema.parse(req.body);
 
-    const user = db.prepare('SELECT ticket_balance, family_id FROM users WHERE id = ?').get(userId);
-    const newBalance  = user.ticket_balance + body.amount;
-    const actualAmount = body.amount;
-
-    const adjustTx = db.transaction(() => {
-      db.prepare('UPDATE users SET ticket_balance = ? WHERE id = ?').run(newBalance, userId);
-      const ledgerRow = db.prepare(`
-        INSERT INTO ticket_ledger (user_id, amount, type, description)
-        VALUES (?, ?, 'manual', ?)
-      `).run(userId, actualAmount, body.description);
-
-      insertActivity({
-        familyId: user.family_id,
-        subjectUserId: userId,
-        actorUserId: req.user.userId,
-        eventType: actualAmount > 0 ? 'tickets_added' : 'tickets_removed',
-        description: `${actualAmount > 0 ? 'Added' : 'Removed'} ${Math.abs(actualAmount)} ticket${Math.abs(actualAmount) !== 1 ? 's' : ''}: ${body.description}`,
-        referenceId: ledgerRow.lastInsertRowid,
-        referenceType: 'ticket_ledger',
-        amountCents: actualAmount,
-      });
+    const newBalance = adjustTickets({
+      userId,
+      amount: body.amount,
+      description: body.description,
+      actorUserId: req.user.userId,
     });
 
-    adjustTx();
-    res.json({ ticketBalance: newBalance, clamped: newBalance !== user.ticket_balance + body.amount });
+    res.json({ ticketBalance: newBalance });
   } catch (err) {
     next(err);
   }

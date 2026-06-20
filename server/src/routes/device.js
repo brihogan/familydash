@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db from '../db/db.js';
 import { requireDeviceToken } from '../middleware/deviceAuth.js';
 import { buildFamilyDashboard } from '../services/dashboardService.js';
+import { adjustTickets } from '../services/ticketService.js';
 
 const router = Router();
 
@@ -163,6 +164,40 @@ router.get('/taskset/:id/steps', requireDeviceToken('read'), (req, res, next) =>
 
     res.set('Cache-Control', 'no-store');
     res.json({ steps });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /api/device/user/:id/tickets ───────────────────────────────────────
+// Adjust a member's ticket balance from the watch. Requires a `write`-scoped
+// device token. Body: { delta } (signed, non-zero). Attributed to a family
+// parent in the activity log, with reason "Adjusted from watch".
+router.post('/user/:id/tickets', requireDeviceToken('write'), (req, res, next) => {
+  try {
+    const familyId = req.device.familyId;
+    const userId = parseInt(req.params.id, 10);
+    const user = db.prepare('SELECT id FROM users WHERE id = ? AND family_id = ?').get(userId, familyId);
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+
+    const delta = parseInt(req.body?.delta, 10);
+    if (!Number.isInteger(delta) || delta === 0) {
+      return res.status(400).json({ error: 'delta must be a non-zero integer.' });
+    }
+
+    const parent = db.prepare(
+      "SELECT id FROM users WHERE family_id = ? AND role = 'parent' AND is_active = 1 ORDER BY id ASC LIMIT 1",
+    ).get(familyId);
+
+    const ticketBalance = adjustTickets({
+      userId,
+      amount: delta,
+      description: 'Adjusted from watch',
+      actorUserId: parent ? parent.id : userId,
+    });
+
+    res.set('Cache-Control', 'no-store');
+    res.json({ ticketBalance });
   } catch (err) {
     next(err);
   }
