@@ -34,6 +34,10 @@ export default function DeviceTokensCard() {
     try { await familyApi.revokeDeviceToken(id); load(); } catch { /* ignore */ }
   };
 
+  const setWrite = async (id, write) => {
+    try { await familyApi.setDeviceTokenWrite(id, write); load(); } catch { /* ignore */ }
+  };
+
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(newToken);
@@ -48,9 +52,11 @@ export default function DeviceTokensCard() {
     <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
       <p className="font-medium text-gray-900 dark:text-gray-100 mb-1">Garmin Watch (FamDash)</p>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-        Generate a read-only API key for the FamDash watch app, then paste it into the
+        Generate an API key for the FamDash watch app, then paste it into the
         watch's <span className="font-medium">Device API key</span> setting
-        (Garmin Connect → FamDash). Keys are shown only once.
+        (Garmin Connect → FamDash). Keys are read-only by default — toggle
+        <span className="font-medium"> Writes</span> on to let the watch change
+        money / tickets. Keys are shown only once.
       </p>
 
       {/* Existing keys */}
@@ -68,12 +74,25 @@ export default function DeviceTokensCard() {
                   {' · '}{t.last_used_at ? `last used ${fmtDate(t.last_used_at)}` : 'never used'}
                 </p>
               </div>
-              <button
-                onClick={() => revoke(t.id)}
-                className="px-3 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg font-medium transition-colors shrink-0"
-              >
-                Revoke
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => setWrite(t.id, !(t.scope || '').includes('write'))}
+                  title="Allow this key to change money / tickets from the watch"
+                  className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors ${
+                    (t.scope || '').includes('write')
+                      ? 'bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300'
+                      : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {(t.scope || '').includes('write') ? 'Writes on' : 'Writes off'}
+                </button>
+                <button
+                  onClick={() => revoke(t.id)}
+                  className="px-3 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg font-medium transition-colors"
+                >
+                  Revoke
+                </button>
+              </div>
             </li>
           ))}
         </ul>

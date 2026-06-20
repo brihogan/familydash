@@ -659,4 +659,18 @@ router.delete('/device-tokens/:id', authenticate, requireRole('parent'), (req, r
   }
 });
 
+// Toggle a device token's write access ({ write: boolean } -> scope read | read,write).
+router.patch('/device-tokens/:id', authenticate, requireRole('parent'), (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const row = db.prepare('SELECT id FROM device_tokens WHERE id = ? AND family_id = ?').get(id, req.user.familyId);
+    if (!row) return res.status(404).json({ error: 'Token not found.' });
+    const scope = req.body?.write === true ? 'read,write' : 'read';
+    db.prepare('UPDATE device_tokens SET scope = ? WHERE id = ?').run(scope, id);
+    res.json({ ok: true, scope });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

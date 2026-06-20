@@ -23,4 +23,5 @@ export const familyApi = {
   listDeviceTokens: () => client.get('/family/device-tokens').then((r) => r.data),
   createDeviceToken: (data) => client.post('/family/device-tokens', data).then((r) => r.data),
   revokeDeviceToken: (id) => client.delete(`/family/device-tokens/${id}`).then((r) => r.data),
+  setDeviceTokenWrite: (id, write) => client.patch(`/family/device-tokens/${id}`, { write }).then((r) => r.data),
 };
