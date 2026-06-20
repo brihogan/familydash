@@ -4,6 +4,7 @@ import db from '../db/db.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { hashPassword, hashPin } from '../services/authService.js';
+import { createDeviceToken } from '../middleware/deviceAuth.js';
 
 const EmojiSchema = z.object({
   avatar_emoji: z.string().max(10).nullable(),
@@ -593,6 +594,66 @@ router.patch('/settings', authenticate, requireRole('parent'), (req, res, next) 
       choresLabel: family.chores_label || 'Chores',
       setsStepsLabel: family.sets_steps_label || 'Sets & Steps',
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Device tokens (Garmin FamDash / embedded read clients) ──────────────────
+// Parent-only management of the API keys a watch/embedded client uses to read
+// family data. The plaintext token is returned only at creation time.
+
+router.get('/device-tokens', authenticate, requireRole('parent'), (req, res, next) => {
+  try {
+    const tokens = db.prepare(`
+      SELECT dt.id, dt.user_id, dt.scope, dt.label, dt.last_used_at, dt.created_at, dt.revoked_at,
+             u.name AS user_name
+      FROM device_tokens dt
+      LEFT JOIN users u ON u.id = dt.user_id
+      WHERE dt.family_id = ?
+      ORDER BY dt.created_at DESC
+    `).all(req.user.familyId);
+    res.json({ tokens });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/device-tokens', authenticate, requireRole('parent'), (req, res, next) => {
+  try {
+    const label = String(req.body?.label || '').slice(0, 60);
+    // 'write' scope is reserved for Phase 2 (per-user write tokens); accept the
+    // value now so the shape is stable, but reads are all that's wired up today.
+    const scope = req.body?.scope === 'read,write' ? 'read,write' : 'read';
+
+    let userId = null;
+    if (req.body?.userId != null && req.body.userId !== '') {
+      userId = parseInt(req.body.userId, 10);
+      const target = db.prepare('SELECT id FROM users WHERE id = ? AND family_id = ?').get(userId, req.user.familyId);
+      if (!target) return res.status(404).json({ error: 'User not found in family.' });
+    }
+
+    const { id, token } = createDeviceToken({ familyId: req.user.familyId, userId, scope, label });
+    res.status(201).json({
+      id,
+      token,
+      scope,
+      label,
+      userId,
+      note: 'Copy this token now — it will not be shown again.',
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/device-tokens/:id', authenticate, requireRole('parent'), (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const row = db.prepare('SELECT id FROM device_tokens WHERE id = ? AND family_id = ?').get(id, req.user.familyId);
+    if (!row) return res.status(404).json({ error: 'Token not found.' });
+    db.prepare(`UPDATE device_tokens SET revoked_at = datetime('now') WHERE id = ?`).run(id);
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

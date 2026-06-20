@@ -838,4 +838,24 @@ export function runMigrations(db) {
     `);
   } catch (_) {}
 
+  // v85: device_tokens — credentials for wearable / embedded read clients (the
+  //   Garmin "FamDash" app), separate from the JWT login flow. The token's value
+  //   is the credential; only its sha-256 hash is stored. user_id NULL + scope
+  //   'read' = family-wide read access (Phase 1). Per-user write tokens
+  //   (user_id set, scope 'read,write') are the planned Phase 2 path.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS device_tokens (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      family_id    INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+      user_id      INTEGER          REFERENCES users(id)    ON DELETE CASCADE,
+      token_hash   TEXT    NOT NULL UNIQUE,
+      scope        TEXT    NOT NULL DEFAULT 'read',
+      label        TEXT    NOT NULL DEFAULT '',
+      last_used_at TEXT,
+      created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+      revoked_at   TEXT
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_device_tokens_family ON device_tokens(family_id)`);
+
 }

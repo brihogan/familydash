@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGear, faUsers, faClipboardCheck, faTrophy, faArrowsRotate, faShieldHalved } from '@fortawesome/free-solid-svg-icons';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { familyApi } from '../api/family.api.js';
+import DeviceTokensCard from '../components/settings/DeviceTokensCard.jsx';
 
 function buildSettingsCards(choresLabel) {
   return [
@@ -265,6 +266,7 @@ export default function SettingsPage() {
             </button>
           </div>
         </div>
+        <DeviceTokensCard />
       </div>
 
     </div>

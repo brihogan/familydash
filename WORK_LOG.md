@@ -2029,3 +2029,17 @@
 
 **Files changed:**
 - `client/src/components/shared/Layout.jsx`
+
+---
+
+## Session — 2026-06-20 (Garmin FamDash device API)
+
+Added a read-only device endpoint for the new Garmin Instinct 3 "FamDash" app
+(lives in ../Pebble/FamDash): migration v85 `device_tokens` (sha-256-hashed,
+per-family read scope now, per-user write scope reserved for later),
+`middleware/deviceAuth.js` (`requireDeviceToken`/`X-Api-Key`),
+`services/dashboardService.js` (extracted `buildFamilyDashboard` from
+routes/dashboard.js, now shared), `routes/device.js` (`GET /api/device/dashboard`,
+rate-limited), parent `device-tokens` CRUD in routes/family.js, and
+`scripts/make-device-token.js`. Verified via curl (200 + correct JSON with a
+valid key, 401 without). Web dashboard route unchanged in behavior (same builder).

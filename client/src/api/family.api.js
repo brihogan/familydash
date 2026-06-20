@@ -18,4 +18,9 @@ export const familyApi = {
   updateMenubar: (id, primary) => client.patch(`/family/users/${id}/menubar`, { primary }).then((r) => r.data),
   getSettings: () => client.get('/family/settings').then((r) => r.data),
   updateSettings: (data) => client.patch('/family/settings', data).then((r) => r.data),
+  // Device tokens (Garmin FamDash / embedded read clients) — parent only. The
+  // plaintext token is returned only from createDeviceToken.
+  listDeviceTokens: () => client.get('/family/device-tokens').then((r) => r.data),
+  createDeviceToken: (data) => client.post('/family/device-tokens', data).then((r) => r.data),
+  revokeDeviceToken: (id) => client.delete(`/family/device-tokens/${id}`).then((r) => r.data),
 };

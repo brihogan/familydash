@@ -10,6 +10,7 @@ import db from './db/db.js';
 import authRouter from './routes/auth.js';
 import familyRouter from './routes/family.js';
 import dashboardRouter from './routes/dashboard.js';
+import deviceRouter from './routes/device.js';
 import accountsRouter from './routes/accounts.js';
 import choresRouter from './routes/chores.js';
 import ticketsRouter from './routes/tickets.js';
@@ -117,6 +118,17 @@ app.use('/api/family', taskSetsRouter);
 app.use('/api/family', commonChoresRouter);
 
 app.use('/api/dashboard', dashboardRouter);
+
+// Wearable / embedded read clients (Garmin FamDash) — device-token auth, rate
+// limited independently of the JWT-authed dashboard.
+const deviceLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many device requests, please slow down.' },
+});
+app.use('/api/device', deviceLimiter, deviceRouter);
 
 app.use('/api/users', accountsRouter);
 app.use('/api/users', choresRouter);
