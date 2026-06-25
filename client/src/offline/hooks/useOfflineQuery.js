@@ -63,5 +63,13 @@ export default function useOfflineQuery({ cacheKey, queryFn, fetchFn, deps = [] 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cacheKey, ...deps]);
 
+  // Re-pull this screen's data when the connectivity manager recovers a
+  // stale/zombie connection on resume — so an empty screen self-heals.
+  useEffect(() => {
+    const onReconnect = () => { refresh(); };
+    window.addEventListener('fd-reconnected', onReconnect);
+    return () => window.removeEventListener('fd-reconnected', onReconnect);
+  }, [refresh]);
+
   return { data: data ?? null, loading, isStale, refresh };
 }

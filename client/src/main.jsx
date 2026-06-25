@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
 import { initSyncEngine } from './offline/syncEngine.js';
+import { initConnectivity } from './offline/connectivity.js';
 import { initEventLog } from './debug/eventLog.js';
 import { applyPwaState } from './pwa/pwa.js';
 import { initAppHeight } from './utils/appHeight.js';
@@ -20,6 +21,10 @@ applyPwaState();
 
 // Initialize offline sync engine (IndexedDB-based; independent of the SW).
 initSyncEngine();
+
+// Detect stale/zombie connections on resume (Android sleep) and recover fast —
+// probes /api/health, drives the "Reconnecting…" banner, refetches on recovery.
+initConnectivity();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

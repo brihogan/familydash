@@ -412,6 +412,10 @@ export function initSyncEngine() {
     }
   }, 60_000);
 
+  // Trigger 4: connectivity manager confirmed a live connection after a resume
+  // (e.g. recovered from an Android sleep-stale socket) — pull fresh data now.
+  window.addEventListener('fd-reconnected', () => processQueue());
+
   // Initial sync attempt
   setTimeout(processQueue, 2000);
 }

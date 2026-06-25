@@ -1,6 +1,17 @@
 # Work Log
 
-## Session Start: 2026-06-13 10:58 EDT (morning)
+## Session Start: 2026-06-25 (evening)
+
+### 2026-06-25 — Diagnosed Android (Fold7 PWA) "empty pages / app acts like server is down"
+- Symptom: dashboard + some pages sit empty for minutes then load; reboot reliably fixes, swipe-close hit-or-miss; desktop fine simultaneously. Confirmed device-side, not server.
+- Root cause (no fix written yet): stale/zombie network connection after Samsung One UI Deep Sleep, **masked by the service worker** — installed PWA with offline mode ON. SW serves the cached `index.html` shell instantly (looks loaded) while `/api/` fetches (correctly denylisted from cache) hang on the dead connection until the OS-level TCP timeout (~1-2 min). App never proactively re-checks connectivity on resume — `visibilitychange` in `syncEngine.js` only flushes the write queue, no health check / forced refetch. CapacitorHttp timeout-bypass ruled out (PWA → `isNativePlatform()` false → axios 25s timeout applies). No `android/` build, only `ios/`.
+- Recommended: (immediate) exclude app from Samsung battery sleep + test with offline-mode off; (durable, client-only) resume-reconnect — AbortController-bounded `/api/health` ping on visibilitychange/online/pageshow, "Reconnecting…" banner + forced refetch. Offered to implement; awaiting go-ahead.
+
+### 2026-06-25 — Built resume-reconnect + connectivity banner (the durable fix)
+- New `client/src/offline/connectivity.js`: probes `/api/health` (4s AbortController, cache-buster, `cache:'no-store'`) on resume signals — `visibilitychange→visible`, `online`, bfcache `pageshow` — plus a 6s **watchdog** that re-probes while down so the banner self-clears when a stale connection silently returns (no user tap). Statuses ok/reconnecting/offline via a subscribe API + `useConnectivity()` hook. A 1.2s grace timer means a healthy resume never flashes the banner. On a successful probe it dispatches `fd-reconnected`.
+- New `client/src/components/shared/ConnectivityBanner.jsx`: amber "Reconnecting…" pill (spinner + Retry) / gray "You're offline", top-center, safe-area aware, z-[120]. Mounted in `App.jsx` by `ToastContainer`.
+- Recovery wiring: `syncEngine.initSyncEngine` listens for `fd-reconnected` → `processQueue()` (pulls core tables); `useOfflineQuery` listens → `refresh()` (re-pulls the current screen). `initConnectivity()` wired in `main.jsx` after the sync engine.
+- Verified in preview (Vite 6010 → API 3010): clean load with no banner; `offline`→"You're offline"; `online`→clears; simulated zombie (onLine true, /health fails)→"Reconnecting…" shown, no premature refetch; restore→watchdog self-heals banner + fires refetch, all with no console errors. Screenshot captured. Client-only — no server rebuild needed.
 
 ### 2026-06-16 — Parents can delete a "Money to receive" pending deposit (set up by mistake)
 - Added a parent-only trash button next to each pending deposit on `KidBankPage.jsx`; confirms, then removes it (no money moves). Full offline-first path: `DELETE /api/users/:id/pending-deposits/:pdid` (parent-only, family-scoped) in `accounts.js`; `accountsApi.deletePendingDeposit`; `useOfflineBank.deletePendingDeposit` (optimistic delete + decrement the dashboard "to receive" dot); `DELETE_PENDING_DEPOSIT` mutation-queue handler in `syncEngine.js`. Verified: server route wired (401 w/o auth), client builds clean. Server change → prod needs a container rebuild.
