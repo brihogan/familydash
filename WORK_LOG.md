@@ -2099,3 +2099,10 @@ tier-4/5 "worth" styling with a glow animation. Same `ttdrill.v3` storage key,
 so saved coins and prizes carry over.
 
 **Files changed:** `server/static-apps/flashcards/index.html`
+
+### 2026-07-23 — Flashcards tweak
+
+Two-line update to the flashcards Family App: dropped `cursor:pointer` from the
+"My prizes" header and moved the hidden dev-tap hint from 2 taps to 3.
+
+**Files changed:** `server/static-apps/flashcards/index.html`

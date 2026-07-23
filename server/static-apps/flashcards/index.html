@@ -947,7 +947,7 @@
   <div id="storeCoinSkins" class="storeGrid" style="display:none"></div>
 
   <div id="collectionWrap">
-    <p class="lbl" id="prizeHead" style="margin-top:28px;cursor:pointer;user-select:none;touch-action:manipulation;-webkit-user-select:none">My prizes</p>
+    <p class="lbl" id="prizeHead" style="margin-top:28px;user-select:none;touch-action:manipulation;-webkit-user-select:none">My prizes</p>
     <p class="storeNote" id="noPrizes" style="margin:-4px 0 0">No prizes yet — finish a session to earn one.</p>
     <div class="tray" id="setupTray" style="max-height:none;margin-top:0"></div>
   </div>
@@ -1691,7 +1691,7 @@ function devTap(){
     devGrant();
     return;
   }
-  if(devTaps>=2) devToast(String(5-devTaps)+' more');
+  if(devTaps>=3) devToast(String(5-devTaps)+' more');
   devTimer=setTimeout(()=>{ devTaps=0; },3000);
 }
 
