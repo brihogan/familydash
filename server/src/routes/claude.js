@@ -167,9 +167,24 @@ router.post('/grant-time', authenticate, requireRole('parent'), requireClaudeFam
   res.json({ ok: true, name: target.name, minutesGranted: minutes });
 });
 
-// GET /api/claude/apps — list all kid apps for the family
-router.get('/apps', authenticate, requireClaudeFamily, async (req, res, next) => {
+// Shape of the Family Apps list returned to the client (see staticApps.js)
+const familyAppsPayload = () => listStaticApps().map((a) => ({
+  name: a.slug,
+  title: a.name,
+  description: a.description,
+  icon: a.icon,
+}));
+
+// GET /api/claude/apps — Family Apps + (if the family has Claude) kid apps.
+// Deliberately NOT behind requireClaudeFamily: Family Apps are plain HTML in
+// the repo and have nothing to do with Claude Code, so families without access
+// still get them (with an empty `kids` list and no terminal).
+router.get('/apps', authenticate, async (req, res, next) => {
   try {
+    const family = db.prepare('SELECT claude_access FROM families WHERE id = ?').get(req.user.familyId);
+    if (!family?.claude_access) {
+      return res.json({ kids: [], familyApps: familyAppsPayload(), claudeAccess: false, myTimeLimit: null });
+    }
     const kids = db.prepare(
       "SELECT id, name, role, claude_time_limit, COALESCE(public_slug, username, CAST(id AS TEXT)) AS username, avatar_color, avatar_emoji FROM users WHERE family_id = ? AND claude_enabled = 1 AND is_active = 1 ORDER BY sort_order ASC"
     ).all(req.user.familyId);
@@ -269,12 +284,8 @@ router.get('/apps', authenticate, requireClaudeFamily, async (req, res, next) =>
       kids: result,
       // Repo-authored apps under server/static-apps/ — same shape as kid apps
       // so the client can reuse the AppCard component.
-      familyApps: listStaticApps().map((a) => ({
-        name: a.slug,
-        title: a.name,
-        description: a.description,
-        icon: a.icon,
-      })),
+      familyApps: familyAppsPayload(),
+      claudeAccess: true,
       myTimeLimit: self?.claude_time_limit ?? 60,
     });
   } catch (err) {

@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { hashPassword, hashPin } from '../services/authService.js';
 import { createDeviceToken } from '../middleware/deviceAuth.js';
+import { listStaticApps } from '../services/staticApps.js';
 
 const EmojiSchema = z.object({
   avatar_emoji: z.string().max(10).nullable(),
@@ -58,7 +59,9 @@ router.get('/', authenticate, (req, res, next) => {
       ) ct ON ct.user_id = u.id
       WHERE u.family_id = ? ORDER BY u.sort_order ASC, u.role DESC, u.name ASC
     `).all(req.user.familyId);
-    res.json({ family, members });
+    // Lets the nav show the Apps page for families without Claude access when
+    // there are repo-authored Family Apps to show (server/static-apps/).
+    res.json({ family, members, familyAppsCount: listStaticApps().length });
   } catch (err) {
     next(err);
   }

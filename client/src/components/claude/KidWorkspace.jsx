@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTerminal, faRocket, faXmark, faChevronDown, faUpRightFromSquare, faCompress, faTableColumns, faGripLines, faRotateRight, faChevronLeft, faChevronRight, faMagnifyingGlass, faStar } from '@fortawesome/free-solid-svg-icons';
+import { faTerminal, faRocket, faXmark, faChevronDown, faUpRightFromSquare, faCompress, faExpand, faTableColumns, faGripLines, faRotateRight, faChevronLeft, faChevronRight, faMagnifyingGlass, faStar } from '@fortawesome/free-solid-svg-icons';
 import { claudeApi } from '../../api/claude.api.js';
 
 const MAX_RUNNING_APPS = 3;
@@ -320,15 +320,21 @@ function FloatingTerminal({ terminalRef, onSetMode }) {
 }
 
 // ─── Main workspace ────────────────────────────────────────────────────────
-export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, initialView, onClose }) {
+// `terminalEnabled` is false for families without Claude Code access — they can
+// still launch Family Apps, so the workspace runs as a plain app browser with
+// no terminal tab and no metered time.
+export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, initialView, terminalEnabled = true, onClose }) {
   const [activeTab, setActiveTab] = useState(initialView === 'terminal' ? 'terminal' : null);
   const [runningApps, setRunningApps] = useState([]);
   const [showAppList, setShowAppList] = useState(false);
   const [appSearch, setAppSearch] = useState('');
   const [allApps, setAllApps] = useState(initialApps);
   const [expandedOwners, setExpandedOwners] = useState(new Set());
+  // Distraction-free mode: hides the taskbar and the app's browser sub-bar so
+  // the active app fills the whole screen. Escape or the floating pill exits.
+  const [fullscreen, setFullscreen] = useState(false);
   const [remainingSec, setRemainingSec] = useState(timeLimit * 60); // seconds
-  const [unlimited, setUnlimited] = useState(false);
+  const [unlimited, setUnlimited] = useState(!terminalEnabled);
   // 'tab' = docked in main content, 'float' = floating window, 'right' = panel right, 'bottom' = panel bottom
   const [terminalMode, setTerminalModeRaw] = useState('tab');
   const [terminalReloadKey, setTerminalReloadKey] = useState(0);
@@ -388,6 +394,15 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
 
+    // No terminal means no metered Claude time — skip the heartbeat entirely
+    // (those endpoints require claude_access and would just 403 every 30s).
+    if (!terminalEnabled) {
+      return () => {
+        document.documentElement.style.overflow = '';
+        document.body.style.overflow = '';
+      };
+    }
+
     // Fetch initial remaining time
     claudeApi.getDailyRemaining()
       .then((data) => {
@@ -429,7 +444,7 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
       document.documentElement.style.overflow = '';
       document.body.style.overflow = '';
     };
-  }, []);
+  }, [terminalEnabled]);
 
   // Handle time messages from terminal WebSocket (server-authoritative)
   const handleTimeUpdate = useCallback((msg) => {
@@ -451,6 +466,16 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showAppList]);
+
+  // Escape leaves full screen. Only fires when focus is outside the app iframe
+  // (a focused app swallows the keydown), so the floating pill stays the
+  // primary way out — this is just the shortcut people expect.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const handler = (e) => { if (e.key === 'Escape') setFullscreen(false); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [fullscreen]);
 
   const launchApp = (appEntry) => {
     setShowAppList(false);
@@ -486,6 +511,8 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
   };
 
   const isLow = remainingSec > 0 && remainingSec <= 300; // 5 minutes
+  // Never hide the chrome on the "time's up" screen — the kid needs the Exit button.
+  const immersive = fullscreen && !expired;
   const isDetached = terminalMode !== 'tab';
   const termDockedVisible = terminalMode === 'tab' && activeTab === 'terminal';
 
@@ -528,8 +555,9 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
   return createPortal(
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100dvh', zIndex: 99999, display: 'flex', flexDirection: 'column', background: '#1a1b26', overflow: 'hidden', touchAction: 'manipulation' }}>
       {/* ─── Taskbar ─── */}
-      <div style={{ display: 'flex', alignItems: 'end', padding: '0 10px', height: BAR_H, background: '#16161e', borderBottom: '1px solid rgba(255,255,255,0.1)', flexShrink: 0, gap: 3, position: 'relative', zIndex: 10 }}>
+      <div style={{ display: immersive ? 'none' : 'flex', alignItems: 'end', padding: '0 10px', height: BAR_H, background: '#16161e', borderBottom: '1px solid rgba(255,255,255,0.1)', flexShrink: 0, gap: 3, position: 'relative', zIndex: 10 }}>
         {/* Terminal tab */}
+        {terminalEnabled && (
         <div style={{ display: 'flex', alignItems: 'center', ...tabStyle(terminalMode === 'tab' && activeTab === 'terminal') }}>
           <button
             onClick={() => { if (isDetached) { setTerminalMode('tab'); } setActiveTab('terminal'); }}
@@ -553,6 +581,7 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#a78bfa', marginLeft: 4 }} title={terminalMode} />
           )}
         </div>
+        )}
 
         {/* Running app tabs */}
         {runningApps.map((app) => (
@@ -762,14 +791,14 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
             {/* Main content (apps + docked terminal) */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               {/* ── Sub-bar: terminal reload ── */}
-              {termDockedVisible && (
+              {termDockedVisible && !immersive && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px 8px', background: '#16161e', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
                   <SubBtn icon={faRotateRight} title="Reload terminal" onClick={() => setTerminalReloadKey((k) => k + 1)} />
                 </div>
               )}
 
               {/* ── Sub-bar: app browser controls ── */}
-              {runningApps.map((app) => activeTab === app.key ? (
+              {runningApps.map((app) => activeTab === app.key && !immersive ? (
                 <div key={`bar-${app.key}`} style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px 8px', background: '#16161e', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
                   <SubBtn icon={faChevronLeft} title="Back" onClick={() => {
                     try {
@@ -783,7 +812,7 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
                   }} />
                   <SubBtn icon={faChevronRight} title="Forward" onClick={() => { try { iframeRefs.current[app.key]?.contentWindow?.history.forward(); } catch {} }} />
                   <SubBtn icon={faRotateRight} title="Reload" onClick={() => setAppReloadKeys((prev) => ({ ...prev, [app.key]: (prev[app.key] || 0) + 1 }))} />
-                  <span style={{ marginLeft: 8, fontSize: 11, fontFamily: 'monospace', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ marginLeft: 8, flex: 1, minWidth: 0, fontSize: 11, fontFamily: 'monospace', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {(() => {
                       try {
                         // Build full display URL from the app url (which may be relative or absolute)
@@ -794,6 +823,7 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
                       }
                     })()}
                   </span>
+                  <SubBtn icon={faExpand} title="Full screen" onClick={() => setFullscreen(true)} />
                 </div>
               ) : null)}
 
@@ -820,7 +850,9 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
                   style={{ width: '100%', height: '100%', background: '#1a1b26' }}
                 />
 
-                <TerminalPane userId={userId} visible={termDockedVisible || isDetached} onTimeUpdate={handleTimeUpdate} containerRef={terminalContainerRef} reloadKey={terminalReloadKey} />
+                {terminalEnabled && (
+                  <TerminalPane userId={userId} visible={termDockedVisible || isDetached} onTimeUpdate={handleTimeUpdate} containerRef={terminalContainerRef} reloadKey={terminalReloadKey} />
+                )}
 
                 {runningApps.map((app) => {
                   const reloadKey = appReloadKeys[app.key] || 0;
@@ -848,6 +880,31 @@ export default function KidWorkspace({ userId, timeLimit, allApps: initialApps, 
           </>
         )}
       </div>
+
+      {/* ─── Full-screen escape hatch ─── */}
+      {immersive && (
+        <button
+          onClick={() => setFullscreen(false)}
+          title="Exit full screen (Esc)"
+          style={{
+            position: 'fixed',
+            top: 'calc(8px + env(safe-area-inset-top, 0px))',
+            right: 'calc(8px + env(safe-area-inset-right, 0px))',
+            zIndex: 50, display: 'flex', alignItems: 'center', gap: 6,
+            padding: '6px 12px', fontSize: 12, fontFamily: 'sans-serif',
+            color: '#e5e7eb', background: 'rgba(22,22,30,0.72)',
+            border: '1px solid rgba(255,255,255,0.18)', borderRadius: 999,
+            backdropFilter: 'blur(6px)', cursor: 'pointer',
+            opacity: 0.6, transition: 'opacity 0.15s',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.opacity = 1; }}
+          onMouseLeave={(e) => { e.currentTarget.style.opacity = 0.6; }}
+          onTouchStart={(e) => { e.currentTarget.style.opacity = 1; }}
+        >
+          <FontAwesomeIcon icon={faCompress} style={{ fontSize: 11 }} />
+          Exit full screen
+        </button>
+      )}
 
       {/* ─── Floating terminal ─── */}
       {terminalMode === 'float' && !expired && (

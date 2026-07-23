@@ -74,6 +74,7 @@ export default function AppsPage() {
   const { user } = useAuth();
   const [kids, setKids] = useState([]);
   const [familyApps, setFamilyApps] = useState([]);
+  const [claudeAccess, setClaudeAccess] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [myTimeLimit, setMyTimeLimit] = useState(60);
@@ -87,6 +88,7 @@ export default function AppsPage() {
       .then((data) => {
         setKids(data.kids);
         setFamilyApps(data.familyApps || []);
+        setClaudeAccess(!!data.claudeAccess);
         if (data.myTimeLimit != null) setMyTimeLimit(data.myTimeLimit);
       })
       .catch(() => {})
@@ -188,7 +190,7 @@ export default function AppsPage() {
           Apps
         </h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Web apps built by kids with Claude Code.
+          {claudeAccess ? 'Web apps built by kids with Claude Code.' : 'Web apps for the family.'}
         </p>
       </div>
 
@@ -225,7 +227,7 @@ export default function AppsPage() {
         <div className="text-center py-12 text-gray-400 dark:text-gray-500">
           <FontAwesomeIcon icon={faRocket} className="text-4xl mb-3" />
           <p className="text-lg font-medium mb-1">No apps yet</p>
-          <p className="text-sm">Open a terminal and start building!</p>
+          <p className="text-sm">{claudeAccess ? 'Open a terminal and start building!' : 'Nothing here yet.'}</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -379,6 +381,7 @@ export default function AppsPage() {
         <KidWorkspace
           userId={workspace.userId}
           timeLimit={myTimeLimit}
+          terminalEnabled={claudeAccess}
           allApps={allAppsFlat}
           initialView={workspace.initialView}
           onClose={() => { setWorkspace(null); load(); }}

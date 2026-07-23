@@ -196,7 +196,9 @@ export default function Layout() {
   useOverscrollGuard(true);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [defaultMemberId, setDefaultMemberId] = useState(null);
-  const [claudeAccess, setClaudeAccess] = useState(false);
+  // Apps nav shows when the family has Claude Code OR when there are repo-authored
+  // Family Apps to launch (server/static-apps/) — the latter needs no Claude access.
+  const [showAppsNav, setShowAppsNav] = useState(false);
   const [kidStats, setKidStats] = useState(null);
   const { isOnline, pendingCount } = useSyncStatus();
 
@@ -267,7 +269,7 @@ export default function Layout() {
   useEffect(() => {
     if (user?.role !== 'kid') return;
     familyApi.getFamily().then((data) => {
-      if (data.family?.claude_access) setClaudeAccess(true);
+      if (data.family?.claude_access || data.familyAppsCount > 0) setShowAppsNav(true);
       applyMenubarFromMember((data.members || []).find((m) => m.id === user.id));
     }).catch(() => {});
   }, [user?.role, user?.familyId]);
@@ -276,7 +278,7 @@ export default function Layout() {
   useEffect(() => {
     if (user?.role !== 'parent') return;
     familyApi.getFamily().then((data) => {
-      if (data.family?.claude_access) setClaudeAccess(true);
+      if (data.family?.claude_access || data.familyAppsCount > 0) setShowAppsNav(true);
       const members = data.members || [];
       applyMenubarFromMember(members.find((m) => m.id === user.id));
       // If logged-in parent has chores_enabled, default to their own ID
@@ -409,7 +411,7 @@ export default function Layout() {
               </Badge>
             )}
           </NavLink>
-          {claudeAccess && (
+          {showAppsNav && (
             <NavLink to="/code-apps" className={navClass} onClick={close} title="Apps">
               <FontAwesomeIcon icon={faRocket} className="w-4 shrink-0" />
               <Lbl>Apps</Lbl>
@@ -514,7 +516,7 @@ export default function Layout() {
 
       {user?.role === 'kid' && (
         <>
-          {claudeAccess && (
+          {showAppsNav && (
             <NavLink to="/code-apps" className={navClass} onClick={close} title="Apps">
               <FontAwesomeIcon icon={faRocket} className="w-4 shrink-0" />
               <Lbl>Apps</Lbl>
@@ -602,7 +604,7 @@ export default function Layout() {
     if (user?.role === 'parent') {
       all.push({ key: 'dashboard', icon: faHouse, label: 'Home', to: '/dashboard', section: 'main' });
       all.push({ key: 'inbox', icon: faInbox, label: 'Inbox', to: '/inbox', section: 'main', badge: inboxCount > 0 ? inboxCount : null });
-      if (claudeAccess) all.push({ key: 'apps', icon: faRocket, label: 'Apps', to: '/code-apps', section: 'main' });
+      if (showAppsNav) all.push({ key: 'apps', icon: faRocket, label: 'Apps', to: '/code-apps', section: 'main' });
       if (defaultMemberId) {
         all.push({ key: 'overview', icon: faTachographDigital, label: 'Overview', to: `/kid/${defaultMemberId}`, section: 'individual' });
         all.push({ key: 'kid-chores', icon: faBroom, label: choresLabel, to: `/chores/${defaultMemberId}`, section: 'individual' });
@@ -630,7 +632,7 @@ export default function Layout() {
         key: 'chores', icon: faBroom, label: choresLabel, to: `/chores/${user.id}`, section: 'main',
         badge: kidStats?.choresRemaining > 0 ? kidStats.choresRemaining : null,
       });
-      if (claudeAccess) all.push({ key: 'apps', icon: faRocket, label: 'Apps', to: '/code-apps', section: 'main' });
+      if (showAppsNav) all.push({ key: 'apps', icon: faRocket, label: 'Apps', to: '/code-apps', section: 'main' });
       if (useBanking) all.push({ key: 'bank', icon: faPiggyBank, label: 'Bank', to: `/bank/${user.id}`, section: 'main' });
       if (useTickets) all.push({ key: 'tickets', icon: faTicket, label: 'Tickets', to: `/tickets/${user.id}`, section: 'main', badge: kidStats?.ticketBalance });
       if (useSets) all.push({ key: 'sets', icon: faMedal, label: `My ${setsStepsLabel}`, to: `/tasks/${user.id}`, section: 'main' });
@@ -639,7 +641,7 @@ export default function Layout() {
       defaults = ['overview', 'chores', useTickets ? 'tickets' : (useBanking ? 'bank' : 'trophies'), 'trophies'].filter((k, i, arr) => k && arr.indexOf(k) === i).slice(0, 4);
     }
     return { allMobileItems: all, defaultPrimaryKeys: defaults };
-  }, [user, defaultMemberId, claudeAccess, inboxCount, kidStats, useBanking, useTickets, useSets, useBadges, choresLabel, setsStepsLabel]);
+  }, [user, defaultMemberId, showAppsNav, inboxCount, kidStats, useBanking, useTickets, useSets, useBadges, choresLabel, setsStepsLabel]);
 
   // ── Persisted per-user menubar layout ──
   // Loaded from the family-members payload by applyMenubarFromMember above

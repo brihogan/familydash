@@ -2073,3 +2073,20 @@ HTML file — no network calls, storage namespaced `ttdrill.v3.*`). Verified
 **Files changed:** `server/src/services/staticApps.js` (new),
 `server/src/routes/claude.js`, `client/src/pages/AppsPage.jsx`,
 `server/static-apps/README.md` + `server/static-apps/flashcards/` (new)
+
+### 2026-07-23 — Full-screen mode for apps + Family Apps ungated
+
+Added a full-screen toggle to the app browser sub-bar in KidWorkspace: hides the
+taskbar and back/forward/URL row so the app fills the viewport, with a
+semi-transparent "Exit full screen" pill floating top-right (Esc also exits).
+The iframe isn't remounted, so app state survives the toggle.
+
+Also ungated Family Apps from `claude_access`, since they're just repo HTML:
+`GET /api/claude/apps` now returns them (with `kids: []` and `claudeAccess:
+false`) instead of 403ing, `GET /api/family` reports `familyAppsCount` so the
+nav can show the Apps link, and KidWorkspace takes a `terminalEnabled` prop that
+drops the terminal tab, the TerminalPane, and the time heartbeat when off.
+
+**Files changed:** `client/src/components/claude/KidWorkspace.jsx`,
+`client/src/pages/AppsPage.jsx`, `client/src/components/shared/Layout.jsx`,
+`server/src/routes/claude.js`, `server/src/routes/family.js`
