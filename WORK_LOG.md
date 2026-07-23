@@ -2054,3 +2054,22 @@ routes/dashboard.js, now shared), `routes/device.js` (`GET /api/device/dashboard
 rate-limited), parent `device-tokens` CRUD in routes/family.js, and
 `scripts/make-device-token.js`. Verified via curl (200 + correct JSON with a
 valid key, 401 without). Web dashboard route unchanged in behavior (same builder).
+
+---
+
+## Session Start: 2026-07-23 ~6:00 PM ET
+
+### 2026-07-23 — "Family Apps" static tier on the Apps page
+
+Added a repo-authored app tier so hand-written HTML can live on the Apps page
+without being inside a kid's Claude Code container: `server/static-apps/<slug>/`
+(index.html + optional app.json), served at `/apps/family/<slug>/` on both the
+main domain and the apps subdomain, listed as `familyApps` in `GET
+/api/claude/apps`, rendered in a new "Family Apps" section at the top of
+AppsPage. First app installed: `flashcards` (a self-contained Times Table Drill
+HTML file — no network calls, storage namespaced `ttdrill.v3.*`). Verified
+200 + working inline JS in the browser, path traversal → 404.
+
+**Files changed:** `server/src/services/staticApps.js` (new),
+`server/src/routes/claude.js`, `client/src/pages/AppsPage.jsx`,
+`server/static-apps/README.md` + `server/static-apps/flashcards/` (new)

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faRocket, faTerminal, faPlay, faStar as faStarSolid, faChevronDown, faChevronUp } from '@fortawesome/free-solid-svg-icons';
+import { faRocket, faTerminal, faPlay, faStar as faStarSolid, faChevronDown, faChevronUp, faHouse } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarOutline } from '@fortawesome/free-regular-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import { claudeApi } from '../api/claude.api.js';
@@ -8,7 +8,10 @@ import Avatar from '../components/shared/Avatar.jsx';
 import Modal from '../components/shared/Modal.jsx';
 import KidWorkspace from '../components/claude/KidWorkspace.jsx';
 
-function AppCard({ app, kid, canEdit, onLaunch, onEdit, onToggleStar }) {
+// URL namespace for repo-authored Family Apps (server/src/services/staticApps.js)
+const FAMILY_SLUG = 'family';
+
+function AppCard({ app, kid, canEdit, stats = true, onLaunch, onEdit, onToggleStar }) {
   const handleCardClick = () => onLaunch(kid.username, app.name);
   const handleIconClick = (e) => {
     if (!canEdit) return;
@@ -37,13 +40,14 @@ function AppCard({ app, kid, canEdit, onLaunch, onEdit, onToggleStar }) {
             {app.icon || <FontAwesomeIcon icon={faRocket} className="text-brand-500 text-sm" />}
           </button>
           <div className="min-w-0">
-            <p className="font-semibold text-gray-900 dark:text-gray-100 truncate">{app.name.replace(/[-_]/g, ' ')}</p>
+            <p className="font-semibold text-gray-900 dark:text-gray-100 truncate">{app.title || app.name.replace(/[-_]/g, ' ')}</p>
             {app.description && (
               <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{app.description}</p>
             )}
           </div>
         </div>
       </div>
+      {stats && (
       <div className="flex items-center gap-3 mt-3 text-xs text-gray-400 dark:text-gray-500">
         <span>
           <FontAwesomeIcon icon={faPlay} className="mr-1" />
@@ -61,6 +65,7 @@ function AppCard({ app, kid, canEdit, onLaunch, onEdit, onToggleStar }) {
           <span>{app.stars || 0}</span>
         </button>
       </div>
+      )}
     </div>
   );
 }
@@ -68,6 +73,7 @@ function AppCard({ app, kid, canEdit, onLaunch, onEdit, onToggleStar }) {
 export default function AppsPage() {
   const { user } = useAuth();
   const [kids, setKids] = useState([]);
+  const [familyApps, setFamilyApps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [myTimeLimit, setMyTimeLimit] = useState(60);
@@ -80,6 +86,7 @@ export default function AppsPage() {
     claudeApi.listApps()
       .then((data) => {
         setKids(data.kids);
+        setFamilyApps(data.familyApps || []);
         if (data.myTimeLimit != null) setMyTimeLimit(data.myTimeLimit);
       })
       .catch(() => {})
@@ -88,10 +95,24 @@ export default function AppsPage() {
 
   useEffect(() => { load(); }, []);
 
-  const hasApps = kids.some((k) => k.apps.length > 0);
+  const hasApps = kids.some((k) => k.apps.length > 0) || familyApps.length > 0;
+
+  // Family Apps are served from the repo (server/static-apps/) under a fixed
+  // `family` namespace rather than a kid's container — see staticApps.js.
+  const familyKid = { id: null, username: FAMILY_SLUG, name: 'Family' };
 
   // Build flat app list for the workspace dropdown (includes owner + starred info)
-  const allAppsFlat = kids.flatMap((kid) =>
+  const allAppsFlat = familyApps.map((app) => ({
+    appName: app.name,
+    username: FAMILY_SLUG,
+    ownerName: 'Family',
+    ownerId: FAMILY_SLUG,
+    icon: app.icon,
+    starred: false,
+    url: import.meta.env.VITE_APPS_ORIGIN
+      ? `${import.meta.env.VITE_APPS_ORIGIN}/${FAMILY_SLUG}/${app.name}/`
+      : `/apps/${FAMILY_SLUG}/${app.name}/`,
+  })).concat(kids.flatMap((kid) =>
     kid.apps.map((app) => ({
       appName: app.name,
       username: kid.username,
@@ -103,9 +124,14 @@ export default function AppsPage() {
         ? `${import.meta.env.VITE_APPS_ORIGIN}/${kid.username}/${app.name}/`
         : `/apps/${kid.username}/${app.name}/`,
     }))
-  );
+  ));
 
   const handleLaunch = async (username, appName) => {
+    if (username === FAMILY_SLUG) {
+      // No launch counter / metadata row — these apps have no owning user
+      setWorkspace({ userId: user?.id, initialView: { url: `/apps/${FAMILY_SLUG}/${appName}/`, appName } });
+      return;
+    }
     claudeApi.launchApp(username, appName).catch(() => {});
     const url = `/apps/${username}/${appName}/`;
     setWorkspace({ userId: user?.id, initialView: { url, appName } });
@@ -203,6 +229,25 @@ export default function AppsPage() {
         </div>
       ) : (
         <div className="space-y-6">
+          {familyApps.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <FontAwesomeIcon icon={faHouse} className="text-brand-500" />
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100">Family Apps</h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {familyApps.map((app) => (
+                  <AppCard
+                    key={app.name}
+                    app={app} kid={familyKid}
+                    canEdit={false} stats={false}
+                    onLaunch={handleLaunch}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           {favorites.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-3">

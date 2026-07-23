@@ -8,6 +8,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { getOrCreateContainer, stopContainer, removeContainer, getContainerStatus, readContainerFile, listContainerApps } from '../services/dockerService.js';
+import { listStaticApps, resolveStaticAppFile, FAMILY_APPS_SLUG } from '../services/staticApps.js';
 import { localDateISO } from '../utils/dateHelpers.js';
 
 const __claude_dirname = dirname(fileURLToPath(import.meta.url));
@@ -264,7 +265,18 @@ router.get('/apps', authenticate, requireClaudeFamily, async (req, res, next) =>
 
     // Include the requesting user's time limit (for kid clients to enforce app limits)
     const self = db.prepare('SELECT claude_time_limit FROM users WHERE id = ?').get(req.user.userId);
-    res.json({ kids: result, myTimeLimit: self?.claude_time_limit ?? 60 });
+    res.json({
+      kids: result,
+      // Repo-authored apps under server/static-apps/ — same shape as kid apps
+      // so the client can reuse the AppCard component.
+      familyApps: listStaticApps().map((a) => ({
+        name: a.slug,
+        title: a.name,
+        description: a.description,
+        icon: a.icon,
+      })),
+      myTimeLimit: self?.claude_time_limit ?? 60,
+    });
   } catch (err) {
     next(err);
   }
@@ -701,6 +713,19 @@ function renderUserLanding(req, res) {
   res.send(html);
 }
 
+// Serve a Family App (repo-authored HTML under server/static-apps/) at
+// /apps/family/<slug>/. Registered ahead of the /:username/:appName routes so
+// the `family` namespace always wins over a user with the same slug.
+function serveStaticAppFile(req, res) {
+  const resolved = resolveStaticAppFile(req.params.appName, req.params[0] || 'index.html');
+  if (!resolved) return res.status(404).send('Not found');
+
+  res.set('Content-Security-Policy', KID_APP_CSP);
+  res.set('Content-Type', MIME_TYPES[path.extname(resolved).toLowerCase()] || 'application/octet-stream');
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.sendFile(resolved);
+}
+
 async function serveAppFile(req, res) {
   const appName = req.params.appName;
   const filePath = req.params[0] || 'index.html';
@@ -772,6 +797,12 @@ appsRouter.get('/sdk/multiplayer.js', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
   res.sendFile(join(SDK_DIR, 'multiplayer.js'));
 });
+
+// ─── Family Apps (repo-authored, /apps/family/<slug>/) ───────────────────────
+// Must precede the /:username/:appName routes below.
+appsRouter.get(`/${FAMILY_APPS_SLUG}/:appName/`, serveStaticAppFile);
+appsRouter.get(`/${FAMILY_APPS_SLUG}/:appName/*`, serveStaticAppFile);
+appsRouter.get(`/${FAMILY_APPS_SLUG}/:appName`, (req, res) => { res.redirect(req.originalUrl + '/'); });
 
 // Match /fox/radar-rat-race/ (trailing slash, serve index.html)
 appsRouter.get('/:username/:appName/', resolveKidId, serveAppFile);
@@ -858,6 +889,11 @@ subdomainRouter.get('/sdk/multiplayer.js', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
   res.sendFile(join(SDK_DIR, 'multiplayer.js'));
 });
+
+// Family Apps on subdomain (before the /:username routes, same as main domain)
+subdomainRouter.get(`/${FAMILY_APPS_SLUG}/:appName/`, serveStaticAppFile);
+subdomainRouter.get(`/${FAMILY_APPS_SLUG}/:appName/*`, serveStaticAppFile);
+subdomainRouter.get(`/${FAMILY_APPS_SLUG}/:appName`, (req, res) => { res.redirect(req.originalUrl + '/'); });
 
 // Static file serving on subdomain
 subdomainRouter.get('/:username/:appName/', resolveKidId, serveAppFile);
