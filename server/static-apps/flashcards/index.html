@@ -96,10 +96,10 @@
   h1{font-size:26px;margin:0 0 4px;letter-spacing:-.5px;}
   .sub{color:var(--dim);font-size:15px;margin:0 0 22px;}
   .lbl{font-size:13px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin:0 0 10px;}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:10px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:7px;}
   .chip{
     background:var(--panel);border:2px solid var(--line);color:var(--ink);
-    border-radius:14px;padding:16px 0;font-size:22px;font-weight:600;
+    border-radius:10px;padding:11px 0;font-size:17px;font-weight:600;
     cursor:pointer;transition:transform .14s var(--spring),background .14s,border-color .14s,color .14s;
   }
   .chip:active{transform:scale(.93);}
@@ -625,6 +625,23 @@
   }
   .worth.t3 .wv{color:var(--gold);}
   .worth.t3 .wl{color:var(--gold);opacity:.85;}
+  .worth.t4{
+    border-color:var(--miss);
+    background:color-mix(in srgb,var(--miss) 20%,var(--panel));
+  }
+  .worth.t4 .wv{color:var(--miss);}
+  .worth.t4 .wl{color:var(--miss);opacity:.85;}
+  .worth.t5{
+    border-color:var(--hit);
+    background:color-mix(in srgb,var(--hit) 24%,var(--panel));
+    animation:ultraGlow 1.6s var(--ease) infinite;
+  }
+  .worth.t5 .wv{color:var(--hit);}
+  .worth.t5 .wl{color:var(--hit);opacity:.9;}
+  @keyframes ultraGlow{
+    0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--hit) 45%,transparent);}
+    50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--hit) 0%,transparent);}
+  }
   .worth.pulse{transform:scale(1.14);}
   .worth.lost{
     border-color:var(--miss)!important;
@@ -870,14 +887,16 @@
   <p class="lbl">Tables</p>
   <div class="grid" id="chips"></div>
   <div class="row">
-    <button class="mini" onclick="pick(1)">All 1–12</button>
+    <button class="mini" onclick="pickRange(1,1,12)">1–12</button>
+    <button class="mini" onclick="pickRange(1,0,20)">0–20</button>
     <button class="mini" onclick="pick(0)">Clear</button>
   </div>
 
   <p class="lbl">Multiply by</p>
   <div class="grid" id="chips2"></div>
   <div class="row">
-    <button class="mini" onclick="pick2(1)">All 1–12</button>
+    <button class="mini" onclick="pickRange(2,1,12)">1–12</button>
+    <button class="mini" onclick="pickRange(2,0,20)">0–20</button>
     <button class="mini" onclick="pick2(0)">Clear</button>
   </div>
 
@@ -1108,10 +1127,12 @@ function applyTheme(id){
 })();
 
 /* ---------- setup ---------- */
+const CHIP_MIN=0, CHIP_MAX=20;
+
 function build(box,set){
-  for(let n=1;n<=12;n++){
+  for(let n=CHIP_MIN;n<=CHIP_MAX;n++){
     const b=document.createElement('button');
-    b.className='chip'; b.textContent=n;
+    b.className='chip'; b.textContent=n; b.dataset.n=n;
     b.onclick=()=>{ set.has(n)?set.delete(n):set.add(n); b.classList.toggle('sel'); ready(); saveCfg(); };
     box.appendChild(b);
   }
@@ -1119,11 +1140,25 @@ function build(box,set){
 build(el('chips'),A); build(el('chips2'),B);
 
 function setAll(box,set,on){
-  [...box.children].forEach((b,idx)=>{ b.classList.toggle('sel',on); on?set.add(idx+1):set.delete(idx+1); });
+  [...box.children].forEach(b=>{ const n=+b.dataset.n; b.classList.toggle('sel',on); on?set.add(n):set.delete(n); });
   ready(); saveCfg();
 }
 const pick =on=>setAll(el('chips'),A,!!on);
 const pick2=on=>setAll(el('chips2'),B,!!on);
+
+/* select an inclusive range on one of the two rows */
+function pickRange(which,lo,hi){
+  const box = which===1 ? el('chips') : el('chips2');
+  const set = which===1 ? A : B;
+  set.clear();
+  [...box.children].forEach(b=>{
+    const n=+b.dataset.n;
+    const on = n>=lo && n<=hi;
+    b.classList.toggle('sel',on);
+    if(on) set.add(n);
+  });
+  ready(); saveCfg();
+}
 
 [...el('modes').children].forEach(btn=>{
   btn.onclick=()=>{
@@ -1134,8 +1169,8 @@ const pick2=on=>setAll(el('chips2'),B,!!on);
 });
 
 function paint(){
-  [...el('chips').children].forEach((b,idx)=>b.classList.toggle('sel',A.has(idx+1)));
-  [...el('chips2').children].forEach((b,idx)=>b.classList.toggle('sel',B.has(idx+1)));
+  [...el('chips').children].forEach(b=>b.classList.toggle('sel',A.has(+b.dataset.n)));
+  [...el('chips2').children].forEach(b=>b.classList.toggle('sel',B.has(+b.dataset.n)));
   [...el('modes').children].forEach(x=>x.classList.toggle('sel',x.dataset.m===mode));
 }
 
@@ -1575,7 +1610,7 @@ function flyCoins(n,fromEl){
 
 /* Persistent chip showing what the current card pays, so the value is
    visible before answering rather than only on the way out. */
-const TIER_LBL={1:'easy',2:'good',3:'hard'};
+const TIER_LBL={1:'easy',2:'good',3:'hard',4:'tough',5:'ultra'};
 
 function paintWorth(){
   const w=el('worth');
@@ -1587,9 +1622,8 @@ function paintWorth(){
   const n=base*(doubleOn?2:1);
   el('worthVal').textContent='+'+n;
   el('worthLbl').textContent=TIER_LBL[base]||'good';
-  w.classList.remove('t2','t3');
-  if(base===2) w.classList.add('t2');
-  if(base===3) w.classList.add('t3');
+  w.classList.remove('t2','t3','t4','t5');
+  if(base>1) w.classList.add('t'+base);
   w.classList.remove('pulse'); void w.offsetWidth; w.classList.add('pulse');
   setTimeout(()=>w.classList.remove('pulse'),260);
 }
@@ -1608,20 +1642,27 @@ function popGain(n){
   setTimeout(()=>tag.remove(),1000);
 }
 
-/* Coin value by fact difficulty.
-   1 — rule-based facts: anything ×1, ×2, ×10, and the small squares kids
-       rehearse early (2×2 … 5×5).
-   3 — the tough middle band: both operands in {6,7,8,9,12}. This is where
-       7×8, 6×7, 8×9 and friends live.
-   2 — everything else. */
-const EASY_N=new Set([1,2,10]);
+/* Coin value by fact difficulty, now spanning 0–20.
+   1 — trivial: ×0, ×1, ×2, place-value shortcuts (×5/×10/×20 of a small
+       number), the ×11 repeated-digit trick, and the small squares.
+   2 — ordinary recall, plus shortcut facts with a bigger partner (10×17).
+   3 — the classic hard band: both operands in {6,7,8,9,12}.
+   4 — one operand is an awkward teen (13–19).
+   5 — both operands are awkward teens (16×17, 19×19). */
+const TRIV_N=new Set([0,1,2]);
+const TEN_N =new Set([5,10,20]);
 const HARD_N=new Set([6,7,8,9,12]);
+const TEEN_N=new Set([13,14,15,16,17,18,19]);
 
 function coinsFor(card){
-  const a=card.a, b=card.b;
-  if(EASY_N.has(a)||EASY_N.has(b)) return 1;
-  if(a===b && a<=5) return 1;
-  if(HARD_N.has(a)&&HARD_N.has(b)) return 3;
+  const lo=Math.min(card.a,card.b), hi=Math.max(card.a,card.b);
+  if(TRIV_N.has(lo)) return 1;
+  if(TEN_N.has(lo)) return TEEN_N.has(hi) ? 2 : 1;
+  if(lo===11 && hi<=11) return 1;
+  if(lo===hi && lo<=5) return 1;
+  if(TEEN_N.has(lo) && TEEN_N.has(hi)) return 5;
+  if(TEEN_N.has(lo) || TEEN_N.has(hi)) return 4;
+  if(HARD_N.has(lo) && HARD_N.has(hi)) return 3;
   return 2;
 }
 

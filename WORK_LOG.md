@@ -2090,3 +2090,12 @@ drops the terminal tab, the TerminalPane, and the time heartbeat when off.
 **Files changed:** `client/src/components/claude/KidWorkspace.jsx`,
 `client/src/pages/AppsPage.jsx`, `client/src/components/shared/Layout.jsx`,
 `server/src/routes/claude.js`, `server/src/routes/family.js`
+
+### 2026-07-23 — Flashcards app update
+
+Dropped in a new build of the flashcards Family App: number chips now run 0–20
+(was 1–12) with "1–12" / "0–20" range buttons and tighter chip sizing, plus
+tier-4/5 "worth" styling with a glow animation. Same `ttdrill.v3` storage key,
+so saved coins and prizes carry over.
+
+**Files changed:** `server/static-apps/flashcards/index.html`
