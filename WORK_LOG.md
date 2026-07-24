@@ -2106,3 +2106,12 @@ Two-line update to the flashcards Family App: dropped `cursor:pointer` from the
 "My prizes" header and moved the hidden dev-tap hint from 2 taps to 3.
 
 **Files changed:** `server/static-apps/flashcards/index.html`
+
+### 2026-07-24 — Flashcards big update (stats + count-by)
+
+Larger flashcards build: adds a per-fact Stats view (📊) backed by a new
+`ttdrill.v3.stats` localStorage key, a "Count by" ladder mode, and difficulty
+"worth" tiers spanning 0–20. Still no network, one inline script, same base
+storage key so all saved progress carries over.
+
+**Files changed:** `server/static-apps/flashcards/index.html`

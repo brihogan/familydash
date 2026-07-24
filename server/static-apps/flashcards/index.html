@@ -566,6 +566,242 @@
   .hatSlot.hat-top{top:-34px;font-size:42px;}
   .hatSlot.hat-party{top:-32px;font-size:40px;}
 
+  .chalbtn{
+    flex:none;height:40px;border-radius:12px;padding:0 14px;
+    background:var(--panel);border:1px solid var(--accent);color:var(--ink);
+    font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;
+    transition:transform .14s var(--spring),background .14s;
+  }
+  .chalbtn:active{transform:scale(.94);}
+  .chalBox{max-width:420px;}
+  .chalGrid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));
+    gap:9px;margin-bottom:16px;
+  }
+  .chalGrid button{
+    background:var(--bg);border:2px solid var(--line);color:var(--ink);
+    border-radius:12px;padding:15px 0;font-size:19px;font-weight:700;
+    cursor:pointer;font-family:inherit;font-variant-numeric:tabular-nums;
+    transition:transform .14s var(--spring),border-color .14s,background .14s;
+  }
+  .chalGrid button:active{transform:scale(.92);}
+  .chalGrid button:hover{border-color:var(--accent);}
+  .chalOpt{
+    border-top:1px solid var(--line)!important;
+    border-bottom:1px solid var(--line)!important;
+    margin:0 0 14px!important;padding:12px 0!important;
+    font-size:15px;text-align:left;
+  }
+  .chalMix{
+    font-size:12px!important;color:var(--dim);margin:0 0 12px!important;
+    letter-spacing:.3px;
+  }
+
+  /* ---------- COUNT BY (ladder) ---------- */
+  #ladder{padding:12px 18px 0;}
+  .cbRight{display:flex;align-items:center;gap:10px;}
+  .cbStep{
+    display:flex;align-items:center;border-radius:12px;padding:5px 12px;
+    background:var(--panel);border:1px solid var(--line);
+    font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;
+  }
+  .strikes{display:flex;gap:5px;}
+  .strikes i{
+    width:14px;height:14px;border-radius:50%;display:block;
+    background:var(--line);
+    transition:background .25s var(--ease),transform .3s var(--spring);
+  }
+  .strikes i.hit{background:var(--miss);transform:scale(1.2);}
+
+  /* choices sit at the top, stack grows from the bottom */
+  .cbChoices{
+    flex:none;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;
+    padding:22px 0 18px;min-height:104px;align-items:center;
+  }
+  .cbChoices button{
+    min-width:88px;background:var(--panel);border:2px solid var(--line);color:var(--ink);
+    border-radius:16px;padding:20px 16px;font-size:30px;font-weight:700;
+    font-variant-numeric:tabular-nums;cursor:pointer;font-family:inherit;
+    transition:transform .14s var(--spring),border-color .14s,background .14s,opacity .2s;
+  }
+  .cbChoices button:active{transform:scale(.94);}
+  .cbChoices button.good{background:var(--hit);border-color:var(--hit);color:#0d1017;}
+  .cbChoices button.bad{background:var(--miss);border-color:var(--miss);color:#0d1017;}
+  .cbChoices.locked button{pointer-events:none;}
+  .cbChoices button.fade{opacity:.25;}
+
+  .cbStackWrap{
+    flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;
+    padding-bottom:16px;position:relative;
+  }
+  /* soft fade at the top edge so a scrolled tower reads as continuing */
+  .cbStackWrap::before{
+    content:'';position:absolute;left:0;right:0;top:0;height:26px;
+    background:linear-gradient(var(--bg),transparent);
+    pointer-events:none;z-index:2;opacity:0;transition:opacity .2s var(--ease);
+  }
+  .cbStackWrap.over::before{opacity:1;}
+
+  /* the choices live inside the scroller so they sit directly on top of
+     the tower and travel with it as it grows */
+  .cbScroll{
+    display:flex;flex-direction:column;align-items:center;
+    overflow-y:auto;overscroll-behavior:contain;max-height:100%;
+    padding:4px 0;scroll-behavior:smooth;
+  }
+  .cbChoices{
+    flex:none;display:flex;gap:9px;justify-content:center;flex-wrap:wrap;
+    margin-bottom:11px;align-items:center;
+  }
+  .cbChoices button{
+    min-width:80px;background:var(--panel);border:2px dashed var(--line);color:var(--ink);
+    border-radius:14px;padding:15px 14px;font-size:26px;font-weight:700;
+    font-variant-numeric:tabular-nums;cursor:pointer;font-family:inherit;
+    transition:transform .14s var(--spring),border-color .14s,background .14s,opacity .2s;
+  }
+  .cbChoices button:active{transform:scale(.94);}
+  .cbChoices button.good{background:var(--hit);border-color:var(--hit);color:#0d1017;border-style:solid;}
+  .cbChoices button.bad{background:var(--miss);border-color:var(--miss);color:#0d1017;border-style:solid;}
+  .cbChoices.locked button{pointer-events:none;}
+  .cbChoices button.fade{opacity:.2;}
+
+  .cbStack{
+    display:flex;flex-direction:column;align-items:center;gap:7px;
+    flex:none;
+  }
+  .rung{
+    flex:none;min-width:112px;text-align:center;
+    background:linear-gradient(160deg,var(--panel),color-mix(in srgb,var(--hit) 12%,var(--panel)));
+    border:1px solid var(--line);border-radius:12px;
+    padding:11px 18px;font-size:23px;font-weight:700;
+    font-variant-numeric:tabular-nums;
+    display:flex;align-items:center;justify-content:center;gap:10px;
+    transition:border-color .25s var(--ease),box-shadow .25s var(--ease),transform .25s var(--spring);
+  }
+  .rung small{font-size:12px;color:var(--dim);font-weight:600;}
+  .rung.base{border-color:var(--accent);}
+  /* the rung we're building from — wins over .base when both apply */
+  .rung.top,.rung.base.top{
+    border-color:var(--gold);
+    box-shadow:0 0 0 2px color-mix(in srgb,var(--gold) 35%,transparent);
+    background:linear-gradient(160deg,var(--panel),color-mix(in srgb,var(--gold) 20%,var(--panel)));
+  }
+  .rung.newest{animation:slidedown .42s var(--spring) both;}
+  @keyframes slidedown{
+    0%{opacity:0;transform:translateY(-58px) scale(.9);}
+    60%{opacity:1;}
+    100%{opacity:1;transform:none;}
+  }
+  /* the picked tile, lifted out of flow and transitioned into the slot the
+     new rung will occupy — it resizes as it travels so it *becomes* the rung */
+  .tileGhost{
+    position:fixed;z-index:65;margin:0;pointer-events:none;
+    transition:left .42s cubic-bezier(.3,.9,.35,1),
+               top .42s cubic-bezier(.3,.9,.35,1),
+               width .42s cubic-bezier(.3,.9,.35,1),
+               height .42s cubic-bezier(.3,.9,.35,1),
+               font-size .42s var(--ease);
+    border-color:var(--hit);
+    box-shadow:0 10px 26px rgba(0,0,0,.34);
+  }
+  .rung.landed{animation:landPulse .3s var(--spring) both;}
+  @keyframes landPulse{
+    0%{transform:scale(1.06);}
+    100%{transform:scale(1);}
+  }
+
+  /* a wrong pick drops the choice tiles. Lifted out of flow so they can fall
+     past the scroller's bounds instead of being clipped. */
+  .tumbling{
+    z-index:60;pointer-events:none;
+    animation:tumble .62s cubic-bezier(.4,.05,.7,1) both;
+  }
+  @keyframes tumble{
+    0%{opacity:1;transform:translate(0,0) rotate(0deg);}
+    18%{transform:translate(calc(var(--fx,-64px) * .12),-14px) rotate(calc(var(--fr,-88deg) * .1));}
+    100%{opacity:0;transform:translate(var(--fx,-64px),var(--fy,190px)) rotate(var(--fr,-88deg));}
+  }
+  /* the whole tower wobbles when a piece falls off it */
+  .cbStack.shake,.cbChoices.shake{animation:towerShake .5s var(--ease) both;}
+  @keyframes towerShake{
+    0%,100%{transform:translateX(0) rotate(0);}
+    18%{transform:translateX(-7px) rotate(-1.1deg);}
+    42%{transform:translateX(6px) rotate(.9deg);}
+    68%{transform:translateX(-3px) rotate(-.5deg);}
+    86%{transform:translateX(2px) rotate(.25deg);}
+  }
+  .cbAgain{background:var(--hit)!important;}
+
+  /* ---------- STATS ---------- */
+  .titlerow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 4px;}
+  .titlerow h1{margin:0;}
+  .statsbtn{
+    flex:none;width:40px;height:40px;border-radius:12px;
+    background:var(--panel);border:1px solid var(--line);
+    font-size:19px;line-height:1;cursor:pointer;
+    transition:transform .14s var(--spring),border-color .14s;
+  }
+  .statsbtn:active{transform:scale(.9);}
+  .statsbtn:hover{border-color:var(--accent);}
+
+  .statsView{
+    position:fixed;inset:0;z-index:90;display:none;
+    background:var(--bg);overflow-y:auto;overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+  }
+  .statsView.on{display:block;animation:fadein .18s var(--ease) both;}
+  .statsInner{max-width:560px;margin:0 auto;padding:24px 20px 40px;}
+  .statsTop{display:flex;align-items:center;gap:12px;margin-bottom:20px;}
+  .statsTop h2{flex:1;margin:0;font-size:24px;}
+  .statsClose{
+    flex:none;width:38px;height:38px;border-radius:50%;
+    background:var(--panel);border:1px solid var(--line);color:var(--dim);
+    font-size:18px;cursor:pointer;
+  }
+  .statCards{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:9px;margin-bottom:22px;}
+  .statCard{
+    background:var(--panel);border:1px solid var(--line);border-radius:13px;
+    padding:13px 12px;text-align:center;
+  }
+  .statCard b{display:block;font-size:23px;font-weight:700;font-variant-numeric:tabular-nums;}
+  .statCard span{
+    display:block;font-size:10.5px;letter-spacing:1.1px;text-transform:uppercase;
+    color:var(--dim);margin-top:3px;font-weight:600;
+  }
+  .statTabs{display:flex;gap:8px;margin-bottom:12px;}
+  .statOpt{
+    border-top:0!important;border-bottom:0!important;margin:0 0 6px!important;
+    padding:6px 0!important;font-size:14px;
+  }
+  .statHint{color:var(--dim);font-size:12.5px;line-height:1.45;margin:0 0 12px;}
+  .statList{display:flex;flex-direction:column;gap:6px;}
+  .statRow{
+    display:flex;align-items:center;gap:11px;
+    background:var(--panel);border:1px solid var(--line);
+    border-radius:11px;padding:10px 13px;
+  }
+  .statRow .lbl2{
+    flex:none;min-width:62px;font-size:16px;font-weight:700;
+    font-variant-numeric:tabular-nums;
+  }
+  .statBar{
+    flex:1;height:7px;background:var(--line);border-radius:99px;overflow:hidden;
+  }
+  .statBar i{display:block;height:100%;border-radius:99px;background:var(--hit);}
+  .statRow .num{
+    flex:none;font-size:12.5px;color:var(--dim);font-variant-numeric:tabular-nums;
+    text-align:right;min-width:94px;
+  }
+  .statRow .num b{color:var(--ink);font-weight:700;}
+  .statRow.slow .statBar i{background:var(--miss);}
+  .statRow.mid .statBar i{background:var(--gold);}
+  .statEmpty{color:var(--dim);font-size:14px;text-align:center;padding:28px 0;line-height:1.6;}
+  .statReset{margin-top:24px;}
+  .statGroup{
+    font-size:11px;letter-spacing:1.5px;text-transform:uppercase;
+    color:var(--dim);font-weight:700;margin:16px 2px 2px;
+  }
+
   /* ---------- COIN HUD ---------- */
   .hud{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
   .purse{
@@ -651,6 +887,11 @@
   .worth.lost .wv{color:var(--miss)!important;text-decoration:line-through;}
 
   .unitlbl{font-size:12px;color:var(--dim);letter-spacing:.4px;}
+
+  .gain.note{
+    font-size:12px;font-weight:600;color:var(--dim);
+    letter-spacing:.3px;text-shadow:none;
+  }
 
   .dbl{
     display:inline-flex;align-items:center;font-size:11px;font-weight:800;
@@ -879,7 +1120,12 @@
 <body>
 
 <section id="setup" class="screen on">
-  <h1>Times Table Drill</h1>
+  <div class="titlerow">
+    <h1>Times Table Drill</h1>
+    <button class="statsbtn" onclick="openStats()" aria-label="Stats" title="Stats">📊</button>
+    <button class="chalbtn" onclick="openChallenge()">🎯 Challenge</button>
+    <button class="chalbtn" onclick="openCountBy()">🪜 Count by</button>
+  </div>
   <p class="sub">Pick what to practice.</p>
 
   <button class="resume" id="resume" style="display:none" onclick="resume()">Resume session in progress</button>
@@ -924,7 +1170,7 @@
   <div class="themes" id="themes"></div>
 
   <p class="lbl">Answering</p>
-  <label class="opt"><input type="checkbox" id="keypad"> Type the answer on a keypad</label>
+  <label class="opt"><input type="checkbox" id="keypad" checked> Type the answer on a keypad</label>
   <label class="opt"><input type="checkbox" id="shuffle" checked> Shuffle the deck</label>
   <label class="opt"><input type="checkbox" id="retry" checked> Repeat missed cards at the end</label>
 
@@ -1074,6 +1320,93 @@
   <p class="revealHint">Tap anywhere to close</p>
 </div>
 
+<div class="statsView" id="statsView">
+  <div class="statsInner">
+    <div class="statsTop">
+      <h2>Stats</h2>
+      <button class="statsClose" onclick="closeStats()" aria-label="Close">✕</button>
+    </div>
+
+    <div class="statCards" id="statSummary"></div>
+
+    <div class="statTabs">
+      <button class="stab sel" data-v="single" onclick="statsTab('single')">By number</button>
+      <button class="stab" data-v="pairs" onclick="statsTab('pairs')">By fact</button>
+    </div>
+
+    <label class="opt statOpt" id="combineRow">
+      <input type="checkbox" id="combineChk" onchange="renderStats()">
+      Combine 2×3 and 3×2
+    </label>
+
+    <p class="statHint">Sorted fastest first — the ones at the bottom are the trouble spots.</p>
+    <div class="statList" id="statList"></div>
+
+    <button class="again statReset" onclick="resetStats()">Clear all stats</button>
+  </div>
+</div>
+
+<div class="veil" id="cbVeil">
+  <div class="box chalBox">
+    <h2>🪜 Count by</h2>
+    <p>Climb the ladder by picking the next number in the count. Three strikes and the run ends.</p>
+    <div class="chalGrid" id="cbGrid"></div>
+    <div class="pair">
+      <button class="stay" onclick="closeCountBy()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<section id="ladder" class="screen">
+  <div class="hud">
+    <div class="hudleft">
+      <div class="purse" id="cbPurse">
+        <i class="coinface"></i>
+        <b id="cbCoins">0</b>
+      </div>
+      <div class="cbStep" id="cbStep">3 × 1</div>
+    </div>
+    <div class="cbRight">
+      <div class="strikes" id="cbStrikes"></div>
+      <button class="exit" onclick="askCbExit()" aria-label="Exit">✕</button>
+    </div>
+  </div>
+
+  <div class="cbStackWrap" id="cbStackWrap">
+    <div class="cbScroll" id="cbScroll">
+      <div class="cbChoices" id="cbChoices"></div>
+      <div class="cbStack" id="cbStack"></div>
+    </div>
+  </div>
+</section>
+
+<div class="veil" id="cbDone">
+  <div class="box">
+    <h2 id="cbDoneTitle">Nice climb!</h2>
+    <p id="cbDoneMsg"></p>
+    <div class="pair">
+      <button class="stay" onclick="closeCbDone()">Done</button>
+      <button class="quit cbAgain" onclick="cbRetry()">Again</button>
+    </div>
+  </div>
+</div>
+
+<div class="veil" id="chalVeil">
+  <div class="box chalBox">
+    <h2>🎯 Challenge</h2>
+    <p id="chalBlurb">Focuses on the facts you're slowest at, with a few easy ones mixed in.</p>
+    <label class="opt chalOpt">
+      <input type="checkbox" id="chalKeypad" checked>
+      Type answers on the keypad
+    </label>
+    <p class="chalMix">Pick how many cards · 60% trouble spots, 30% middling, 10% easy</p>
+    <div class="chalGrid" id="chalGrid"></div>
+    <div class="pair">
+      <button class="stay" onclick="closeChallenge()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="veil" id="veil">
   <div class="box">
     <h2>Leave this session?</h2>
@@ -1088,7 +1421,7 @@
 <script>
 const KEY='ttdrill.v3';
 /* power-up runtime flags (declared early: refreshTools reads them at boot) */
-var hintOn=false, secondUsedOnCard=false;
+var hintOn=false, secondUsedOnCard=false, revealMs=0;
 var doubleOn=false, bonusGift=false, queuedBonus=false;
 const el=i=>document.getElementById(i);
 const A=new Set(), B=new Set();
@@ -1240,7 +1573,7 @@ function clearCount(){ el('cardCount').value=''; ready(); saveCfg(); }
 function saveCfg(){
   try{
     localStorage.setItem(KEY+'.cfg',JSON.stringify({
-      a:[...A],b:[...B],mode,theme,count:el('cardCount').value,
+      a:[...A],b:[...B],mode,theme,count:el('cardCount').value,chalKeypad:el('chalKeypad').checked,
       keypad:el('keypad').checked,shuffle:el('shuffle').checked,retry:el('retry').checked
     }));
   }catch(e){}
@@ -1254,6 +1587,7 @@ function loadCfg(){
     applyTheme(c.theme||'midnight');
     el('cardCount').value=c.count||'';
     el('keypad').checked=!!c.keypad; el('shuffle').checked=!!c.shuffle; el('retry').checked=!!c.retry;
+    el('chalKeypad').checked = (c.chalKeypad===undefined) ? true : !!c.chalKeypad;
   }catch(e){}
 }
 function saveRun(){
@@ -1340,7 +1674,7 @@ function resume(){
   markTicks();
   render();
 }
-function show(id){ ['setup','drill','done'].forEach(s=>el(s).classList.toggle('on',s===id)); }
+function show(id){ ['setup','drill','done','ladder'].forEach(s=>el(s).classList.toggle('on',s===id)); }
 
 function render(){
   const c=deck[i];
@@ -1372,6 +1706,7 @@ function render(){
   markTicks();
   refreshTools();
   paintWorth();
+  cardShownAt=Date.now();
 }
 
 function animate(node,anim,delay){
@@ -1941,6 +2276,7 @@ function useHint(){
 
 function pickChoice(v,btn){
   const c=deck[i], ans=c.a*c.b, ok=(v===ans);
+  revealMs = cardShownAt ? (Date.now()-cardShownAt) : 0;
   btn.classList.add(ok?'right':'wrongpick');
   if(!ok){
     const rb=[...el('choices').children].find(b=>+b.dataset.v===ans);
@@ -2435,6 +2771,577 @@ function armGift(){
   el('cheerGo').style.visibility='hidden';
 }
 
+/* ---------- STATS ----------
+   Per-pair records keyed "lo,hi" (canonical, so 2×3 and 3×2 share a bucket
+   when combining) plus per-orientation keys "a x b". Each holds a total
+   attempt count, correct count, and the last 10 answer times in ms. */
+let stats={pairs:{},orient:{}};
+let cardShownAt=0;
+
+function loadStats(){
+  try{
+    const o=JSON.parse(localStorage.getItem(KEY+'.stats')||'null');
+    stats = (o && o.pairs && o.orient) ? o : {pairs:{},orient:{}};
+  }catch(e){ stats={pairs:{},orient:{}}; }
+}
+function saveStats(){
+  try{ localStorage.setItem(KEY+'.stats',JSON.stringify(stats)); }catch(e){}
+}
+
+function bump(bucket,key,ms,ok){
+  const r = bucket[key] || (bucket[key]={n:0,ok:0,t:[]});
+  r.n++;
+  if(ok) r.ok++;
+  if(ok && ms>0 && ms<120000){          /* only time correct answers */
+    r.t.push(Math.round(ms));
+    if(r.t.length>10) r.t.shift();      /* keep the last 10 */
+  }
+  return r;
+}
+
+function recordAnswer(card,ok){
+  const ms = revealMs || (cardShownAt ? (Date.now()-cardShownAt) : 0);
+  revealMs=0; cardShownAt=0;
+  const lo=Math.min(card.a,card.b), hi=Math.max(card.a,card.b);
+  bump(stats.pairs,  lo+','+hi,        ms, ok);
+  bump(stats.orient, card.a+'x'+card.b, ms, ok);
+  saveStats();
+}
+
+/* Average of the kept times with the single worst sample dropped, so one
+   distracted pause doesn't define the number. Needs 3+ samples to trim. */
+function trimmedAvg(times){
+  if(!times || !times.length) return null;
+  if(times.length<3) return times.reduce((a,b)=>a+b,0)/times.length;
+  const s=times.slice().sort((a,b)=>a-b);
+  s.pop();
+  return s.reduce((a,b)=>a+b,0)/s.length;
+}
+
+function fmtSecs(ms){
+  if(ms===null || ms===undefined) return '—';
+  const s=ms/1000;
+  return (s<10 ? s.toFixed(1) : Math.round(s)) + 's';
+}
+
+/* ---------- COUNT BY (ladder) ----------
+   Skip-count by N: start at N, then find 2N, 3N ... up to 12N. Each correct
+   pick slides onto the stack. A wrong pick costs a strike and pops the top
+   rung, so the previous step has to be answered again. Three strikes ends it. */
+const CB_RUNGS=12, CB_STRIKES=3;
+let cbN=1, cbStep=1, cbStrikes=0, cbEarned=0, cbBusy=false, cbBest=1;
+
+function openCountBy(){
+  const g=el('cbGrid');
+  g.innerHTML=[1,2,3,4,5,6,7,8,9,10].map(n=>'<button data-n="'+n+'">'+n+'</button>').join('');
+  g.querySelectorAll('[data-n]').forEach(b=>{ b.onclick=()=>startCountBy(+b.dataset.n); });
+  el('cbVeil').classList.add('on');
+}
+function closeCountBy(){ el('cbVeil').classList.remove('on'); }
+
+function startCountBy(n){
+  closeCountBy();
+  cbN=n; cbStep=1; cbStrikes=0; cbEarned=0; cbBusy=false; cbBest=1;
+  el('cbStack').innerHTML='';
+  show('ladder');
+  paintStrikes();
+  addRung(n,1,true);
+  cbStep=2;
+  paintCbHud();
+  nextRow();
+}
+
+function paintStrikes(){
+  el('cbStrikes').innerHTML =
+    Array.from({length:CB_STRIKES},(_,k)=>'<i class="'+(k<cbStrikes?'hit':'')+'"></i>').join('');
+}
+function paintCbHud(){
+  el('cbCoins').textContent=coins;
+  el('cbStep').textContent = cbN+' \u00d7 '+Math.min(cbStep,CB_RUNGS);
+}
+
+function addRung(value,mult,isBase){
+  const d=makeRung(value,mult,isBase);
+  d.classList.add('newest');
+  el('cbStack').insertBefore(d, el('cbStack').firstChild);
+  setTimeout(()=>d.classList.remove('newest'),440);
+  markTopRung();
+  cbScrollTop();
+}
+
+/* highlight whichever rung we're currently building from */
+function markTopRung(){
+  const st=el('cbStack');
+  [...st.children].forEach((r,idx)=>r.classList.toggle('top', idx===0));
+}
+
+/* keep the choices and the top of the tower in view */
+function cbScrollTop(){
+  requestAnimationFrame(()=>{
+    const sc=el('cbScroll');
+    if(!sc) return;
+    sc.scrollTop=0;
+    el('cbStackWrap').classList.toggle('over', sc.scrollHeight > sc.clientHeight+4);
+  });
+}
+
+/* A wrong pick knocks the top rung off: it tumbles away and the tower
+   wobbles. Returns the animation duration so the caller can wait. */
+/* A wrong pick drops the three choice tiles to the ground. The tower is left
+   standing — you just get a fresh set of options for the same rung. */
+function dropChoices(){
+  const box=el('cbChoices');
+  const tiles=[...box.children];
+  if(!tiles.length) return 0;
+
+  const host=el('ladder');
+  /* measure all of them before re-parenting, or the first move shifts the rest */
+  const boxes=tiles.map(t=>t.getBoundingClientRect());
+
+  tiles.forEach((t,idx)=>{
+    const b=boxes[idx];
+    host.appendChild(t);
+    t.style.position='fixed';
+    t.style.left=b.left+'px';
+    t.style.top=b.top+'px';
+    t.style.width=b.width+'px';
+    t.style.height=b.height+'px';
+    t.style.margin='0';
+    /* each tile falls its own way */
+    t.style.setProperty('--fx',(Math.random()*130-65).toFixed(0)+'px');
+    t.style.setProperty('--fy',(240+Math.random()*140).toFixed(0)+'px');
+    t.style.setProperty('--fr',(Math.random()*160-80).toFixed(0)+'deg');
+    t.style.animationDelay=(idx*45)+'ms';
+    t.classList.add('tumbling');
+  });
+
+  /* clear the row now so the replacements can be laid out immediately */
+  box.innerHTML='';
+  /* the tower shudders as the tiles drop past it */
+  const st=el('cbStack');
+  st.classList.remove('shake'); void st.offsetWidth; st.classList.add('shake');
+  setTimeout(()=>st.classList.remove('shake'),520);
+  const total = 620 + (tiles.length-1)*45;
+  setTimeout(()=>{
+    host.querySelectorAll('.tumbling').forEach(n=>n.remove());
+  }, total+120);
+  return total;
+}
+
+
+
+/* Plausible distractors: a neighbouring multiple plus one "slipped" value
+   (off by one step, or a near miss). Shuffled candidate order keeps the
+   answer from always sitting in the middle of the three. */
+function cbChoices(answer,mult){
+  const near=[answer+cbN, answer-cbN];                 /* the adjacent rungs */
+  const slips=[
+    answer+cbN*2, answer-cbN*2,                        /* skipped a step */
+    answer+1, answer-1, answer+2, answer-2,            /* off by a little */
+    answer+cbN+1, answer-cbN-1                         /* mixed-up slip */
+  ].filter(v=>v>0 && v!==answer);
+
+  const set=new Set([answer]);
+  /* one adjacent multiple, chosen at random */
+  const pickNear=near.filter(v=>v>0 && v!==answer);
+  if(pickNear.length) set.add(pickNear[Math.floor(Math.random()*pickNear.length)]);
+  /* one slip, avoiding a duplicate of the near value */
+  const shuffled=shuffled3(slips);
+  for(const v of shuffled){ if(set.size>=3) break; set.add(v); }
+  let pad=answer+3;
+  while(set.size<3){ if(pad>0 && pad!==answer) set.add(pad); pad++; }
+  return shuffled3([...set]);
+}
+
+/* Fisher-Yates. Array.sort with a random comparator is not a uniform
+   shuffle and left the answer in the middle slot far too rarely. */
+function shuffled3(arr){
+  const a=arr.slice();
+  for(let k=a.length-1;k>0;k--){
+    const j=Math.floor(Math.random()*(k+1));
+    [a[k],a[j]]=[a[j],a[k]];
+  }
+  return a;
+}
+
+function nextRow(){
+  const mult=cbStep;
+  const answer=cbN*mult;
+  const box=el('cbChoices');
+  box.classList.remove('locked');
+  box.innerHTML=cbChoices(answer,mult).map(v=>'<button data-v="'+v+'">'+v+'</button>').join('');
+  box.querySelectorAll('[data-v]').forEach(b=>{ b.onclick=()=>cbPick(+b.dataset.v,b); });
+  paintCbHud();
+}
+
+function cbPick(v,btn){
+  if(cbBusy) return;
+  const mult=cbStep, answer=cbN*mult;
+  cbBusy=true;
+  el('cbChoices').classList.add('locked');
+
+  if(v===answer){
+    /* a coin every second rung — 1 was already the floor, so halving means
+       paying on alternate steps rather than fractional coins */
+    const gain = (mult % 2 === 0) ? 1 : 0;
+    if(gain){
+      cbEarned+=gain;
+      addCoins(gain); popGainAt(btn,gain);
+    } else {
+      /* no coin this rung; show why so it doesn't read as a bug */
+      popNoteAt(btn,'next one pays');
+    }
+    if(navigator.vibrate) try{ navigator.vibrate(14); }catch(e){}
+    [...el('cbChoices').children].forEach(b=>{ if(b!==btn) b.classList.add('fade'); });
+    flyTileToRung(btn,answer,mult,()=>{
+      cbBest=Math.max(cbBest,mult);
+      cbStep++;
+      cbBusy=false;
+      if(cbStep>CB_RUNGS){ finishCountBy(true); return; }
+      nextRow();
+    });
+  } else {
+    /* the three tiles fall away immediately — the tower stays standing and
+       a fresh set of choices appears for the same rung */
+    btn.classList.add('bad');
+    cbStrikes++;
+    paintStrikes();
+    if(navigator.vibrate) try{ navigator.vibrate([40,70,40]); }catch(e){}
+    const wait=dropChoices();
+    setTimeout(()=>{
+      cbBusy=false;
+      if(cbStrikes>=CB_STRIKES){ finishCountBy(false); return; }
+      nextRow();
+    }, wait || 260);
+  }
+}
+
+/* FLIP: the chosen tile physically becomes the new rung. We insert the real
+   rung first (invisible), measure where it landed, then animate a clone of
+   the tile from its own position and size into that slot. */
+function flyTileToRung(btn,value,mult,done){
+  const from=btn.getBoundingClientRect();
+
+  const rung=makeRung(value,mult,false);
+  rung.style.visibility='hidden';
+  el('cbStack').insertBefore(rung, el('cbStack').firstChild);
+  markTopRung();
+
+  requestAnimationFrame(()=>{
+    const to=rung.getBoundingClientRect();
+
+    const ghost=document.createElement('div');
+    ghost.className='rung tileGhost';
+    ghost.innerHTML=value+' <small>'+cbN+'\u00d7'+mult+'</small>';
+    ghost.style.left=from.left+'px';
+    ghost.style.top=from.top+'px';
+    ghost.style.width=from.width+'px';
+    ghost.style.height=from.height+'px';
+    ghost.style.fontSize=getComputedStyle(btn).fontSize;
+    document.body.appendChild(ghost);
+
+    btn.style.visibility='hidden';
+
+    /* next frame so the start position is committed before transitioning */
+    requestAnimationFrame(()=>{
+      ghost.style.left=to.left+'px';
+      ghost.style.top=to.top+'px';
+      ghost.style.width=to.width+'px';
+      ghost.style.height=to.height+'px';
+      ghost.style.fontSize=getComputedStyle(rung).fontSize;
+    });
+
+    setTimeout(()=>{
+      rung.style.visibility='';
+      rung.classList.add('landed');
+      setTimeout(()=>rung.classList.remove('landed'),320);
+      ghost.remove();
+      cbScrollTop();
+      done();
+    },430);
+  });
+}
+
+/* build a rung element without inserting it */
+function makeRung(value,mult,isBase){
+  const d=document.createElement('div');
+  d.className='rung'+(isBase?' base':'');
+  d.dataset.mult=mult;
+  d.innerHTML=value+' <small>'+cbN+'\u00d7'+mult+'</small>';
+  return d;
+}
+
+
+/* small neutral note near an element, same motion as the coin gain */
+function popNoteAt(node,text){
+  if(!node) return;
+  const r=node.getBoundingClientRect();
+  const tag=document.createElement('div');
+  tag.className='gain note';
+  tag.textContent=text;
+  tag.style.left=(r.right-6)+'px';
+  tag.style.top=(r.top-4)+'px';
+  document.body.appendChild(tag);
+  setTimeout(()=>tag.remove(),1000);
+}
+
+function popGainAt(node,n){
+  if(!node) return;
+  const r=node.getBoundingClientRect();
+  const tag=document.createElement('div');
+  tag.className='gain'+(n>=6?' big':n>=3?' mid':'');
+  tag.textContent='+'+n;
+  tag.style.left=(r.right-6)+'px';
+  tag.style.top=(r.top-4)+'px';
+  document.body.appendChild(tag);
+  setTimeout(()=>tag.remove(),1000);
+}
+
+function finishCountBy(won){
+  const bonus = won ? 5 : 0;
+  if(bonus){ addCoins(bonus); cbEarned+=bonus; }
+  el('cbDoneTitle').textContent = won ? '\ud83c\udf89 Ladder complete!' : 'Three strikes';
+  el('cbDoneMsg').innerHTML = won
+    ? 'You counted by '+cbN+' all the way to '+(cbN*CB_RUNGS)+'.<br>Earned <b>'+cbEarned+'</b> '+coinWord(cbEarned)+' (including a '+bonus+' bonus).'
+    : 'Your best was '+cbN+' \u00d7 '+cbBest+' = '+(cbN*cbBest)+'.<br>Earned <b>'+cbEarned+'</b> '+coinWord(cbEarned)+'.';
+  el('cbDone').classList.add('on');
+  if(won) fireworks(4000);
+}
+
+function closeCbDone(){
+  el('cbDone').classList.remove('on');
+  stopFireworks();
+  show('setup');
+}
+function cbRetry(){
+  el('cbDone').classList.remove('on');
+  stopFireworks();
+  startCountBy(cbN);
+}
+
+function askCbExit(){
+  if(confirm('Leave this ladder? Your progress will be lost.')){
+    stopFireworks();
+    document.querySelectorAll('.tumbling').forEach(n=>n.remove());
+    show('setup');
+  }
+}
+
+/* ---------- CHALLENGE MODE ----------
+   Builds a deck weighted toward the facts with the slowest recorded times.
+   Split: 60% from the slowest third, 30% from the middle third, 10% from the
+   fastest third, sampled randomly within each band so it isn't the same deck
+   every time. Facts never answered are treated as slow — they need practice
+   too, and sorting them as "instant" would hide them. */
+const CHAL_MIX={slow:0.60, mid:0.30, easy:0.10};
+
+function openChallenge(){
+  const graded=gradedFacts();
+  const blurb=el('chalBlurb');
+  if(graded.length<12){
+    blurb.textContent='Not enough history yet — answer a few dozen cards first and this will target your slowest facts. For now it will pick from everything you have seen.';
+  } else {
+    blurb.textContent='Focuses on the facts you\u2019re slowest at, with a few easy ones mixed in. Based on '+graded.length+' facts you\u2019ve practiced.';
+  }
+  const g=el('chalGrid');
+  g.innerHTML=[10,20,30,40,50,60,70,80,90,100]
+    .map(n=>'<button data-n="'+n+'">'+n+'</button>').join('');
+  g.querySelectorAll('[data-n]').forEach(b=>{
+    b.onclick=()=>startChallenge(+b.dataset.n);
+  });
+  el('chalVeil').classList.add('on');
+}
+function closeChallenge(){ el('chalVeil').classList.remove('on'); }
+
+/* Every fact we have a record for, with its trimmed average. Untimed facts
+   get Infinity so they sort into the slow band. */
+function gradedFacts(){
+  return Object.entries(stats.orient).map(([k,r])=>{
+    const [a,b]=k.split('x').map(Number);
+    const avg=trimmedAvg(r.t);
+    return {a,b,n:r.n,avg: avg===null ? Infinity : avg};
+  });
+}
+
+/* Fall back to a sensible default pool when there's little or no history. */
+function challengePool(){
+  const graded=gradedFacts();
+  if(graded.length>=12) return graded;
+  const seen=new Set(graded.map(f=>f.a+'x'+f.b));
+  const pool=graded.slice();
+  for(let a=1;a<=12;a++) for(let b=1;b<=12;b++){
+    if(!seen.has(a+'x'+b)) pool.push({a,b,n:0,avg:Infinity});
+  }
+  return pool;
+}
+
+/* Draw `count` from a band without repeating until the band is exhausted,
+   so a 100-card challenge doesn't hammer the same six facts. */
+function sampleFrom(band,count){
+  const out=[];
+  if(!band.length) return out;
+  let bag=[];
+  for(let k=0;k<count;k++){
+    if(!bag.length){
+      bag=band.slice();
+      for(let j=bag.length-1;j>0;j--){
+        const m=Math.floor(Math.random()*(j+1));
+        [bag[j],bag[m]]=[bag[m],bag[j]];
+      }
+    }
+    out.push(bag.pop());
+  }
+  return out;
+}
+
+function buildChallengeDeck(size){
+  const pool=challengePool();
+  /* slowest first */
+  pool.sort((x,y)=>y.avg-x.avg);
+  const third=Math.max(1,Math.ceil(pool.length/3));
+  const slow=pool.slice(0,third);
+  const mid =pool.slice(third,third*2);
+  const easy=pool.slice(third*2);
+
+  let nSlow=Math.round(size*CHAL_MIX.slow);
+  let nMid =Math.round(size*CHAL_MIX.mid);
+  let nEasy=size-nSlow-nMid;
+  if(!easy.length){ nSlow+=nEasy; nEasy=0; }
+  if(!mid.length){ nSlow+=nMid; nMid=0; }
+
+  const picked=[
+    ...sampleFrom(slow,nSlow),
+    ...sampleFrom(mid.length?mid:slow,nMid),
+    ...sampleFrom(easy.length?easy:slow,nEasy)
+  ].slice(0,size);
+
+  /* shuffle so the bands aren't clustered */
+  for(let k=picked.length-1;k>0;k--){
+    const j=Math.floor(Math.random()*(k+1));
+    [picked[k],picked[j]]=[picked[j],picked[k]];
+  }
+  return picked.map(f=>({a:f.a,b:f.b}));
+}
+
+function startChallenge(size){
+  closeChallenge();
+  deck=buildChallengeDeck(size);
+  if(!deck.length){ return; }
+  useKeypad=el('chalKeypad').checked;
+  total=deck.length; firstTotal=total; i=0; missed=[]; right=0; retryRound=false;
+  seenAll=0; rightAll=0;
+  secondUsedOnCard=false;
+  doubleOn=(powers.double||0)>0;
+  bonusGift=(powers.gift||0)>0;
+  if(doubleOn) powers.double--;
+  if(bonusGift) powers.gift--;
+  if(doubleOn||bonusGift){ savePowers(); refreshStore(); }
+  el('tag').classList.remove('on');
+  el('resume').style.display='none';
+  show('drill'); lockSlot();
+  planCheckpoints(total);
+  render(); saveRun();
+}
+
+/* ---------- STATS VIEW ---------- */
+let statsView='single';
+
+function openStats(){
+  el('statsView').classList.add('on');
+  el('statsView').scrollTop=0;
+  renderStats();
+}
+function closeStats(){ el('statsView').classList.remove('on'); }
+
+function statsTab(v){
+  statsView=v;
+  [...document.querySelectorAll('.statTabs .stab')].forEach(b=>b.classList.toggle('sel',b.dataset.v===v));
+  el('combineRow').style.display = v==='pairs' ? 'flex' : 'none';
+  renderStats();
+}
+
+/* Roll every recorded orientation up into per-number totals: 7×8 counts
+   toward both 7 and 8. */
+function perNumber(){
+  const out={};
+  Object.entries(stats.orient).forEach(([k,r])=>{
+    const [a,b]=k.split('x').map(Number);
+    [a,b].forEach(n=>{
+      const e = out[n] || (out[n]={n:0,ok:0,t:[]});
+      e.n+=r.n; e.ok+=r.ok;
+      e.t=e.t.concat(r.t);
+    });
+  });
+  /* keep only the most recent 10 per number so the average stays current */
+  Object.values(out).forEach(e=>{ if(e.t.length>10) e.t=e.t.slice(-10); });
+  return out;
+}
+
+function renderStats(){
+  /* summary cards */
+  const totals=Object.values(stats.orient).reduce((s,r)=>{
+    s.n+=r.n; s.ok+=r.ok; s.t=s.t.concat(r.t); return s;
+  },{n:0,ok:0,t:[]});
+  const acc = totals.n ? Math.round(totals.ok/totals.n*100) : 0;
+  const avg = totals.t.length ? totals.t.reduce((a,b)=>a+b,0)/totals.t.length : null;
+  el('statSummary').innerHTML =
+    '<div class="statCard"><b>'+totals.n+'</b><span>Answered</span></div>'+
+    '<div class="statCard"><b>'+acc+'%</b><span>Correct</span></div>'+
+    '<div class="statCard"><b>'+fmtSecs(avg)+'</b><span>Avg time</span></div>'+
+    '<div class="statCard"><b>'+Object.keys(stats.orient).length+'</b><span>Facts seen</span></div>';
+
+  /* build rows */
+  let rows=[];
+  if(statsView==='single'){
+    const per=perNumber();
+    rows=Object.entries(per).map(([n,r])=>({
+      label:'×'+n, n:r.n, ok:r.ok, avg:trimmedAvg(r.t)
+    }));
+  } else {
+    const combine=el('combineChk').checked;
+    const src = combine ? stats.pairs : stats.orient;
+    rows=Object.entries(src).map(([k,r])=>{
+      const label = combine
+        ? k.split(',').join(' × ')
+        : k.split('x').join(' × ');
+      return {label, n:r.n, ok:r.ok, avg:trimmedAvg(r.t)};
+    });
+  }
+
+  if(!rows.length){
+    el('statList').innerHTML='<div class="statEmpty">No answers recorded yet.<br>Finish a few cards and check back.</div>';
+    return;
+  }
+
+  /* fastest first; anything without a timed sample sinks to the bottom */
+  rows.sort((x,y)=>{
+    if(x.avg===null && y.avg===null) return y.n-x.n;
+    if(x.avg===null) return 1;
+    if(y.avg===null) return -1;
+    return x.avg-y.avg;
+  });
+
+  const timed=rows.filter(r=>r.avg!==null).map(r=>r.avg);
+  const slowest=timed.length?Math.max(...timed):1;
+
+  el('statList').innerHTML=rows.map(r=>{
+    const pct = r.avg===null ? 0 : Math.max(6,Math.round(r.avg/slowest*100));
+    const rank = r.avg===null ? '' : (r.avg>=slowest*0.75 ? ' slow' : r.avg>=slowest*0.45 ? ' mid' : '');
+    return '<div class="statRow'+rank+'">'+
+      '<span class="lbl2">'+r.label+'</span>'+
+      '<span class="statBar"><i style="width:'+pct+'%"></i></span>'+
+      '<span class="num"><b>'+r.n+'×</b> · '+fmtSecs(r.avg)+'</span>'+
+    '</div>';
+  }).join('');
+}
+
+function resetStats(){
+  if(!confirm('Clear all answer stats? This cannot be undone.')) return;
+  stats={pairs:{},orient:{}};
+  saveStats();
+  renderStats();
+}
+
 /* ---------- MILESTONES ---------- */
 const PRAISE=['Nice work!','On a roll!','Crushing it!','Keep it up!','Looking good!','Well done!','Cruising!','Sharp!'];
 let checkpoints=0, cpSize=0, cpHit=0, cpPending=null, tickTotal=0;
@@ -2508,6 +3415,7 @@ function closeCheer(){
 function tap(){
   if(useKeypad||shown) return;
   shown=true;
+  revealMs = cardShownAt ? (Date.now()-cardShownAt) : 0;
   const c=deck[i], anim='anim-'+rnd(ANIMS);
   el('hint').classList.add('gone');
   el('q').classList.add('lift');
@@ -2549,6 +3457,7 @@ function submit(){
   }
 
   shown=true; lastOk=ok;
+  revealMs = cardShownAt ? (Date.now()-cardShownAt) : 0;
   const anim='anim-'+rnd(ANIMS);
   el('q').classList.add('lift');
   el('pad').classList.remove('on');
@@ -2563,6 +3472,7 @@ function submit(){
 
 function mark(ok){
   if(!shown) return;
+  recordAnswer(deck[i],ok);
   if(ok && !useKeypad) celebrate();
   seenAll++;
   if(ok){
@@ -2668,6 +3578,22 @@ function reset(){
 })();
 
 document.addEventListener('keydown',e=>{
+  if(el('cbDone').classList.contains('on')){
+    if(e.key==='Escape'||e.key==='Enter'){ e.preventDefault(); closeCbDone(); }
+    return;
+  }
+  if(el('cbVeil').classList.contains('on')){
+    if(e.key==='Escape'){ e.preventDefault(); closeCountBy(); }
+    return;
+  }
+  if(el('chalVeil').classList.contains('on')){
+    if(e.key==='Escape'){ e.preventDefault(); closeChallenge(); }
+    return;
+  }
+  if(el('statsView').classList.contains('on')){
+    if(e.key==='Escape'){ e.preventDefault(); closeStats(); }
+    return;
+  }
   if(el('prizeView').classList.contains('on')){
     if(e.key===' '||e.key==='Enter'||e.key==='Escape'){ e.preventDefault(); closeView(); }
     return;
@@ -2696,11 +3622,13 @@ document.addEventListener('keydown',e=>{
   }
 });
 
-loadInv(); loadCoins(); loadPowers(); loadCritters(); loadCosmetics();
+loadInv(); loadCoins(); loadPowers(); loadCritters(); loadCosmetics(); loadStats();
 applyCritter(); applyHat(); applySkin(); paintCoins(); storeTab('critters');
 drawTray('setupTray');
 el('noPrizes').style.display = Object.keys(inventory).length ? 'none' : 'block';
 el('prizeHead').addEventListener('click',devTap);
+el('chalKeypad').addEventListener('change',saveCfg);
+statsTab('single');
 el('cardCount').addEventListener('input',()=>{ ready(); saveCfg(); });
 loadCfg(); applyTheme(theme); paint(); ready();
 try{
