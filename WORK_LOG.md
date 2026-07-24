@@ -2115,3 +2115,12 @@ Larger flashcards build: adds a per-fact Stats view (📊) backed by a new
 storage key so all saved progress carries over.
 
 **Files changed:** `server/static-apps/flashcards/index.html`
+
+## Session Start: 2026-07-24 ~5:30 PM ET
+
+### 2026-07-24 — Flashcards tweak (taller keypad bottom row)
+
+One-line CSS update to the flashcards Family App: keypad bottom row
+(delete / 0 / enter) is now 1.35× the height of the digit rows.
+
+**Files changed:** `server/static-apps/flashcards/index.html`
