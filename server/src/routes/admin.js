@@ -16,6 +16,9 @@ router.get('/dashboard', (req, res, next) => {
         f.id,
         f.name AS family_name,
         f.created_at,
+        f.badges_access,
+        f.ai_tutor_access,
+        f.claude_access,
         COUNT(DISTINCT CASE WHEN u.role = 'kid' AND u.is_active = 1 THEN u.id END) AS kid_count,
         COUNT(DISTINCT CASE WHEN u.role = 'parent' AND u.is_active = 1 THEN u.id END) AS parent_count,
         MAX(ll.created_at) AS last_login,
@@ -125,6 +128,55 @@ router.get('/families/:familyId', (req, res, next) => {
     `).all(familyId);
 
     res.json({ members, recentLogins });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Feature gates per family (super-admin only) ──────────────────────────
+// Registration is open, so anything a family can switch on for itself is
+// effectively public. These three cost money or carry real responsibility, so
+// they're granted here and nowhere else:
+//   badges_access   — may use Curiosity Untamed at all
+//   ai_tutor_access — may use the badge-step AI tutor (spends our Anthropic key)
+//   claude_access   — may use Claude Code terminals / Apps
+const FEATURE_COLUMNS = ['badges_access', 'ai_tutor_access', 'claude_access'];
+
+router.patch('/families/:familyId/features', (req, res, next) => {
+  try {
+    const familyId = parseInt(req.params.familyId, 10);
+    const family = db.prepare('SELECT id FROM families WHERE id = ?').get(familyId);
+    if (!family) return res.status(404).json({ error: 'Family not found.' });
+
+    const updates = [];
+    const values = [];
+    for (const col of FEATURE_COLUMNS) {
+      if (req.body?.[col] === undefined) continue;
+      updates.push(`${col} = ?`);
+      values.push(req.body[col] ? 1 : 0);
+    }
+    if (!updates.length) return res.status(400).json({ error: 'Nothing to update.' });
+
+    values.push(familyId);
+    db.prepare(`UPDATE families SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+
+    // Revoking access shouldn't leave per-user switches on underneath it —
+    // otherwise re-granting silently turns the feature back on for everyone it
+    // was ever enabled for.
+    if (req.body?.ai_tutor_access === false) {
+      db.prepare('UPDATE users SET ai_tutor_enabled = 0 WHERE family_id = ?').run(familyId);
+    }
+    if (req.body?.claude_access === false) {
+      db.prepare('UPDATE users SET claude_enabled = 0 WHERE family_id = ?').run(familyId);
+    }
+    if (req.body?.badges_access === false) {
+      db.prepare('UPDATE families SET use_badges = 0 WHERE id = ?').run(familyId);
+    }
+
+    const updated = db.prepare(
+      'SELECT id, badges_access, ai_tutor_access, claude_access FROM families WHERE id = ?',
+    ).get(familyId);
+    res.json({ family: updated });
   } catch (err) {
     next(err);
   }

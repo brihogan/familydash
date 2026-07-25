@@ -41,7 +41,7 @@ router.get('/', authenticate, (req, res, next) => {
     const members = db.prepare(`
       SELECT u.id, u.name, u.username, u.email, u.role, u.avatar_color, u.avatar_emoji, u.ticket_balance,
              u.is_active, u.sort_order, u.show_on_dashboard, u.show_balance_on_dashboard, u.require_task_approval,
-             u.require_set_approval, u.allow_transfers, u.allow_withdraws, u.require_currency_work, u.chores_enabled, u.allow_login, u.claude_enabled, u.claude_time_limit, u.claude_model, u.public_slug, u.badge_level, u.max_active_badges, u.badge_notify_mode, u.menubar_layout, u.created_at,
+             u.require_set_approval, u.allow_transfers, u.allow_withdraws, u.require_currency_work, u.chores_enabled, u.allow_login, u.claude_enabled, u.ai_tutor_enabled, u.claude_time_limit, u.claude_model, u.public_slug, u.badge_level, u.max_active_badges, u.badge_notify_mode, u.menubar_layout, u.created_at,
              COALESCE(ct.daily_potential, 0) AS daily_ticket_potential
       FROM users u
       LEFT JOIN (
@@ -361,6 +361,7 @@ const UpdateUserSchema = z.object({
   avatar_emoji: z.string().max(10).nullable().optional(),
   is_active: z.boolean().optional(),
   claude_enabled: z.boolean().optional(),
+  ai_tutor_enabled: z.boolean().optional(),
   claude_time_limit: z.number().int().min(5).max(480).optional(),
   claude_model: z.enum(['sonnet', 'opus', 'haiku']).optional(),
   badge_level: z.enum(['preschool', 'level1', 'level2', 'level3', 'level4', 'level5']).nullable().optional(),
@@ -431,6 +432,14 @@ router.put('/users/:id', authenticate, requireRole('parent'), async (req, res, n
     }
     if (body.avatar_emoji !== undefined) {
       updates.push('avatar_emoji = ?'); values.push(body.avatar_emoji ?? null);
+    }
+    if (body.ai_tutor_enabled !== undefined) {
+      const allowed = db.prepare('SELECT ai_tutor_access FROM families WHERE id = ?')
+        .get(req.user.familyId)?.ai_tutor_access === 1;
+      if (body.ai_tutor_enabled && !allowed) {
+        return res.status(403).json({ error: 'The badge-step AI tutor is not enabled for this family.' });
+      }
+      updates.push('ai_tutor_enabled = ?'); values.push(body.ai_tutor_enabled ? 1 : 0);
     }
     if (body.claude_enabled !== undefined) {
       updates.push('claude_enabled = ?'); values.push(body.claude_enabled ? 1 : 0);
@@ -534,13 +543,16 @@ router.delete('/users/:id/permanent', authenticate, requireRole('parent'), (req,
 
 router.get('/settings', authenticate, (req, res, next) => {
   try {
-    const family = db.prepare('SELECT use_banking, use_sets, use_tickets, use_badges, trmnl_webhook_url, chores_label, sets_steps_label FROM families WHERE id = ?').get(req.user.familyId);
+    const family = db.prepare('SELECT use_banking, use_sets, use_tickets, use_badges, badges_access, ai_tutor_access, trmnl_webhook_url, chores_label, sets_steps_label FROM families WHERE id = ?').get(req.user.familyId);
     if (!family) return res.status(404).json({ error: 'Family not found.' });
     const resp = {
       useBanking: family.use_banking === 1,
       useSets: family.use_sets === 1,
       useTickets: family.use_tickets === 1,
-      useBadges: family.use_badges === 1,
+      // Both gates: the super-admin allowance and the family's own preference.
+      useBadges: family.use_badges === 1 && family.badges_access === 1,
+      badgesAccess: family.badges_access === 1,
+      aiTutorAccess: family.ai_tutor_access === 1,
       choresLabel: family.chores_label || 'Chores',
       setsStepsLabel: family.sets_steps_label || 'Sets & Steps',
     };
@@ -570,6 +582,13 @@ router.patch('/settings', authenticate, requireRole('parent'), (req, res, next) 
         .run(use_tickets ? 1 : 0, req.user.familyId);
     }
     if (use_badges !== undefined) {
+      // A family may hide badges from itself, but only a super-admin can grant
+      // access in the first place.
+      const allowed = db.prepare('SELECT badges_access FROM families WHERE id = ?')
+        .get(req.user.familyId)?.badges_access === 1;
+      if (use_badges && !allowed) {
+        return res.status(403).json({ error: 'Curiosity Untamed badges are not enabled for this family.' });
+      }
       db.prepare('UPDATE families SET use_badges = ? WHERE id = ?')
         .run(use_badges ? 1 : 0, req.user.familyId);
     }
@@ -587,12 +606,15 @@ router.patch('/settings', authenticate, requireRole('parent'), (req, res, next) 
       db.prepare('UPDATE families SET sets_steps_label = ? WHERE id = ?')
         .run(cleaned, req.user.familyId);
     }
-    const family = db.prepare('SELECT use_banking, use_sets, use_tickets, use_badges, trmnl_webhook_url, chores_label, sets_steps_label FROM families WHERE id = ?').get(req.user.familyId);
+    const family = db.prepare('SELECT use_banking, use_sets, use_tickets, use_badges, badges_access, ai_tutor_access, trmnl_webhook_url, chores_label, sets_steps_label FROM families WHERE id = ?').get(req.user.familyId);
     res.json({
       useBanking: family.use_banking === 1,
       useSets: family.use_sets === 1,
       useTickets: family.use_tickets === 1,
-      useBadges: family.use_badges === 1,
+      // Both gates: the super-admin allowance and the family's own preference.
+      useBadges: family.use_badges === 1 && family.badges_access === 1,
+      badgesAccess: family.badges_access === 1,
+      aiTutorAccess: family.ai_tutor_access === 1,
       trmnlWebhookUrl: family.trmnl_webhook_url || '',
       choresLabel: family.chores_label || 'Chores',
       setsStepsLabel: family.sets_steps_label || 'Sets & Steps',

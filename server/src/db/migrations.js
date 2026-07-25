@@ -580,7 +580,7 @@ export function runMigrations(db) {
       INSERT INTO task_steps (task_set_id, name, description, sort_order, is_optional,
                               badge_opt_req_id, require_input, input_prompt,
                               linked_badge_id, linked_badge_category, level)
-      VALUES (?, ?, '', ?, 0, NULL, 0, '', ?, ?, ?)
+      VALUES (?, ?, '', ?, 0, NULL, ?, ?, ?, ?, ?)
     `);
     db.transaction(() => {
       for (const row of awardEnrollmentsNeedingSteps) {
@@ -748,7 +748,15 @@ export function runMigrations(db) {
         deleteSteps.run(row.task_set_id);
         let order = 0;
         for (const step of newSteps) {
-          insertStep.run(row.task_set_id, step.name, order++, step.linked_badge_id, step.linked_badge_category, step.level);
+          // Unlinked steps are real activities and ask for an answer, exactly
+          // like badge steps. Linked ones auto-complete, so they don't.
+          const isLinked = !!step.linked_badge_id || !!step.linked_badge_category;
+          insertStep.run(
+            row.task_set_id, step.name, order++,
+            isLinked ? 0 : 1,
+            isLinked ? '' : 'How did you complete this step?',
+            step.linked_badge_id, step.linked_badge_category, step.level,
+          );
         }
       }
     })();
@@ -857,5 +865,179 @@ export function runMigrations(db) {
     )
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_device_tokens_family ON device_tokens(family_id)`);
+
+  // v86: AI tutor — one conversation per (user, task_step).
+  //
+  //   ai_threads     the conversation, keyed on the step the kid is working on.
+  //                  Context is never guessed: it's the badge, the step text and
+  //                  the badge level (which maps to an age band).
+  //   ai_messages    turns. `kind` distinguishes normal chat from an
+  //                  answer_review (the kid's own draft, quoted) and a handoff
+  //                  (arrived here from another badge's thread). `chips` is the
+  //                  JSON array of follow-up questions offered after this turn.
+  //   ai_kid_context a rolling summary of what a kid has been curious about,
+  //                  injected into every thread's system prompt. This is what
+  //                  carries continuity across badges without a floating window.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_threads (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id         INTEGER NOT NULL REFERENCES users(id)      ON DELETE CASCADE,
+      task_step_id    INTEGER NOT NULL REFERENCES task_steps(id) ON DELETE CASCADE,
+      task_set_id     INTEGER NOT NULL REFERENCES task_sets(id)  ON DELETE CASCADE,
+      badge_level     TEXT,
+      step_text       TEXT    NOT NULL DEFAULT '',
+      mode            TEXT,
+      trail           TEXT    NOT NULL DEFAULT '[]',
+      created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+      last_message_at TEXT    NOT NULL DEFAULT (datetime('now')),
+      message_count   INTEGER NOT NULL DEFAULT 0,
+      summarized_at   TEXT,
+      UNIQUE(user_id, task_step_id)
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_ai_threads_user ON ai_threads(user_id, last_message_at DESC)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_ai_threads_set  ON ai_threads(task_set_id)`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_messages (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      thread_id   INTEGER NOT NULL REFERENCES ai_threads(id) ON DELETE CASCADE,
+      role        TEXT    NOT NULL CHECK (role IN ('kid', 'ai')),
+      kind        TEXT    NOT NULL DEFAULT 'chat' CHECK (kind IN ('chat', 'answer_review', 'handoff')),
+      text        TEXT    NOT NULL,
+      chips       TEXT    NOT NULL DEFAULT '[]',
+      cross_badge TEXT,
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_ai_messages_thread ON ai_messages(thread_id, id)`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_kid_context (
+      user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      summary    TEXT NOT NULL DEFAULT '',
+      topics     TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  // v87: per-requirement AI mode + opening question, filled in by the offline
+  //   classification pass (server/scripts/classifyBadgeSteps.js) so the tutor
+  //   opens with something specific instead of a generic greeting.
+  for (const t of ['badge_level_requirements', 'badge_optional_requirements']) {
+    try { db.exec(`ALTER TABLE ${t} ADD COLUMN ai_mode TEXT`); } catch (_) {}
+    try { db.exec(`ALTER TABLE ${t} ADD COLUMN ai_opener TEXT`); } catch (_) {}
+    try { db.exec(`ALTER TABLE ${t} ADD COLUMN ai_classified_at TEXT`); } catch (_) {}
+  }
+
+  // v88: per-user AI tutor switch (off by default — a parent turns it on per
+  //   kid, same shape as claude_enabled), and thread flagging so a conversation
+  //   that goes somewhere worrying surfaces to a parent instead of the model
+  //   quietly trying to counsel a child.
+  // v89: did the kid tap a suggested follow-up, or type this themselves? Worth
+  //   distinguishing — a thread of nothing but chip taps is the tutor leading,
+  //   and a typed question is the kid actually reaching for something. Null on
+  //   rows written before this shipped; the read path infers those by matching
+  //   the text against the previous message's chips.
+  try { db.exec(`ALTER TABLE ai_messages ADD COLUMN source TEXT`); } catch (_) {}
+
+  // v93: phrases in an AI reply the child can tap to have explained. Chosen by
+  //   the model as it writes (it knows what it just introduced and what reading
+  //   level it was aiming at) rather than guessed client-side, where any
+  //   heuristic underlines "Where" and misses "biosignature".
+  try { db.exec(`ALTER TABLE ai_messages ADD COLUMN terms TEXT NOT NULL DEFAULT '[]'`); } catch (_) {}
+
+  // Backfill any kid turn still missing a source: walk each thread in order and
+  // mark it 'chip' when the text matches a follow-up the tutor had just
+  // offered, 'typed' otherwise. Guarded on the data rather than on the ALTER
+  // succeeding, so it also repairs a database where the column was added before
+  // this backfill existed. Self-limiting — once there are no nulls it no-ops.
+  try {
+    const pending = db.prepare(
+      `SELECT COUNT(*) AS n FROM ai_messages WHERE role = 'kid' AND kind = 'chat' AND source IS NULL`,
+    ).get().n;
+    if (pending > 0) {
+      const rows = db.prepare(
+        `SELECT id, thread_id, role, kind, text, chips, source FROM ai_messages ORDER BY thread_id, id`,
+      ).all();
+      const setSource = db.prepare(`UPDATE ai_messages SET source = ? WHERE id = ?`);
+      db.transaction(() => {
+        let thread = null;
+        let offered = [];
+        for (const m of rows) {
+          if (m.thread_id !== thread) { thread = m.thread_id; offered = []; }
+          if (m.role === 'kid' && m.kind === 'chat' && !m.source) {
+            setSource.run(offered.includes(m.text) ? 'chip' : 'typed', m.id);
+          }
+          if (m.role === 'ai') offered = JSON.parse(m.chips || '[]');
+        }
+      })();
+    }
+  } catch (_) {}
+
+  try { db.exec(`ALTER TABLE users ADD COLUMN ai_tutor_enabled INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
+  try { db.exec(`ALTER TABLE ai_threads ADD COLUMN flagged_at TEXT`); } catch (_) {}
+  try { db.exec(`ALTER TABLE ai_threads ADD COLUMN flag_reason TEXT`); } catch (_) {}
+  try { db.exec(`ALTER TABLE ai_threads ADD COLUMN flag_seen_at TEXT`); } catch (_) {}
+
+  // v90: severity on a flag. 'urgent' = a parent should know today (self-harm,
+  //   harm to others, abuse, being bullied, anything sexual involving them);
+  //   'heads_up' = worth knowing, not an emergency (asked about sex, drugs,
+  //   swearing, being unkind to another child). Conflating the two would train
+  //   a parent to ignore the alert. Existing flags predate the split and were
+  //   raised under the urgent-only definition.
+  try { db.exec(`ALTER TABLE ai_threads ADD COLUMN flag_level TEXT`); } catch (_) {}
+
+  // v91: super-admin gates on features that cost money or carry real
+  //   responsibility. Registration is open, so anything a self-signed-up family
+  //   can switch on for themselves is effectively public.
+  //
+  //   badges_access   — may this family use Curiosity Untamed at all. Distinct
+  //                     from `use_badges`, which stays a parent's own show/hide
+  //                     preference; the effective answer is both together.
+  //   ai_tutor_access — may this family use the badge-step AI tutor, which
+  //                     spends OUR Anthropic key. Per-user `ai_tutor_enabled`
+  //                     is still the parent's choice within an allowed family.
+  //
+  //   Both default 0 for new families. Existing families are backfilled to
+  //   whatever they're already doing, so this closes the door going forward
+  //   without pulling a working feature out from under anyone.
+  // v92: award activity steps ask for a written answer, like badge steps do.
+  //   Awards were generated with require_input = 0 across the board, which made
+  //   them a checklist you tick rather than work you did. Only UNLINKED steps
+  //   change — a linked "Earn the Mathematics badge" step auto-completes and
+  //   can't be toggled by hand, so an answer box there would be nonsense.
+  //   Self-limiting: once there are none left to fix it no-ops.
+  try {
+    db.exec(`
+      UPDATE task_steps
+         SET require_input = 1,
+             input_prompt  = 'How did you complete this step?'
+       WHERE require_input = 0
+         AND linked_badge_id IS NULL
+         AND linked_badge_category IS NULL
+         AND task_set_id IN (
+           SELECT ts.id FROM task_sets ts
+             JOIN badges b ON b.id = ts.badge_id
+            WHERE b.is_award = 1
+         )
+    `);
+  } catch (_) {}
+
+  try { db.exec(`ALTER TABLE families ADD COLUMN badges_access INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
+  try { db.exec(`ALTER TABLE families ADD COLUMN ai_tutor_access INTEGER NOT NULL DEFAULT 0`); } catch (_) {}
+  try {
+    const needsBackfill = db.prepare(
+      `SELECT COUNT(*) AS n FROM families WHERE badges_access = 0 AND use_badges = 1`,
+    ).get().n;
+    if (needsBackfill > 0) {
+      db.exec(`UPDATE families SET badges_access = 1 WHERE use_badges = 1`);
+      db.exec(`
+        UPDATE families SET ai_tutor_access = 1
+         WHERE id IN (SELECT DISTINCT family_id FROM users WHERE ai_tutor_enabled = 1)
+      `);
+    }
+  } catch (_) {}
+  try { db.exec(`UPDATE ai_threads SET flag_level = 'urgent' WHERE flagged_at IS NOT NULL AND flag_level IS NULL`); } catch (_) {}
 
 }

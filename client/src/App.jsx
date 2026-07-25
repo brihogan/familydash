@@ -24,6 +24,8 @@ import SettingsTasksPage from './pages/SettingsTasksPage.jsx';
 import KidTasksPage from './pages/KidTasksPage.jsx';
 import SharedTaskSetsPage from './pages/SharedTaskSetsPage.jsx';
 import KidTrophiesPage from './pages/KidTrophiesPage.jsx';
+import WondersPage from './pages/WondersPage.jsx';
+import AiPreviewPage from './pages/AiPreviewPage.jsx';
 import TaskSetDetailPage from './pages/TaskSetDetailPage.jsx';
 import UserTaskDetailPage from './pages/UserTaskDetailPage.jsx';
 import AwardTreePage from './pages/AwardTreePage.jsx';
@@ -53,6 +55,12 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
 
+          {/* Dev-only harness for the AI tutor UI (Phase 1). Never registered in
+              a production build — see pages/AiPreviewPage.jsx. */}
+          {import.meta.env.DEV && (
+            <Route path="/ai-preview" element={<AiPreviewPage />} />
+          )}
+
           <Route element={<ProtectedRoute />}>
             {/* Kiosk/display view — no sidebar */}
             <Route path="/display" element={<DisplayPage />} />
@@ -70,6 +78,7 @@ export default function App() {
               <Route path="/tasks/:userId/:taskSetId" element={<UserTaskDetailPage />} />
               <Route path="/badges/:userId" element={<BadgeBrowserPage />} />
               <Route path="/trophies/:userId" element={<KidTrophiesPage />} />
+              <Route path="/wonders/:userId" element={<WondersPage />} />
               <Route path="/task/:id" element={<TaskSetDetailPage />} />
               <Route path="/rewards" element={<RewardsPage />} />
               <Route path="/code-apps" element={<AppsPage />} />

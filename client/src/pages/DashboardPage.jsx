@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faHouse, faCompress, faExpand, faArrowDownWideShort, faCheck, faTicket, faArrowsRotate } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
+import ConcernBanner from '../components/ai/ConcernBanner.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import useOfflineDashboard from '../offline/hooks/useOfflineDashboard.js';
 import DashboardTable from '../components/dashboard/DashboardTable.jsx';
@@ -167,6 +168,9 @@ export default function DashboardPage() {
 
   return (
     <div>
+      {/* AI tutor conversations that raised a concern and haven't been read. */}
+      <ConcernBanner isParent={isParent} />
+
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">

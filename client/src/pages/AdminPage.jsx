@@ -46,12 +46,55 @@ function activityColor(lastLogin) {
   return 'bg-red-400';
 }
 
+// A one-tap grant/revoke for a single family feature. Deliberately small and
+// unlabelled-by-default — this table is dense and these are rarely changed.
+function FeatureChip({ label, title, on, busy, onToggle }) {
+  return (
+    <button
+      type="button"
+      title={`${title} — ${on ? 'enabled' : 'disabled'}`}
+      disabled={busy}
+      onClick={() => onToggle(!on)}
+      className={`px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide transition-colors disabled:opacity-40 ${
+        on
+          ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 ring-1 ring-green-400/50'
+          : 'bg-gray-100 dark:bg-gray-700/60 text-gray-400 dark:text-gray-500'
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 export default function AdminPage() {
   const [dashboard, setDashboard] = useState(null);
   const [activity, setActivity] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(true);
   const [expandedFamily, setExpandedFamily] = useState(null);
+  const [savingFamily, setSavingFamily] = useState(null);
+  const [featureError, setFeatureError] = useState(null);
+
+  // Grant/revoke a paid-or-sensitive feature for one family. Optimistic, with a
+  // revert on failure — getting this wrong silently would be worse than a
+  // moment's lag.
+  const saveFeature = (familyId, key, value) => {
+    setFeatureError(null);
+    setSavingFamily(familyId);
+    setDashboard((d) => ({
+      ...d,
+      families: d.families.map((f) => (f.id === familyId ? { ...f, [key]: value ? 1 : 0 } : f)),
+    }));
+    adminApi.setFamilyFeatures(familyId, { [key]: value })
+      .catch(() => {
+        setFeatureError('Could not save that change.');
+        setDashboard((d) => ({
+          ...d,
+          families: d.families.map((f) => (f.id === familyId ? { ...f, [key]: value ? 0 : 1 } : f)),
+        }));
+      })
+      .finally(() => setSavingFamily(null));
+  };
   const [familyDetail, setFamilyDetail] = useState(null);
   const [familyDetailLoading, setFamilyDetailLoading] = useState(false);
   const [showAllLogs, setShowAllLogs] = useState(false);
@@ -184,6 +227,14 @@ export default function AdminPage() {
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
           <FontAwesomeIcon icon={faUsers} className="text-gray-400" /> Families
         </h2>
+        <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2 mb-3">
+          <span className="font-semibold">CU</span> Curiosity Untamed ·{' '}
+          <span className="font-semibold">AI</span> badge-step tutor (spends our API key) ·{' '}
+          <span className="font-semibold">CC</span> Claude Code &amp; Apps. All off by default for new families.
+        </p>
+        {featureError && (
+          <p className="text-xs text-red-600 dark:text-red-400 mb-2">{featureError}</p>
+        )}
         <div className="overflow-x-auto -mx-5">
           <table className="w-full text-sm">
             <thead>
@@ -194,6 +245,7 @@ export default function AdminPage() {
                 <th className="px-3 py-2 text-center">Kids</th>
                 <th className="px-3 py-2 text-center">Logins/7d</th>
                 <th className="px-3 py-2 text-center hidden sm:table-cell">Per Kid/7d</th>
+                <th className="px-3 py-2">Features</th>
                 <th className="px-3 py-2">Last Login</th>
                 <th className="px-3 py-2 hidden sm:table-cell">Created</th>
               </tr>
@@ -233,6 +285,28 @@ export default function AdminPage() {
                       <td className="px-3 py-2.5 text-center">{f.kid_count}</td>
                       <td className="px-3 py-2.5 text-center font-mono">{f.logins_last_7d}</td>
                       <td className="px-3 py-2.5 text-center font-mono hidden sm:table-cell">{perKid}</td>
+                      {/* Feature gates. Registration is open, so these are the
+                          switches that decide who can spend our Anthropic key
+                          and who gets Curiosity Untamed at all. */}
+                      <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-1.5">
+                          <FeatureChip
+                            label="CU" title="Curiosity Untamed badges"
+                            on={!!f.badges_access} busy={savingFamily === f.id}
+                            onToggle={(v) => saveFeature(f.id, 'badges_access', v)}
+                          />
+                          <FeatureChip
+                            label="AI" title="Badge-step AI tutor (spends our Anthropic key)"
+                            on={!!f.ai_tutor_access} busy={savingFamily === f.id}
+                            onToggle={(v) => saveFeature(f.id, 'ai_tutor_access', v)}
+                          />
+                          <FeatureChip
+                            label="CC" title="Claude Code terminals / Apps"
+                            on={!!f.claude_access} busy={savingFamily === f.id}
+                            onToggle={(v) => saveFeature(f.id, 'claude_access', v)}
+                          />
+                        </div>
+                      </td>
                       <td className="px-3 py-2.5 text-gray-500 dark:text-gray-400">{timeAgo(f.last_login)}</td>
                       <td className="px-3 py-2.5 text-gray-500 dark:text-gray-400 hidden sm:table-cell">
                         {f.created_at ? new Date(f.created_at.endsWith('Z') ? f.created_at : f.created_at + 'Z').toLocaleDateString() : '—'}
@@ -240,7 +314,7 @@ export default function AdminPage() {
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan={8} className="bg-gray-50 dark:bg-gray-900/50 px-5 py-4">
+                        <td colSpan={9} className="bg-gray-50 dark:bg-gray-900/50 px-5 py-4">
                           {familyDetailLoading ? (
                             <div className="animate-pulse space-y-2">
                               <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
@@ -299,7 +373,7 @@ export default function AdminPage() {
                 );
               })}
               {families.length === 0 && (
-                <tr><td colSpan={8} className="px-5 py-8 text-center text-gray-400">No families found</td></tr>
+                <tr><td colSpan={9} className="px-5 py-8 text-center text-gray-400">No families found</td></tr>
               )}
             </tbody>
           </table>

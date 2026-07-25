@@ -2124,3 +2124,328 @@ One-line CSS update to the flashcards Family App: keypad bottom row
 (delete / 0 / enter) is now 1.35× the height of the digit rows.
 
 **Files changed:** `server/static-apps/flashcards/index.html`
+
+## Session Start: 2026-07-25 ~10:17 AM ET
+
+### 2026-07-25 — Badge "Ask AI" design exploration (discussion only)
+
+Analyzed all 19,624 Curiosity Untamed requirement texts in
+`seed/badge-library.json` to classify step types for a proposed per-step "Ask
+AI" feature. Finding: 53% of steps already contain an explicit question or
+"learn about", and 31-45% of hands-on steps (make/go/do) also carry a knowledge
+hook — so the rabbit-hole angle is latent in the source text. Also discussed
+UI shape: recommended step-anchored persistent threads (hosted in the existing
+`StepFocusModal`) over a global floating chat window. No code changed.
+
+### 2026-07-25 — AI tutor Phase 1: UI shell on mock data
+
+Built the step-conversation UI with canned replies — no server, no API calls.
+Badge level now carries `ageMin`/`ageMax`/`aiTier` (Curiosity Untamed's age
+bands), new `constants/aiTiers.js` holds the per-age voice rules, and
+preschool (3-5) is tier-disabled. `StepFocusModal` gained a side panel at lg+
+and a step/chat tab pair below it (nothing floating — HappyWeb-safe), plus a
+"Read what I wrote" button that sends the kid's draft to the coach without ever
+touching the textarea or gating Mark complete. Dev-only `/ai-preview` harness
+(excluded from prod bundles) lets the UI be reviewed at any level without
+logging in. Gated everywhere on `?ai=1`.
+
+### 2026-07-25 — Tap a phrase in a reply to have it explained
+
+A kid on an iPad can't easily copy/paste "Kepler Space Telescope" to ask about
+it. Now the tutor marks 0-3 phrases per reply that this reader probably hasn't
+met, and they render as tappable dotted-underlined text. Tapping sends the
+phrase plus a question mark — literally what you'd type yourself — with
+`source: 'term'`, a third signal alongside chip/typed that means "noticed
+something unfamiliar and pulled on it".
+
+The words are chosen by the model as it writes, not guessed client-side: any
+heuristic underlines "Where" and misses "biosignature". Server-side we drop any
+phrase not found verbatim in the reply, so the client never has to guess.
+Term taps get a shorter prompt (a gloss plus a way back), otherwise every word
+spawns a 130-word essay and the thread becomes a glossary. Terms already asked
+about stop being marked.
+
+Tuning took two passes: the first bar was too loose (marked "bonus system" for
+an adult), the correction was too tight (marked nothing at all, including
+"spectroscopy" for an 11-14 reader). Landed on "must be a NAMED thing" —
+proper nouns, real vocabulary, named concepts — rather than any phrase built
+from ordinary words. aiSafetyProbe re-run after the schema change: 17/17.
+
+**Files changed:** `server/src/services/aiTutor.js`, `server/src/routes/aiTutor.js`,
+`server/src/db/migrations.js`, `client/src/components/ai/ChatMessage.jsx`,
+`StepChatPanel.jsx`, `useStepChat.js`, `client/src/index.css`
+
+### 2026-07-25 — Question animates in, then glides to the top
+
+The kid's turn now rises and settles into place (`ai-question-in`, 220ms), and
+only then does the panel carry it up to the top over 420ms of eased scroll —
+sequential, because overlapping the two reads as a glitch. Entrance flags are
+decided once per message id and never revised (a re-render mid-animation would
+otherwise drop the class and cut it off) and are seeded on the first render that
+actually has messages, so resuming a thread doesn't replay its history.
+
+Three bugs found and fixed while verifying, all invisible to review:
+  1. The scroll target was resolved once at send time, so the streaming answer
+     made it stale and the question stopped short. Now re-read every tick.
+  2. requestAnimationFrame is suspended in a background tab, so the scroll never
+     ran at all — same class of bug as the text reveal. Now setTimeout on
+     elapsed time.
+  3. The big one: collapsing the spacer to measure it momentarily shortens the
+     content, and the browser clamps scrollTop the instant it does — restoring
+     the height does NOT restore the scroll. The view snapped to the top on
+     every re-measure mid-answer. Now saved and restored around the measurement.
+
+Measured through a full stream: 8 → 702 (lands) → 701 (entrance) →
+482 → 229 → 68 → 18 (eased) → 8 and holds.
+
+**Files changed:** `client/src/components/ai/StepChatPanel.jsx`,
+`ChatMessage.jsx`, `client/src/index.css`
+
+### 2026-07-25 — Chat scrolls to your question, not the bottom
+
+Asking something now puts YOUR question at the top of the panel with the answer
+growing beneath it, instead of pinning to the bottom and sliding the answer
+upward as it streams (which meant always reading the last two lines of something
+whose beginning had gone). Two parts: a spacer sibling under the message list,
+sized each pass so the newest question can reach the top even when the answer is
+short; and repositioning only when a NEW question appears, never mid-stream —
+so it can't yank the view from someone already reading.
+
+Measured across a full stream, typed and chip-tapped: question holds at 12px
+from the top for every sample, spacer shrinking as the answer fills the space.
+
+**Files changed:** `client/src/components/ai/StepChatPanel.jsx`
+
+### 2026-07-25 — Award activity steps now ask for a written answer
+
+Awards were generated with `require_input = 0` on every step (289 of 299 badge
+steps ask for an answer; 0 of 301 award steps did), so they read as a checklist
+you tick rather than work you did. Fixed in both generators — the enrollment
+path in `routes/badges.js` and the v68 regeneration path in `migrations.js`,
+which had the same hardcoded 0 and would have undone a data-only fix on restart.
+
+Only UNLINKED steps changed. A linked "Earn the Mathematics badge" step
+auto-completes when its badge is finished and can't be toggled by hand, so an
+answer box there would be nonsense. Migration v92 backfills existing
+enrollments: 238 award steps now ask, 63 linked ones still don't. On the
+S.T.E.A.M. Award that's exactly the 4 activity steps.
+
+**Files changed:** `server/src/routes/badges.js`, `server/src/db/migrations.js`
+
+### 2026-07-25 — Super-admin feature gates + award steps + PREVIEW removed
+
+**Security.** Registration is open, and an audit found any self-signed-up family
+could use Curiosity Untamed (`use_badges` defaulted to 1) and — worse — a parent
+could switch the AI tutor on for their own kids, spending OUR Anthropic key,
+with no gate above the per-user flag. Migration v91 adds super-admin-only
+`families.badges_access` and `families.ai_tutor_access`, both default 0 for new
+families, backfilled to current behaviour for existing ones. Both are enforced
+server-side, and the parent-facing PATCHes now 403 rather than silently
+granting. `claude_access` was already admin-only and stays as it was.
+
+New `PATCH /api/admin/families/:id/features` plus CU/AI/CC toggle chips in the
+existing Admin Dashboard table. Revoking cascades to the per-user switches
+underneath, so re-granting doesn't silently turn a feature back on for everyone
+it was ever enabled for. NOTE: no user had `is_admin` — /admin was unreachable
+by anyone. Granted to user 52 (Brian).
+
+**Award steps** now open fullscreen like badge steps (`is_award` no longer
+excluded), so awards get the full text, answer box and AI panel instead of a
+tick-box. Auto-linked "Earn the X badge" steps stay excluded — they navigate.
+
+**PREVIEW** badge removed from the chat panel header.
+
+**Files changed:** `server/src/db/migrations.js`, `server/src/routes/admin.js`,
+`server/src/routes/family.js`, `server/src/routes/aiTutor.js`,
+`client/src/api/admin.api.js`, `client/src/pages/AdminPage.jsx`,
+`client/src/pages/UserTaskDetailPage.jsx`,
+`client/src/components/ai/StepChatPanel.jsx`
+
+### 2026-07-25 — Fix: blank chat panel until reload (thread-open race)
+
+Not browser-specific despite showing up in Firefox. React's dev StrictMode fires
+the thread-open request twice; the first wins the INSERT OR IGNORE and spends
+5-10s generating the opener, the second polled for only 5s, gave up, and
+returned `messages: []`. The client discards the first response (cancelled on
+unmount) and rendered the loser's empty result — blank until reload, when the
+thread already exists.
+
+Server now returns `generating: true` when a thread exists with no messages
+instead of pretending it's an empty conversation; the client stays in its
+thinking state and polls every 1.5s (~30s cap, then a retry message). Verified
+by forcing the slow path with a message-less thread row: dots showed, and the
+opener appeared within a poll once it landed.
+
+**Files changed:** `server/src/routes/aiTutor.js`,
+`client/src/components/ai/useStepChat.js`
+
+### 2026-07-25 — Safety taxonomy widened + brand-800/900 palette fix
+
+**Safety.** The concern flag only covered self-harm, harm to others, abuse and
+being hurt — sexual questions, drugs and swearing weren't covered at all.
+Rewrote it as a required three-level decision (`none` / `heads_up` / `urgent`)
+made on every reply, so the model can't quietly skip the field. Migration v90
+adds `ai_threads.flag_level`; urgent renders red, heads-up amber, everywhere
+(dashboard banner, Wonders card, Wondered dot). An urgent flag on an
+already-flagged thread escalates and re-notifies.
+
+New `server/scripts/aiSafetyProbe.js` runs 17 probe utterances through the real
+classifier — run it after ANY prompt edit. It caught two things a review
+wouldn't have: suicidal ideation and physical abuse were NOT being flagged at
+all (the reply was right, the field was empty), and a first attempt at a
+regex safety net fired `urgent` on "you could talk to a science teacher" from
+an ordinary interview step. Net is now narrowed to insistent caregiver
+handoffs only. 17/17.
+
+**Palette.** `client/tailwind.config.js` defined `brand` 50-700 but 28 call
+sites across 15 files use `brand-800`/`brand-900`; Tailwind emits nothing for an
+undefined shade, so those elements kept their light `bg-brand-50` in dark mode.
+Extended the ramp (800 `#3730a3`, 900 `#312e81`) rather than rewriting the call
+sites — the call sites weren't wrong, the palette was incomplete. NOTE: a
+tailwind.config.js change needs a Vite restart to take effect.
+
+**Files changed:** `server/src/services/aiTutor.js`, `server/src/routes/aiTutor.js`,
+`server/src/db/migrations.js`, `server/scripts/aiSafetyProbe.js` (new),
+`client/tailwind.config.js`, `client/src/components/ai/ConcernBanner.jsx`,
+`client/src/pages/WondersPage.jsx`, `KidTasksPage.jsx`
+
+### 2026-07-25 — AI tutor: concerns surfaced at a glance
+
+Closed the gap where a flagged conversation only showed up on the Wonders page
+or in the inbox. New `GET /api/ai/concerns` returns unopened flagged threads
+across the family (parents only; empty array for a kid). `ConcernBanner` sits at
+the top of the dashboard listing who and why, each row linking to that person's
+conversations, and the "🤔 Wondered" button carries a red dot when one of that
+person's threads is flagged and unread. Both clear themselves once the
+conversation is opened, since reading it stamps `flag_seen_at`.
+
+Verified with a real flag: banner + dot appeared, opening the transcript stamped
+flag_seen_at, both disappeared. Test flag cleared afterwards.
+
+**Files changed:** `server/src/routes/aiTutor.js`,
+`client/src/api/aiTutor.api.js`,
+`client/src/components/ai/ConcernBanner.jsx` (new),
+`client/src/pages/DashboardPage.jsx`, `KidTasksPage.jsx`
+
+### 2026-07-25 — AI tutor: "N asked" counter on each thread
+
+Wonders cards now show a "✏️ N asked" pill counting questions the kid typed
+themselves (chip taps and step answers excluded). Backed by a one-time backfill
+of `ai_messages.source` for rows written before the column existed — guarded on
+"are there any nulls left" rather than on the ALTER succeeding, so it also
+repairs a DB where the column had already been added.
+
+**Files changed:** `server/src/db/migrations.js`, `server/src/routes/aiTutor.js`,
+`client/src/pages/WondersPage.jsx`
+
+### 2026-07-25 — AI tutor: typed vs tapped in the transcript
+
+Migration v89 adds `ai_messages.source` ('chip' | 'typed'), set by the client —
+`chat.send()` from the composer is typed, `chat.tapChip()` from a follow-up is a
+tap. In the Wonders transcript a typed bubble gets a ring; a tapped one stays
+plain, so a thread of all-plain bubbles reads as the tutor leading and the
+outlined ones are the kid reaching. Answers written for the step count as typed.
+
+Rows written before this have a null source; `loadMessages` infers them by
+matching the text against the chips the previous AI turn offered, so existing
+conversations are labelled correctly too.
+
+**Files changed:** `server/src/db/migrations.js`, `server/src/routes/aiTutor.js`,
+`client/src/api/aiTutor.api.js`, `client/src/components/ai/useStepChat.js`,
+`StepChatPanel.jsx`, `client/src/pages/WondersPage.jsx`
+
+### 2026-07-25 — AI tutor: Wondered button + stale-flag fix
+
+Fixed a real bug: `constants/aiFlags.js` cached the members list module-side
+with no expiry, so a parent who toggled the tutor on and navigated without a
+reload kept seeing "turned off for this person". `invalidateAiTutorFlags()`
+existed but was never called. Now: 30s TTL as a backstop, explicit invalidation
+from the settings toggle, and the hook returns `{enabled, loaded}` so consumers
+stop flashing their "it's off" state for a frame before the answer arrives.
+
+Added a "🤔 Wondered" button next to Browse Badges on each person's badge page,
+linking to their own curiosity log. Shown only when the tutor is on for them.
+
+**Files changed:** `client/src/constants/aiFlags.js`,
+`client/src/pages/KidTasksPage.jsx`, `WondersPage.jsx`,
+`SettingsUserDetailPage.jsx`, `UserTaskDetailPage.jsx`
+
+### 2026-07-25 — AI tutor Phase 4: per-kid switch, parent transcripts, safety
+
+Migration v88 adds `users.ai_tutor_enabled` (off by default) and thread
+flagging. The `?ai=1` preview gate is gone — `constants/aiFlags.js` now reads
+the real per-user setting, and the server re-checks it on every endpoint so
+flipping it off takes effect immediately. Parent toggle lives with the badge
+settings (deliberately NOT behind the family `claude_access` gate — different
+feature), with a link straight to that person's conversations.
+
+The reply tool gained an optional `concern` field, explicitly scoped to things a
+parent should know today and explicitly NOT to ordinary dark curiosity. When set,
+the thread is flagged and one inbox notification is raised. Wonders page grew an
+inline transcript reader; opening a flagged thread marks it seen.
+
+Also fixed a race: two near-simultaneous opens of the same step both generated an
+opener and then collided on the unique index (one 500, two model calls paid for).
+The thread row is now claimed with INSERT OR IGNORE before any model call.
+
+Chips restyled quiet — plain background, italic, muted — so they read as the
+kid's own voice instead of pulling the eye away from the reply.
+
+**Files changed:** `server/src/db/migrations.js`, `server/src/routes/aiTutor.js`,
+`server/src/routes/family.js`, `server/src/services/aiTutor.js`,
+`client/src/constants/aiFlags.js`, `client/src/api/aiTutor.api.js`,
+`client/src/components/ai/ChipRow.jsx` + `ResumePill.jsx`,
+`client/src/pages/WondersPage.jsx`, `SettingsUserDetailPage.jsx`,
+`UserTaskDetailPage.jsx`
+
+### 2026-07-25 — AI tutor Phase 3: cross-badge continuity
+
+Two things that make conversations connect. (1) The rolling curiosity note now
+writes itself: `maybeRefreshKidContext` fires on thread open, guarded by a
+20-minute quiet period and a 60-minute cooldown, and runs fire-and-forget so a
+summariser failure can't break opening a conversation. (2) `POST /ai/.../handoff`
+follows a cross-badge pointer — finds the kid's own enrolment in the target
+badge, scores unfinished steps against the last trail topic, seeds that thread
+with a `handoff` message plus an opener that picks up mid-thought, and returns
+`?openStep=<id>` for the client to auto-open. Not enrolled → says so rather than
+enrolling them.
+
+Verified live: Bowling → Airplanes produced *"Bowling taught you how momentum
+and angles matter... Airplanes work the same way"*, and the classification pass
+completed at 19,624/19,624, 0 failures, $5.76.
+
+**Files changed:** `server/src/routes/aiTutor.js`,
+`client/src/api/aiTutor.api.js`, `client/src/components/ai/StepChatPanel.jsx`,
+`client/src/pages/UserTaskDetailPage.jsx`
+
+### 2026-07-25 — AI tutor Phase 2 + 2a: real Haiku, threads, classification
+
+Threads are now real. Migration v86/v87 adds `ai_threads`, `ai_messages`,
+`ai_kid_context` plus `ai_mode`/`ai_opener` on both requirement tables.
+`services/aiTutor.js` calls Haiku 4.5 through a forced tool call, so follow-up
+chips come back as structured data; cross-badge pointers are validated against
+the `badges` table so the model can't invent one. `routes/aiTutor.js` resolves
+context via a join through `task_assignments` — that join IS the authorization
+check. A parent viewing a kid's step is read-only: no composer, and no opening
+model call is spent. Verified end to end in the browser (opener, chip follow-up,
+answer coach) and confirmed persistence.
+
+Phase 2a: `scripts/classifyBadgeSteps.js` classifies all 19,624 requirements
+into know/make/go/do/social/media/meta with a child-voiced opening question,
+batched 25/call. Full run ≈ $6.
+
+**Files changed:** `server/src/db/migrations.js`,
+`server/src/constants/aiTiers.js` + `services/aiTutor.js` + `routes/aiTutor.js`
++ `scripts/classifyBadgeSteps.js` (new), `server/src/app.js`,
+`client/src/api/aiTutor.api.js` + `components/ai/useWonders.js` (new),
+`client/src/components/ai/useStepChat.js`, `StepChatPanel.jsx`, `ResumePill.jsx`,
+`client/src/pages/UserTaskDetailPage.jsx`, `WondersPage.jsx`, `AiPreviewPage.jsx`
+
+### 2026-07-25 — AI tutor Phase 1: UI shell on mock data (earlier)
+
+**Files changed:** `client/src/components/ai/*` (new: StepChatPanel,
+ChatMessage, ChipRow, ResumePill, useStepChat, mockThreads),
+`client/src/constants/aiTiers.js` + `aiFlags.js` (new),
+`client/src/pages/WondersPage.jsx` + `AiPreviewPage.jsx` (new),
+`client/src/constants/badgeLevels.js`, `client/src/pages/UserTaskDetailPage.jsx`,
+`client/src/App.jsx`

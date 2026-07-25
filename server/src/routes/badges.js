@@ -565,17 +565,30 @@ router.post('/users/:userId/badges/enroll', authenticate, (req, res, next) => {
         // Awards: generate steps from award_config. Mix of activities and
         // badge/area references; the linked metadata lets the UI add badge
         // image + progress + "Start badge" links on top of the standard row.
+        // require_input is decided per step, not for the award as a whole. A
+        // linked step ("Earn the Mathematics badge") auto-completes when its
+        // badge is finished and the kid can't even toggle it, so asking for an
+        // answer would be nonsense. An unlinked step is a real activity, and
+        // gets the same "How did you complete this step?" prompt every badge
+        // step gets — otherwise awards read as a checklist you tick rather than
+        // work you did.
         const insertAwardStep = db.prepare(`
           INSERT INTO task_steps (task_set_id, name, description, sort_order, is_optional,
                                   badge_opt_req_id, require_input, input_prompt,
                                   linked_badge_id, linked_badge_category, level)
-          VALUES (?, ?, '', ?, 0, NULL, 0, '', ?, ?, ?)
+          VALUES (?, ?, '', ?, 0, NULL, ?, ?, ?, ?, ?)
         `);
         let awardCfg = {};
         try { awardCfg = JSON.parse(badge.award_config || '{}'); } catch (_) {}
         const awardSteps = generateAwardSteps(db, badge.award_type, awardCfg, userLevel);
         for (const s of awardSteps) {
-          insertAwardStep.run(taskSetId, s.name, order++, s.linked_badge_id, s.linked_badge_category, s.level);
+          const isLinked = !!s.linked_badge_id || !!s.linked_badge_category;
+          insertAwardStep.run(
+            taskSetId, s.name, order++,
+            isLinked ? 0 : 1,
+            isLinked ? '' : 'How did you complete this step?',
+            s.linked_badge_id, s.linked_badge_category, s.level,
+          );
         }
       } else {
         for (const step of requiredSteps) {

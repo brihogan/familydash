@@ -3,7 +3,7 @@ import { useIsDark } from '../components/tasks/TaskSetCard.jsx';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faChevronDown, faChevronRight, faStickyNote, faBoxArchive, faBoxOpen, faSitemap, faThumbtack, faCircleInfo, faTrash, faExpand, faGripVertical, faArrowDownWideShort, faTableCells, faCircleCheck, faCommentDots } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faChevronDown, faChevronRight, faStickyNote, faBoxArchive, faBoxOpen, faSitemap, faThumbtack, faCircleInfo, faTrash, faExpand, faGripVertical, faArrowDownWideShort, faTableCells, faCircleCheck, faCommentDots, faMagnifyingGlass, faComments } from '@fortawesome/free-solid-svg-icons';
 import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -27,6 +27,13 @@ import { playChoreCheck, playVictory } from '../utils/sounds.js';
 import { awardProgress } from '../utils/awardProgress.js';
 import useScrollLock from '../hooks/useScrollLock.js';
 import { renderEarnBadgeRef } from '../utils/earnBadgeRef.jsx';
+import useAiTutorEnabled, { aiTutorEnabledFor } from '../constants/aiFlags.js';
+import { tierForLevel, ANSWER_REVIEW_MIN_CHARS } from '../constants/aiTiers.js';
+import useStepChat from '../components/ai/useStepChat.js';
+import StepChatPanel from '../components/ai/StepChatPanel.jsx';
+import ResumePill from '../components/ai/ResumePill.jsx';
+import useWonders, { threadCountFor } from '../components/ai/useWonders.js';
+import { aiTutorApi } from '../api/aiTutor.api.js';
 
 // ── Fullscreen step detail modal (image + description) ───────────────────────
 function StepDetailModal({ step, onClose }) {
@@ -208,6 +215,8 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, onSav
   useScrollLock(true);
   const isDark = useIsDark();
   const { user: viewer } = useAuth();
+  const { userId: aiRouteUserId } = useParams();
+  const aiNavigate = useNavigate();
   const needsInput = !!step.require_input;
   // A parent can check a step off without filling in the answer (input is
   // optional for parents); a kid still has to write their response.
@@ -253,6 +262,67 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, onSav
 
   const lvlCfg = taskSet?.badge_level && BADGE_LEVELS[taskSet.badge_level];
   const fullText = step.description || step.name;
+
+  // ── AI tutor (preview build, gated on ?ai=1) ──────────────────────────────
+  // The badge level IS the age signal — Curiosity Untamed ties each level to an
+  // age band — so the tier picks the reading level with nothing to configure.
+  // Preschool (ages 3-5) is tier-disabled: they can't type, and shouldn't be
+  // alone in a chat box.
+  const aiTier = tierForLevel(taskSet?.badge_level, BADGE_LEVELS);
+  const aiOn   = aiTutorEnabledFor(aiRouteUserId) && aiTier.enabled;
+  const [aiTab, setAiTab] = useState('step'); // narrow screens only
+  // Whose conversation this is: the specific user when opened from the progress
+  // grid, otherwise whoever's page we're on — NOT the viewer. A parent looking
+  // at a kid's badge is a reader, so they never trigger the opening model call
+  // and can't post; the thread belongs to the kid working the step.
+  const aiOwnerId = user?.id ?? (aiRouteUserId ? parseInt(aiRouteUserId, 10) : null) ?? viewer?.id ?? null;
+  const aiIsOwner = !!aiOwnerId && viewer?.id === aiOwnerId;
+  const aiChat = useStepChat({
+    enabled: aiOn,
+    canOpen: aiIsOwner,
+    tier: aiTier,
+    meta: {
+      stepId:         step.id,
+      taskSetId:      taskSet?.id,
+      userId:         aiOwnerId,
+      badgeName:      taskSet?.name,
+      badgeEmoji:     taskSet?.emoji,
+      badgeImageFile: taskSet?.badge_image_file,
+      levelLabel:     lvlCfg?.label,
+      stepText:       fullText,
+      kidName:        (user?.name || viewer?.name || '').split(' ')[0],
+    },
+  });
+  const canReviewAnswer = aiOn && aiIsOwner && needsInput && value.trim().length >= ANSWER_REVIEW_MIN_CHARS;
+
+  // Following a cross-badge pointer. The server finds their own enrolment in
+  // the target badge and seeds that step's thread with a handoff, so the new
+  // conversation opens mid-thought. If they aren't enrolled we say so rather
+  // than enrolling them behind their back.
+  const [aiHandoffNotice, setAiHandoffNotice] = useState(null);
+  const [aiHandoffBusy, setAiHandoffBusy] = useState(false);
+  const handleCrossBadge = async (cb) => {
+    if (!cb?.badgeId || aiHandoffBusy) return;
+    setAiHandoffBusy(true);
+    setAiHandoffNotice(null);
+    try {
+      const r = await aiTutorApi.handoff(aiOwnerId, step.id, cb.badgeId);
+      if (!r.enrolled) {
+        setAiHandoffNotice(`You're not working on the ${r.badgeName} badge yet — ask a grown-up to add it.`);
+        return;
+      }
+      if (!r.stepId) {
+        setAiHandoffNotice(`You've already finished every step of ${r.badgeName}.`);
+        return;
+      }
+      onClose();
+      aiNavigate(`/tasks/${aiOwnerId}/${r.taskSetId}?openStep=${r.stepId}&ai=1`);
+    } catch (err) {
+      setAiHandoffNotice(err?.response?.data?.error || "Couldn't open that badge just now.");
+    } finally {
+      setAiHandoffBusy(false);
+    }
+  };
   // When opened from a step row (no specific user/cell), at least one user must
   // be toggled on so we know who completed it.
   const coSelectionOk = !requireCoSelection || coSelected.size > 0;
@@ -272,8 +342,34 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, onSav
     // up to the StepItem row's onClick (which would immediately re-open focus
     // mode, making the X button appear to do nothing).
     <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-gray-900" onClick={(e) => e.stopPropagation()}>
-      {/* Header: close */}
-      <div className="flex items-center justify-end p-3 shrink-0">
+      {/* Header: step/chat tabs (narrow screens) + close.
+          Deliberately tabs in normal flow rather than a floating chat window —
+          nothing here is position:fixed, so HappyWeb's overlay search bar (which
+          makes dvh report a taller viewport than innerHeight) can't shove the
+          conversation off-screen on the iPad. */}
+      <div className="flex items-center p-3 shrink-0 gap-2">
+        {aiOn && (
+          <div className="lg:hidden flex-1 max-w-xs flex gap-1 p-0.5 rounded-xl bg-gray-100 dark:bg-gray-800">
+            {[
+              ['step', 'The step'],
+              ['chat', `Talk${aiChat.count > 1 ? ` 💬${aiChat.count}` : ''}`],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setAiTab(key)}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  aiTab === key
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="flex-1" />
         <button
           onClick={(e) => { e.stopPropagation(); onClose(); }}
           disabled={saving}
@@ -284,10 +380,13 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, onSav
         </button>
       </div>
 
-      {/* Scrollable body — pt-3 leaves room for the kid's avatar, which sits
-          slightly above the badge medallion (would otherwise clip at the
+      {/* Body. Wide screens get the step and the conversation side by side;
+          narrow screens swap between them with the tabs above. */}
+      <div className="flex-1 min-h-0 flex">
+      {/* Scrollable step column — pt-3 leaves room for the kid's avatar, which
+          sits slightly above the badge medallion (would otherwise clip at the
           scroll container's top edge). */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-5 pt-3 pb-5">
+      <div className={`flex-1 min-h-0 overflow-y-auto px-5 pt-3 pb-5 ${aiOn && aiTab === 'chat' ? 'hidden lg:block' : ''}`}>
         <div className="max-w-lg mx-auto flex flex-col items-center text-center">
           {/* Badge medallion — with the kid's avatar tucked at the top-right
               (shown when a specific user's view is opened, e.g. from the
@@ -436,6 +535,21 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, onSav
                 rows={6}
                 className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 rounded-xl px-3.5 py-3 text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-brand-400 read-only:opacity-90"
               />
+              {/* The kid writes their own answer — this never touches the
+                  textarea and never gates Mark complete. It hands the draft to
+                  the tutor, which reacts to it without supplying prose to
+                  paste back in. */}
+              {canReviewAnswer && !readOnly && (
+                <button
+                  type="button"
+                  onClick={() => { aiChat.reviewAnswer(value); setAiTab('chat'); }}
+                  disabled={aiChat.busy}
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-brand-300 dark:border-brand-500/40 text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/15 disabled:opacity-40 transition-colors"
+                >
+                  <FontAwesomeIcon icon={faMagnifyingGlass} className="text-[10px]" />
+                  Read what I wrote
+                </button>
+              )}
             </div>
           )}
 
@@ -513,10 +627,28 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, onSav
         </div>
       </div>
 
+        {/* Conversation column. One instance: full width when the chat tab is
+            selected on narrow screens, a fixed side panel from lg up. */}
+        {aiOn && (
+          <StepChatPanel
+            chat={aiChat}
+            tier={aiTier}
+            mode={aiChat.mode}
+            notice={aiHandoffNotice}
+            onCrossBadge={handleCrossBadge}
+            className={`border-gray-200 dark:border-gray-700 lg:flex lg:w-[26rem] lg:shrink-0 lg:border-l ${
+              aiTab === 'chat' ? 'flex w-full' : 'hidden'
+            }`}
+          />
+        )}
+      </div>
+
       {/* Footer: Mark Complete (pinned near the bottom). Hidden for a
-          read-only (already-completed) step — the view is for reference only. */}
+          read-only (already-completed) step — the view is for reference only.
+          Also hidden behind the chat tab on narrow screens: the composer is the
+          action there, and two stacked bars would eat the viewport. */}
       {!readOnly && (
-        <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 p-4">
+        <div className={`shrink-0 border-t border-gray-200 dark:border-gray-700 p-4 ${aiOn && aiTab === 'chat' ? 'hidden lg:block' : ''}`}>
           <div className="max-w-lg mx-auto">
             <button
               onClick={handleComplete}
@@ -1007,7 +1139,7 @@ const RAD  = Math.PI / 180;
 const DIST = 26;
 
 // ── Step item with chore-style animation ──────────────────────────────────────
-function StepItem({ step, onToggle, onSaveNotes, disabled, onPreviewBadge, onFindArea, taskSet }) {
+function StepItem({ step, onToggle, onSaveNotes, disabled, onPreviewBadge, onFindArea, taskSet, autoOpen = false }) {
   const { userId } = useParams();
   const location = useLocation();
   const done = false; // todo items are never done
@@ -1015,7 +1147,9 @@ function StepItem({ step, onToggle, onSaveNotes, disabled, onPreviewBadge, onFin
   const [inputValue, setInputValue] = useState('');
   const [showInput, setShowInput] = useState(false);
   const [lightbox, setLightbox] = useState(false);
-  const [focusOpen, setFocusOpen] = useState(false);
+  // autoOpen: arrived here by following a cross-badge pointer from another
+  // conversation (?openStep=), so this step opens straight into focus mode.
+  const [focusOpen, setFocusOpen] = useState(autoOpen);
   const inputRef = useRef(null);
 
   const needsInput = !!step.require_input;
@@ -1031,12 +1165,15 @@ function StepItem({ step, onToggle, onSaveNotes, disabled, onPreviewBadge, onFin
   // toggle either manually, the server rejects it.
   const isAutoLinked = !!step.linked_badge_id || !!step.linked_badge_category;
 
-  // Curiosity badge steps (not awards) all open fullscreen on tap so every
-  // badge step looks and behaves the same — no cramped inline input. Awards and
-  // generic task sets keep the inline input. Auto-linked steps are excluded
-  // (they navigate to their linked badge instead).
-  const isCuriosityBadge = !!taskSet?.badge_id && !taskSet?.is_award;
-  const opensFullscreen = hasDetails || (isCuriosityBadge && !isAutoLinked);
+  // Curiosity steps — badges AND awards — all open fullscreen on tap, so every
+  // step in the programme looks and behaves the same: full text, room to write
+  // an answer, and the AI panel alongside. Awards used to keep the cramped
+  // inline input, which made them feel like a checklist you tick rather than
+  // work you do. Generic (non-Curiosity) task sets keep the inline input.
+  // Auto-linked steps stay excluded — they navigate to their linked badge
+  // instead of opening anything.
+  const isCuriositySet = !!taskSet?.badge_id;
+  const opensFullscreen = hasDetails || (isCuriositySet && !isAutoLinked);
 
   const handleClick = () => {
     if (disabled || step._limitedToday || phase !== 'idle') return;
@@ -1155,6 +1292,14 @@ function StepItem({ step, onToggle, onSaveNotes, disabled, onPreviewBadge, onFin
         <p className={`text-sm font-medium transition-colors whitespace-pre-line ${showDone ? 'line-through text-gray-400 dark:text-gray-500' : step._limitedToday ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
           {step._displayName || step.name}
         </p>
+        {/* Conversation marker — how far this step has been dug into. Counts
+            come from the page's one wonders fetch (see useWonders). */}
+        {aiTutorEnabledFor(userId) && threadCountFor(step.id) > 1 && (
+          <p className="text-[11px] text-brand-500 dark:text-brand-400 font-medium mt-0.5">
+            <FontAwesomeIcon icon={faComments} className="mr-1 text-[10px]" />
+            {threadCountFor(step.id)} messages
+          </p>
+        )}
         {step._limitedToday && (
           <p className="text-xs text-amber-500 dark:text-amber-400">Come back tomorrow!</p>
         )}
@@ -1969,6 +2114,17 @@ export default function UserTaskDetailPage() {
   const { user: viewer } = useAuth();
   const isDark = useIsDark();
 
+  // AI tutor conversations for this kid — powers the "💬 n" markers on step
+  // rows and the resume pill. One fetch per page, gated on the preview flag.
+  const { enabled: aiEnabledHere } = useAiTutorEnabled(userId);
+  const { threads: aiThreads } = useWonders(userId, aiEnabledHere);
+  // ?openStep=<id> — set when a cross-badge pointer sent us here; that step
+  // opens straight into focus mode with its handoff already waiting.
+  const aiOpenStepId = (() => {
+    const raw = new URLSearchParams(location.search).get('openStep');
+    return raw ? parseInt(raw, 10) : null;
+  })();
+
   const [taskSet,       setTaskSet]       = useState(null);
   const [steps,         setSteps]         = useState([]);
   const [completions,   setCompletions]   = useState([]);
@@ -2634,11 +2790,13 @@ export default function UserTaskDetailPage() {
       onPreviewBadge={setPreviewBadge}
       onFindArea={(cat, s) => setAreaBrowser({ category: cat, stepId: s?.id || null })}
       taskSet={taskSet}
+      autoOpen={aiOpenStepId != null && step.id === aiOpenStepId}
     />
   );
 
   return (
     <div>
+      <ResumePill taskSetId={taskSetId} userId={userId} threads={aiThreads} />
       {showFireworks && <Fireworks onDone={() => setShowFireworks(false)} />}
       {imageLightbox && taskSet?.badge_image_file && (
         <BadgeImageLightbox

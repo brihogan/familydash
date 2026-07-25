@@ -4,4 +4,7 @@ export const adminApi = {
   getDashboard: () => client.get('/admin/dashboard').then((r) => r.data),
   getLoginActivity: (params) => client.get('/admin/login-activity', { params }).then((r) => r.data),
   getFamilyDetail: (familyId) => client.get(`/admin/families/${familyId}`).then((r) => r.data),
+  // { badges_access?, ai_tutor_access?, claude_access? } — super-admin only.
+  setFamilyFeatures: (familyId, features) =>
+    client.patch(`/admin/families/${familyId}/features`, features).then((r) => r.data),
 };

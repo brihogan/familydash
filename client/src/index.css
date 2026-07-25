@@ -68,6 +68,57 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* A phrase in an AI reply the kid can tap to have explained. Deliberately quiet
+   — a dotted underline in the text's own colour, never link-blue — so it reads
+   as "this word is slightly special", not "click here". Loud styling here would
+   pull the eye down the paragraph and they'd stop reading the prose.
+
+   The padding/margin pair enlarges the touch target for a thumb on an iPad
+   without disturbing the line rhythm. */
+.ai-term {
+  display: inline;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  text-decoration: underline dotted currentColor;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  opacity: 0.92;
+  padding: 0.35em 0;
+  margin: -0.35em 0;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background-color 120ms, opacity 120ms;
+}
+
+.ai-term:hover,
+.ai-term:focus-visible {
+  opacity: 1;
+  background-color: rgb(99 102 241 / 0.12); /* brand-500 */
+  outline: none;
+}
+
+.ai-term:active {
+  background-color: rgb(99 102 241 / 0.2);
+}
+
+/* A question the kid just asked, landing in the AI tutor panel. Rises and
+   settles rather than simply appearing, so the eye follows it before the panel
+   scrolls it up to the top. */
+@keyframes ai-question-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.ai-question-in {
+  animation: ai-question-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-question-in { animation: none; }
+}
+
 /* ── Trophy badge animations ─────────────────────────────────────────────── */
 
 /* Sits still, then does a 3D coin-like rock sequence, then rests again */

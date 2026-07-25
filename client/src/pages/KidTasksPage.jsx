@@ -13,6 +13,8 @@ import { familyApi } from '../api/family.api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { BADGE_LEVELS } from '../constants/badgeLevels.js';
+import useAiTutorEnabled from '../constants/aiFlags.js';
+import useWonders from '../components/ai/useWonders.js';
 
 export default function KidTasksPage() {
   const { userId } = useParams();
@@ -22,6 +24,12 @@ export default function KidTasksPage() {
   const { useTickets, useBadges } = useFamilySettings();
   const medallionSize = useMedallionSize();
   const isDark = useIsDark();
+  // Their curiosity log, for reviewing their own past conversations.
+  const { enabled: aiOn } = useAiTutorEnabled(userId);
+  const { threads: aiThreads } = useWonders(userId, aiOn);
+  const aiUnseen = aiThreads.filter((t) => t.flagUnseen);
+  const aiConcernHere = aiUnseen.length > 0;
+  const aiConcernUrgent = aiUnseen.some((t) => t.flagLevel === 'urgent');
   const isParent   = user?.role === 'parent';
 
   const [taskSets,     setTaskSets]   = useState([]);
@@ -298,7 +306,7 @@ export default function KidTasksPage() {
       )}
 
       {useBadges && (
-        <div className="mb-4">
+        <div className="mb-4 flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={() => setBadgesOpen(true)}
@@ -307,6 +315,37 @@ export default function KidTasksPage() {
             <FontAwesomeIcon icon={faShieldHalved} className="text-brand-500" />
             Browse Badges
           </button>
+
+          {/* Their own curiosity log — questions they've asked while working on
+              badges. Only shown when the tutor is on for this person, otherwise
+              it links to a page that can't have anything in it. */}
+          {aiOn && (
+            <button
+              type="button"
+              onClick={() => navigate(`/wonders/${userId}`)}
+              title="Questions you've asked while working on badges"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:border-brand-300 dark:hover:border-brand-500/50 hover:text-brand-600 dark:hover:text-brand-400 shadow-sm transition-colors"
+            >
+              <span>🤔</span>
+              Wondered
+              {aiThreads.length > 0 && (
+                <span className="text-xs text-gray-400 dark:text-gray-500">{aiThreads.length}</span>
+              )}
+              {/* Unread concern on one of their conversations. Parent-only —
+                  the server never sets flagUnseen for a kid, so this can't
+                  tell them they've been flagged. */}
+              {aiConcernHere && (
+                <span
+                  title={aiConcernUrgent
+                    ? 'A conversation here is worth a chat'
+                    : 'Something here is worth a look'}
+                  className={`w-2 h-2 rounded-full ring-2 ring-white dark:ring-gray-800 ${
+                    aiConcernUrgent ? 'bg-red-500' : 'bg-amber-500'
+                  }`}
+                />
+              )}
+            </button>
+          )}
         </div>
       )}
 

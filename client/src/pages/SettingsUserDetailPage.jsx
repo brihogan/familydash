@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faListCheck, faPen, faTrash, faKey, faCircleCheck, faCoins } from '@fortawesome/free-solid-svg-icons';
 import Modal from '../components/shared/Modal.jsx';
 import { familyApi } from '../api/family.api.js';
 import { claudeApi } from '../api/claude.api.js';
+import { invalidateAiTutorFlags } from '../constants/aiFlags.js';
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import Avatar from '../components/shared/Avatar.jsx';
@@ -157,6 +158,9 @@ export default function SettingsUserDetailPage() {
     setMember((prev) => ({ ...prev, [field]: optimistic }));
     try {
       await familyApi.updateUser(Number(userId), { [field]: value });
+      // The AI tutor flag is cached module-side for synchronous reads in step
+      // rows; drop it so the change lands without a page reload.
+      if (field === 'ai_tutor_enabled') invalidateAiTutorFlags();
     } catch {
       setError('Failed to save setting.');
       setMember((prev) => ({ ...prev, [field]: rollback }));
@@ -674,6 +678,27 @@ export default function SettingsUserDetailPage() {
               />
             </div>
           </div>
+        </div>
+
+        {/* Badge step AI tutor. Deliberately NOT behind the family's
+            claude_access gate — it's a different feature from Claude Code:
+            scoped to one badge step, and every word is kept for a parent. */}
+        <div className="flex items-start justify-between gap-6 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-gray-900 dark:text-gray-100">Ask AI about badge steps</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+              {`Lets ${member.name} talk to an AI tutor inside a badge step — it explains things and asks follow-up questions, but never writes their answer. Every conversation is saved and you can read all of them.`}
+            </p>
+            {!!member.ai_tutor_enabled && (
+              <Link
+                to={`/wonders/${userId}`}
+                className="inline-block mt-2 text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline"
+              >
+                Read {member.name}'s conversations →
+              </Link>
+            )}
+          </div>
+          <Toggle checked={!!member.ai_tutor_enabled} onChange={(v) => handleToggle('ai_tutor_enabled', v)} />
         </div>
 
         {/* Badge & Award Notifications — per-kid parent-notification mode for
