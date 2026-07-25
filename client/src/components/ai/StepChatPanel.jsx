@@ -132,10 +132,31 @@ export default function StepChatPanel({
       if (messages[i].role === 'kid') { kidIdx = i; break; }
     }
 
-    // Nothing asked yet (just the opener) — sit at the top and read.
+    // First pass, once the thread has actually arrived from the fetch.
+    if (!settled.current) {
+      if (!messages.length) return;
+      settled.current = true;
+      spacer.style.height = '0px';
+
+      if (kidIdx >= 0) {
+        // Coming back to a conversation that already has history: land at the
+        // newest message, like any chat you return to. Anchoring the last
+        // question to the top instead would hide the answer they left on.
+        el.scrollTop = el.scrollHeight;
+        // And don't treat that existing question as new, or it would animate
+        // and scroll as though it had just been asked.
+        lastKidId.current = messages[kidIdx].id;
+      } else {
+        // A thread that's only just opened is one message long — read the
+        // greeting from its first line rather than its last.
+        el.scrollTop = 0;
+      }
+      return;
+    }
+
+    // Nothing asked yet (just the opener) — sit where they are.
     if (kidIdx < 0) {
       spacer.style.height = '0px';
-      if (!settled.current && messages.length) settled.current = true;
       return;
     }
 
@@ -170,11 +191,8 @@ export default function StepChatPanel({
 
     // Let the question finish landing before the panel carries it upward —
     // two movements in sequence read as one gesture, whereas overlapping them
-    // just looks like a glitch. First open of a thread has nothing to watch,
-    // so it jumps.
-    const isFirst = !settled.current;
-    settled.current = true;
-    smoothScrollTo(el, target, scrollAnim, isFirst ? 0 : 220);
+    // just looks like a glitch.
+    smoothScrollTo(el, target, scrollAnim, 220);
   }, [messages, reveal?.text, pending]);
 
   // Selecting text in a reply attaches it to the composer as a pill, rather

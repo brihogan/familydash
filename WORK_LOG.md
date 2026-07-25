@@ -2149,6 +2149,20 @@ touching the textarea or gating Mark complete. Dev-only `/ai-preview` harness
 (excluded from prod bundles) lets the UI be reviewed at any level without
 logging in. Gated everywhere on `?ai=1`.
 
+### 2026-07-25 — Reopening a conversation lands at the bottom
+
+Coming back to a thread with history was anchoring its LAST question to the
+top, which hid the answer you'd left off reading. It now lands at the newest
+message like any chat you return to, with the spacer collapsed so there's no
+dead space under it, and the existing question isn't treated as new (no replay
+of the entrance animation, no scroll).
+
+A thread that has only just opened still lands at the TOP — it's one message
+long and you want the greeting from its first line, not its last. Asking a new
+question is unchanged: it still animates in and glides to the top.
+
+**Files changed:** `client/src/components/ai/StepChatPanel.jsx`
+
 ### 2026-07-25 — Selected text becomes a pill in the composer
 
 Replaced the floating "Ask about this" button: Android (and iOS) pop their own
