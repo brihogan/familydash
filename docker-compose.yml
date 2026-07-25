@@ -16,6 +16,10 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_ACCESS_EXPIRES_IN: 15m
       JWT_REFRESH_EXPIRES_IN: 30d
+      # Badge-step AI tutor. Substituted from the .env sitting next to this
+      # file ON THE HOST — the repo's own .env is not read inside the container.
+      # Without it the tutor answers "AI tutor is not configured".
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       PORT: 3001
       CLAUDE_CONTAINER_IMAGE: familydash-claude-code:latest
       CLAUDE_NETWORK: familydash_kid-sandbox

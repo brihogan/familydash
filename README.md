@@ -205,6 +205,12 @@ For production behind a reverse proxy (e.g., Cloudflare):
 | `APPS_HOST` | Hostname for the apps subdomain | `apps.yourdomain.com` |
 | `MAIN_ORIGIN` | Dashboard origin (for CORS) | `https://dash.yourdomain.com` |
 | `VITE_APPS_ORIGIN` | Client-side apps origin (build-time) | `https://apps.yourdomain.com` |
+| `ANTHROPIC_API_KEY` | Badge-step AI tutor (Haiku). Without it the tutor replies "AI tutor is not configured" | `sk-ant-…` |
+
+Note that `docker-compose.yml` passes an explicit list of variables into the
+container — putting something in `.env` alone is not enough, it also has to be
+named in the `environment:` block. Changing that block needs
+`docker compose up -d` (a `restart` reuses the old environment).
 
 **Subdomain isolation** — Kid-built apps are served from a separate subdomain for browser-level cookie/API isolation. This prevents a malicious app from accessing dashboard data.
 
