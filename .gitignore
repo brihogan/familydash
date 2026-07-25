@@ -4,6 +4,10 @@ dist/
 *.db
 *.db-wal
 *.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
 /data/*
 !/data/uploads/
 /data/uploads/*
