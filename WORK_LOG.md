@@ -2149,6 +2149,27 @@ touching the textarea or gating Mark complete. Dev-only `/ai-preview` harness
 (excluded from prod bundles) lets the UI be reviewed at any level without
 logging in. Gated everywhere on `?ai=1`.
 
+### 2026-07-25 — Selected text becomes a pill in the composer
+
+Replaced the floating "Ask about this" button: Android (and iOS) pop their own
+selection menu over anything drawn near the selection, so the one surface
+guaranteed to be ours is the composer. Selecting text in a reply now attaches
+it there as a pill.
+
+The pill deliberately SURVIVES the selection collapsing — dismissing the system
+menu clears the selection, and losing the pill at that moment would make the
+whole thing feel broken. It stays until sent or dismissed with ×.
+
+Three send shapes:
+  pill alone      → a lookup, same as tapping an underlined phrase (`selection`)
+  pill + question → their own question with the phrase quoted for context,
+                    counted as `typed` since they really did reach
+  question alone  → unchanged
+
+All four input types now record distinctly — chip / term / selection / typed.
+
+**Files changed:** `client/src/components/ai/StepChatPanel.jsx`
+
 ### 2026-07-25 — Select any text to ask about it + close the chip bypass
 
 **Bug:** the "I'm here with X" gate only covered the composer. Chips stayed

@@ -177,60 +177,59 @@ export default function StepChatPanel({
     smoothScrollTo(el, target, scrollAnim, isFirst ? 0 : 220);
   }, [messages, reveal?.text, pending]);
 
-  // Selecting text in a reply offers to explain it. The tutor marks a few
-  // phrases itself, but only ever a few — this covers everything it didn't,
-  // which is the case that sent you copy/pasting into the box in the first
-  // place. Only inside a tutor message: selecting your own question back is
-  // meaningless.
-  const [selection, setSelection] = useState(null);
+  // Selecting text in a reply attaches it to the composer as a pill, rather
+  // than floating a button over the selection. Android and iOS both pop their
+  // own selection menu on top of anything we draw there, so the one place
+  // guaranteed to be ours is the composer.
+  //
+  // Crucially the pill SURVIVES the selection being collapsed — dismissing the
+  // system menu clears the selection, and losing the pill at that moment would
+  // make the feature feel broken. It stays until sent or dismissed.
+  const [attached, setAttached] = useState(null);
 
   useEffect(() => {
-    if (chat.readOnly || busy) { setSelection(null); return undefined; }
+    if (chat.readOnly) return undefined;
 
     const read = () => {
       const sel = window.getSelection?.();
       const list = listRef.current;
-      if (!sel || sel.isCollapsed || !list) return setSelection(null);
+      if (!sel || sel.isCollapsed || !list) return;   // keep whatever is attached
 
       const text = sel.toString().trim().replace(/\s+/g, ' ');
-      if (text.length < 2 || text.length > 120) return setSelection(null);
+      if (text.length < 2 || text.length > 120) return;
 
-      const range = sel.getRangeAt(0);
-      const node = range.commonAncestorContainer;
+      const node = sel.getRangeAt(0).commonAncestorContainer;
       const el = node.nodeType === 1 ? node : node.parentElement;
-      // `.self-start` is the tutor's side of the conversation.
-      if (!el?.closest?.('.self-start') || !list.contains(el)) return setSelection(null);
+      // `.self-start` is the tutor's side — selecting your own question back
+      // and asking about it is meaningless.
+      if (!el?.closest?.('.self-start') || !list.contains(el)) return;
 
-      const r = range.getBoundingClientRect();
-      const box = list.getBoundingClientRect();
-      // The button is absolutely positioned INSIDE the scroller, so its origin
-      // is the scrolled content — add scrollTop or it slides away as you move.
-      return setSelection({
-        text,
-        top: r.top - box.top + list.scrollTop - 6,
-        left: Math.min(Math.max(r.left + r.width / 2 - box.left, 70), box.width - 70),
-      });
+      setAttached(text);
     };
 
     document.addEventListener('selectionchange', read);
     return () => document.removeEventListener('selectionchange', read);
-  }, [chat.readOnly, busy]);
-
-  const askSelection = () => {
-    if (!selection) return;
-    chat.askSelection(selection.text);
-    window.getSelection?.()?.removeAllRanges();
-    setSelection(null);
-  };
+  }, [chat.readOnly]);
 
   // Don't leave a scroll tween running against a torn-down node.
   useEffect(() => () => cancelScroll(scrollAnim), []);
 
+  // Three shapes:
+  //   pill alone      → a lookup, exactly like tapping an underlined phrase
+  //   pill + question → their own question, with the phrase quoted so the
+  //                     tutor knows what "it" refers to
+  //   question alone  → an ordinary question
   const submit = () => {
     const t = draft.trim();
-    if (!t || busy) return;
+    if (busy || (!t && !attached)) return;
+
     setDraft('');
-    chat.send(t);
+    setAttached(null);
+    window.getSelection?.()?.removeAllRanges();
+
+    if (attached && !t) chat.askSelection(attached);
+    else if (attached) chat.send(`About “${attached}” — ${t}`);
+    else chat.send(t);
   };
 
   // Terms already looked up in this thread. A term question is the phrase plus
@@ -327,19 +326,6 @@ export default function StepChatPanel({
             not a child, so measuring the list's height never includes it. */}
         <div ref={spacerRef} aria-hidden style={{ height: 0 }} />
 
-        {selection && (
-          <button
-            type="button"
-            // Keep the selection alive: a mousedown elsewhere collapses it
-            // before the click ever fires.
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={askSelection}
-            style={{ top: selection.top, left: selection.left }}
-            className="absolute -translate-x-1/2 -translate-y-full z-10 whitespace-nowrap px-3 py-1.5 rounded-full shadow-lg bg-brand-500 text-white text-xs font-semibold hover:bg-brand-600 transition-colors"
-          >
-            Ask about this
-          </button>
-        )}
       </div>
 
       {/* Why a cross-badge jump didn't happen (not enrolled, already finished). */}
@@ -382,6 +368,24 @@ export default function StepChatPanel({
         </div>
       ) : (
       <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 p-3">
+        {/* Text picked out of a reply, waiting to be sent. On its own it's a
+            "what does this mean?"; with a question typed after it, it tells the
+            tutor what "it" refers to. */}
+        {attached && (
+          <div className="mb-2 flex items-start gap-1.5 rounded-xl border border-brand-200 dark:border-brand-500/40 bg-brand-50 dark:bg-brand-500/10 px-2.5 py-1.5">
+            <span className="text-sm italic text-brand-800 dark:text-brand-200 leading-snug line-clamp-2 flex-1">
+              “{attached}”
+            </span>
+            <button
+              type="button"
+              onClick={() => setAttached(null)}
+              aria-label="Remove"
+              className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-brand-600 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/20"
+            >
+              <span className="text-sm leading-none">×</span>
+            </button>
+          </div>
+        )}
         <div className="flex items-end gap-2">
           <textarea
             value={draft}
@@ -391,13 +395,13 @@ export default function StepChatPanel({
             }}
             rows={1}
             maxLength={500}
-            placeholder="ask something…"
+            placeholder={attached ? 'ask about it, or just send…' : 'ask something…'}
             className="flex-1 resize-none border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 rounded-xl px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand-400 max-h-32"
           />
           <button
             type="button"
             onClick={submit}
-            disabled={!draft.trim() || busy}
+            disabled={(!draft.trim() && !attached) || busy}
             aria-label="Send"
             className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
