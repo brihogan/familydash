@@ -187,6 +187,9 @@ export default function useStepChat({ meta, tier, enabled, mock = false, canOpen
   // phrase with a question mark — the same thing you'd type yourself, and
   // trivially reversible so we can tell which terms have already been covered.
   const askTerm = useCallback((term) => submit(`${term}?`, 'chat', 'term'), [submit]);
+  // Same shape, but the phrase came from the reader's own selection rather than
+  // one the tutor happened to mark.
+  const askSelection = useCallback((text) => submit(`${text}?`, 'chat', 'selection'), [submit]);
   const reviewAnswer = useCallback((draft) => submit(draft, 'answer_review'), [submit]);
 
   return {
@@ -202,6 +205,7 @@ export default function useStepChat({ meta, tier, enabled, mock = false, canOpen
     send,
     tapChip,
     askTerm,
+    askSelection,
     reviewAnswer,
   };
 }

@@ -177,6 +177,52 @@ export default function StepChatPanel({
     smoothScrollTo(el, target, scrollAnim, isFirst ? 0 : 220);
   }, [messages, reveal?.text, pending]);
 
+  // Selecting text in a reply offers to explain it. The tutor marks a few
+  // phrases itself, but only ever a few — this covers everything it didn't,
+  // which is the case that sent you copy/pasting into the box in the first
+  // place. Only inside a tutor message: selecting your own question back is
+  // meaningless.
+  const [selection, setSelection] = useState(null);
+
+  useEffect(() => {
+    if (chat.readOnly || busy) { setSelection(null); return undefined; }
+
+    const read = () => {
+      const sel = window.getSelection?.();
+      const list = listRef.current;
+      if (!sel || sel.isCollapsed || !list) return setSelection(null);
+
+      const text = sel.toString().trim().replace(/\s+/g, ' ');
+      if (text.length < 2 || text.length > 120) return setSelection(null);
+
+      const range = sel.getRangeAt(0);
+      const node = range.commonAncestorContainer;
+      const el = node.nodeType === 1 ? node : node.parentElement;
+      // `.self-start` is the tutor's side of the conversation.
+      if (!el?.closest?.('.self-start') || !list.contains(el)) return setSelection(null);
+
+      const r = range.getBoundingClientRect();
+      const box = list.getBoundingClientRect();
+      // The button is absolutely positioned INSIDE the scroller, so its origin
+      // is the scrolled content — add scrollTop or it slides away as you move.
+      return setSelection({
+        text,
+        top: r.top - box.top + list.scrollTop - 6,
+        left: Math.min(Math.max(r.left + r.width / 2 - box.left, 70), box.width - 70),
+      });
+    };
+
+    document.addEventListener('selectionchange', read);
+    return () => document.removeEventListener('selectionchange', read);
+  }, [chat.readOnly, busy]);
+
+  const askSelection = () => {
+    if (!selection) return;
+    chat.askSelection(selection.text);
+    window.getSelection?.()?.removeAllRanges();
+    setSelection(null);
+  };
+
   // Don't leave a scroll tween running against a torn-down node.
   useEffect(() => () => cancelScroll(scrollAnim), []);
 
@@ -230,7 +276,7 @@ export default function StepChatPanel({
       </div>
 
       {/* Messages */}
-      <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
+      <div ref={listRef} className="relative flex-1 min-h-0 overflow-y-auto px-4 py-3">
         <div ref={innerRef} className="flex flex-col gap-2.5">
           {messages.map((m, i) => (
             <ChatMessage
@@ -243,10 +289,14 @@ export default function StepChatPanel({
             >
               {/* Chips only under the newest AI message — older rows keep their
                   cross-badge card but stop offering stale follow-ups. */}
+              {/* Nothing actionable until you're actually in the conversation:
+                  a tappable chip in read-only mode was a way straight past the
+                  "I'm here with them" gate, and the cross-badge jump would have
+                  403'd for a parent anyway. */}
               {m.role === 'ai' && (
                 <ChipRow
-                  chips={i === lastAiIdx && !busy ? m.chips : []}
-                  crossBadge={m.crossBadge}
+                  chips={i === lastAiIdx && !busy && !chat.readOnly ? m.chips : []}
+                  crossBadge={chat.readOnly ? null : m.crossBadge}
                   disabled={busy}
                   onTap={chat.tapChip}
                   onCrossBadge={onCrossBadge}
@@ -276,6 +326,20 @@ export default function StepChatPanel({
             top even when its answer is short. A sibling of the message list,
             not a child, so measuring the list's height never includes it. */}
         <div ref={spacerRef} aria-hidden style={{ height: 0 }} />
+
+        {selection && (
+          <button
+            type="button"
+            // Keep the selection alive: a mousedown elsewhere collapses it
+            // before the click ever fires.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={askSelection}
+            style={{ top: selection.top, left: selection.left }}
+            className="absolute -translate-x-1/2 -translate-y-full z-10 whitespace-nowrap px-3 py-1.5 rounded-full shadow-lg bg-brand-500 text-white text-xs font-semibold hover:bg-brand-600 transition-colors"
+          >
+            Ask about this
+          </button>
+        )}
       </div>
 
       {/* Why a cross-badge jump didn't happen (not enrolled, already finished). */}

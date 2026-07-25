@@ -2149,6 +2149,28 @@ touching the textarea or gating Mark complete. Dev-only `/ai-preview` harness
 (excluded from prod bundles) lets the UI be reviewed at any level without
 logging in. Gated everywhere on `?ai=1`.
 
+### 2026-07-25 — Select any text to ask about it + close the chip bypass
+
+**Bug:** the "I'm here with X" gate only covered the composer. Chips stayed
+tappable in read-only mode, so a parent could drive a kid's conversation
+without ever pressing the button — and the DB had rows proving it. Chips and
+the cross-badge jump are now hidden until you're actually in (terms were
+already gated). The cross-badge button would have 403'd for a parent anyway.
+
+**Selection-to-ask:** the tutor only ever marks a few phrases; selecting any
+text in a reply now floats an "Ask about this" button, which covers everything
+it didn't mark — the case that had you copy/pasting in the first place. Only
+inside tutor messages (selecting your own question back is meaningless),
+2-120 chars, and it uses the same short-gloss prompt as a term tap. New
+`source: 'selection'` keeps it distinguishable from a marked-term tap.
+
+Two positioning details: the button lives inside the scroller so its `top`
+needs `scrollTop` added, and `onMouseDown` must preventDefault or the browser
+collapses the selection before the click lands. Safety probe 17/17.
+
+**Files changed:** `client/src/components/ai/StepChatPanel.jsx`,
+`useStepChat.js`, `server/src/routes/aiTutor.js`, `server/src/services/aiTutor.js`
+
 ### 2026-07-25 — Parent can drive a kid's conversation when sitting with them
 
 A parent viewing a kid's step was strictly read-only, which is right for

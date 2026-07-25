@@ -27,7 +27,7 @@ const askSchema = z.object({
   kind: z.enum(['chat', 'answer_review']).optional().default('chat'),
   // Did they tap a suggested follow-up or type it themselves? Advisory only —
   // never trusted for anything but display.
-  source: z.enum(['chip', 'typed', 'term']).optional(),
+  source: z.enum(['chip', 'typed', 'term', 'selection']).optional(),
 });
 
 // ── Context resolution (also the authorization check) ────────────────────────

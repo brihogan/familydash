@@ -232,7 +232,7 @@ export async function generateReply({
 
   const base = buildSystem({ tier, mode, badgeName, badgeDescription, stepText, kidName, kidContext });
   const system = kind === 'answer_review' ? answerReviewSystem(base)
-    : source === 'term' ? termLookupSystem(base)
+    : (source === 'term' || source === 'selection') ? termLookupSystem(base)
     : base;
 
   const messages = history.map((m) => ({
