@@ -634,6 +634,7 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, onSav
             chat={aiChat}
             tier={aiTier}
             mode={aiChat.mode}
+            stepTitle={step._displayName || step.name}
             notice={aiHandoffNotice}
             onCrossBadge={handleCrossBadge}
             className={`border-gray-200 dark:border-gray-700 lg:flex lg:w-[26rem] lg:shrink-0 lg:border-l ${

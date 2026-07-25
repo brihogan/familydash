@@ -75,7 +75,7 @@ function TypingDots() {
   );
 }
 
-export default function StepChatPanel({ chat, tier, mode, onCrossBadge, notice = null, className = '' }) {
+export default function StepChatPanel({ chat, tier, mode, stepTitle = null, onCrossBadge, notice = null, className = '' }) {
   const [draft, setDraft] = useState('');
   const listRef = useRef(null);
   const innerRef = useRef(null);
@@ -199,16 +199,31 @@ export default function StepChatPanel({ chat, tier, mode, onCrossBadge, notice =
 
   return (
     <div className={`flex flex-col min-h-0 bg-white dark:bg-gray-900 ${className}`}>
-      {/* Header */}
+      {/* Header. Below lg the panel replaces the step column rather than
+          sitting beside it, so the step's own title is nowhere on screen —
+          show it here instead of "Talk about this step", which by then is
+          stating the obvious. Side by side, the step is already visible and
+          the reading tier is the more useful thing to surface. */}
       <div className="shrink-0 px-4 py-2.5 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-2">
-          <FontAwesomeIcon icon={faWandMagicSparkles} className="text-brand-500 text-sm" />
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Talk about this step</h3>
+        {stepTitle && (
+          <div className="flex items-start gap-2 lg:hidden">
+            <FontAwesomeIcon icon={faWandMagicSparkles} className="text-brand-500 text-sm mt-0.5 shrink-0" />
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-2">
+              {stepTitle}
+            </h3>
+          </div>
+        )}
+
+        <div className={stepTitle ? 'hidden lg:block' : ''}>
+          <div className="flex items-center gap-2">
+            <FontAwesomeIcon icon={faWandMagicSparkles} className="text-brand-500 text-sm" />
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Talk about this step</h3>
+          </div>
+          <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+            {tier?.label} · {tier?.ages}
+            {mode && MODE_LABELS[mode] ? ` · ${MODE_LABELS[mode]}` : ''}
+          </p>
         </div>
-        <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
-          {tier?.label} · {tier?.ages}
-          {mode && MODE_LABELS[mode] ? ` · ${MODE_LABELS[mode]}` : ''}
-        </p>
       </div>
 
       {/* Messages */}

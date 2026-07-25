@@ -176,6 +176,7 @@ export default function AiPreviewPage() {
               chat={chat}
               tier={tier}
               mode={chat.mode}
+              stepTitle={step.text}
               onCrossBadge={(cb) => window.alert(`Phase 3 navigates to: ${cb.badge} — ${cb.stepLabel}`)}
               className={frame === 'desktop' ? 'w-[26rem] shrink-0 border-l border-gray-200 dark:border-gray-700' : 'flex-1'}
             />
