@@ -75,7 +75,10 @@ function TypingDots() {
   );
 }
 
-export default function StepChatPanel({ chat, tier, mode, stepTitle = null, onCrossBadge, notice = null, className = '' }) {
+export default function StepChatPanel({
+  chat, tier, mode, stepTitle = null, onCrossBadge, notice = null,
+  onStartTogether = null, ownerName = null, viewerId = null, className = '',
+}) {
   const [draft, setDraft] = useState('');
   const listRef = useRef(null);
   const innerRef = useRef(null);
@@ -236,6 +239,7 @@ export default function StepChatPanel({ chat, tier, mode, stepTitle = null, onCr
               animate={animFlags.current?.get(m.id) === true}
               explained={explainedTerms}
               onAskTerm={busy || chat.readOnly ? null : chat.askTerm}
+              viewerId={viewerId}
             >
               {/* Chips only under the newest AI message — older rows keep their
                   cross-badge card but stop offering stale follow-ups. */}
@@ -290,6 +294,27 @@ export default function StepChatPanel({ chat, tier, mode, stepTitle = null, onCr
               ? 'You’re reading their conversation.'
               : 'Nothing here yet — this starts when they open the step.'}
           </p>
+
+          {/* Working through the step together is the common case for a young
+              kid, so a parent needs a way in. It stays THEIR conversation —
+              saved to their log, pitched at their reading level — and anything
+              the parent types is labelled, so nobody later mistakes a parent's
+              question for the child's. */}
+          {onStartTogether && (
+            <>
+              <button
+                type="button"
+                onClick={onStartTogether}
+                className="mt-2 w-full py-2 rounded-xl text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 transition-colors"
+              >
+                👋 I’m here with {ownerName || 'them'}
+              </button>
+              <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+                Talks to {ownerName || 'them'} at their level, and saves to their conversations.
+                Anything you type is marked as yours.
+              </p>
+            </>
+          )}
         </div>
       ) : (
       <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 p-3">

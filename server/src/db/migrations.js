@@ -947,6 +947,14 @@ export function runMigrations(db) {
   //   heuristic underlines "Where" and misses "biosignature".
   try { db.exec(`ALTER TABLE ai_messages ADD COLUMN terms TEXT NOT NULL DEFAULT '[]'`); } catch (_) {}
 
+  // v94: who actually typed a turn. A parent sitting WITH their kid can drive
+  //   the conversation ("I'm here with them"), and the thread still belongs to
+  //   the kid — but the transcript shouldn't quietly present a parent's
+  //   question as the child's, and the "N asked" figure is only meaningful if
+  //   it counts the kid reaching. NULL means the thread's owner, which is what
+  //   every row written before this is.
+  try { db.exec(`ALTER TABLE ai_messages ADD COLUMN author_id INTEGER REFERENCES users(id)`); } catch (_) {}
+
   // Backfill any kid turn still missing a source: walk each thread in order and
   // mark it 'chip' when the text matches a follow-up the tutor had just
   // offered, 'typed' otherwise. Guarded on the data rather than on the ALTER

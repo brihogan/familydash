@@ -67,7 +67,7 @@ function RichText({ text, terms = [], explained, onAskTerm }) {
 // `animate` is set only for a turn that arrived while the panel was open — a
 // resumed conversation renders its history still, rather than replaying every
 // question the kid ever asked.
-export default function ChatMessage({ message, children, animate = false, explained, onAskTerm }) {
+export default function ChatMessage({ message, children, animate = false, explained, onAskTerm, viewerId = null }) {
   const { role, kind, text } = message;
   const enter = animate ? ' ai-question-in' : '';
 
@@ -97,8 +97,18 @@ export default function ChatMessage({ message, children, animate = false, explai
   }
 
   if (role === 'kid') {
+    // A turn typed by someone other than the thread's owner — a parent working
+    // through the step alongside them. Labelled so a transcript never presents
+    // a grown-up's question as the child's.
+    const byOther = !!message.authorId && message.authorId !== viewerId;
+    const byYou = !!message.authorId && message.authorId === viewerId;
     return (
       <div className={`self-end max-w-[85%] rounded-2xl rounded-br-sm bg-brand-500 px-3.5 py-2${enter}`}>
+        {(byOther || byYou) && (
+          <p className="text-[10px] uppercase tracking-wider text-white/70">
+            {byYou ? 'You asked' : `${message.authorName || 'A parent'} asked`}
+          </p>
+        )}
         <p className="text-sm text-white leading-relaxed whitespace-pre-line">{text}</p>
       </div>
     );

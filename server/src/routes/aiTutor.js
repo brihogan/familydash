@@ -146,7 +146,11 @@ function loadThread(userId, stepId) {
 
 function loadMessages(threadId) {
   const rows = db.prepare(
-    `SELECT id, role, kind, text, chips, cross_badge, source, terms FROM ai_messages WHERE thread_id = ? ORDER BY id`,
+    `SELECT m.id, m.role, m.kind, m.text, m.chips, m.cross_badge, m.source, m.terms, m.author_id,
+            u.name AS author_name
+       FROM ai_messages m
+       LEFT JOIN users u ON u.id = m.author_id
+      WHERE m.thread_id = ? ORDER BY m.id`,
   ).all(threadId);
 
   let offered = []; // chips shown by the most recent AI turn
@@ -171,20 +175,25 @@ function loadMessages(threadId) {
       crossBadge: m.cross_badge ? JSON.parse(m.cross_badge) : null,
       source: source || null,
       terms: JSON.parse(m.terms || '[]'),
+      // Null author = the thread's owner. Set only when someone else (a parent
+      // working alongside them) typed this turn.
+      authorId: m.author_id || null,
+      authorName: m.author_id ? (m.author_name || null) : null,
     };
   });
 }
 
 function insertMessage(threadId, msg) {
   const info = db.prepare(`
-    INSERT INTO ai_messages (thread_id, role, kind, text, chips, cross_badge, source, terms)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO ai_messages (thread_id, role, kind, text, chips, cross_badge, source, terms, author_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     threadId, msg.role, msg.kind || 'chat', msg.text,
     JSON.stringify(msg.chips || []),
     msg.crossBadge ? JSON.stringify(msg.crossBadge) : null,
     msg.source || null,
     JSON.stringify(msg.terms || []),
+    msg.authorId ?? null,
   );
   db.prepare(`
     UPDATE ai_threads
@@ -377,9 +386,15 @@ router.post('/ai/users/:userId/steps/:stepId/messages', authenticate, async (req
   try {
     const userId = parseInt(req.params.userId, 10);
     const stepId = parseInt(req.params.stepId, 10);
-    if (req.user.userId !== userId) {
+    // The owner, or a parent in the same family sitting with them and working
+    // the step together. The thread still belongs to the kid; the parent's own
+    // turns are recorded as theirs (author_id) so the transcript doesn't pass
+    // them off as the child's.
+    const isOwner = req.user.userId === userId;
+    if (!isOwner && req.user.role !== 'parent') {
       return res.status(403).json({ error: 'Only the person working on a step can talk about it.' });
     }
+    if (!isOwner) assertSameFamily(userId, req.user.familyId);
     if (!aiTutorConfigured()) return res.status(503).json({ error: 'AI tutor is not configured.' });
     assertTutorEnabledFor(userId);
 
@@ -400,7 +415,11 @@ router.post('/ai/users/:userId/steps/:stepId/messages', authenticate, async (req
 
     // Persist the kid's turn before calling out, so a model failure doesn't
     // silently swallow what they typed.
-    insertMessage(thread.id, { role: 'kid', kind, text, source: kind === 'chat' ? source : null });
+    insertMessage(thread.id, {
+      role: 'kid', kind, text,
+      source: kind === 'chat' ? source : null,
+      authorId: isOwner ? null : req.user.userId,
+    });
 
     const reply = await generateReply({ ...ctx, history, input: text, kind, source });
     const id = insertMessage(thread.id, { role: 'ai', kind: 'chat', ...reply });
@@ -431,7 +450,8 @@ router.get('/ai/users/:userId/wonders', authenticate, (req, res, next) => {
              t.trail, t.message_count, t.last_message_at, t.flagged_at, t.flag_reason, t.flag_seen_at, t.flag_level,
              (SELECT COUNT(*) FROM ai_messages m
                WHERE m.thread_id = t.id AND m.role = 'kid'
-                 AND m.kind = 'chat' AND m.source = 'typed') AS typed_count,
+                 AND m.kind = 'chat' AND m.source = 'typed'
+                 AND m.author_id IS NULL) AS typed_count,
              ts.name AS task_set_name, ts.emoji,
              b.image_file AS badge_image_file
         FROM ai_threads t

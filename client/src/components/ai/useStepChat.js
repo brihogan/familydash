@@ -28,7 +28,7 @@ const REVEAL_MAX_MS = 1600;
 // `canOpen` false = read-only: resume an existing thread but never create one.
 // A parent looking at their kid's step shouldn't spend a model call, and
 // shouldn't put words in a conversation the kid didn't start.
-export default function useStepChat({ meta, tier, enabled, mock = false, canOpen = true }) {
+export default function useStepChat({ meta, tier, enabled, mock = false, canOpen = true, authorId = null }) {
   const stepId = meta?.stepId;
   const userId = meta?.userId;
 
@@ -159,7 +159,9 @@ export default function useStepChat({ meta, tier, enabled, mock = false, canOpen
 
     // Optimistically show the kid's own turn — the server persists it before
     // calling the model, so this matches what a refetch would return.
-    const optimistic = { id: `local-${Date.now()}`, role: 'kid', kind, text, chips: [], source };
+    // authorId carries through so a parent-typed turn is labelled the moment
+    // it appears, not only after a refetch.
+    const optimistic = { id: `local-${Date.now()}`, role: 'kid', kind, text, chips: [], source, authorId };
     setApiMessages((prev) => [...prev, optimistic]);
     setPending(true);
     setError(null);
@@ -175,7 +177,7 @@ export default function useStepChat({ meta, tier, enabled, mock = false, canOpen
         setReveal(null);
         setError(err?.response?.data?.error || 'That did not go through. Try again?');
       });
-  }, [mock, mockThread, stepId, userId, tier, busy, loading, deliver]);
+  }, [mock, mockThread, stepId, userId, tier, busy, loading, deliver, authorId]);
 
   // `send` is what the composer calls; `tapChip` is what a suggested follow-up
   // calls. Same request, different provenance.

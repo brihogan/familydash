@@ -52,6 +52,14 @@ export function aiTutorEnabledFor(userId) {
 // Returns { enabled, loaded }. `loaded` matters: without it every consumer
 // renders its "the tutor is off" state for one frame before the answer arrives,
 // which reads as a bug.
+// First name for a family member, from the same cache. Empty until the members
+// fetch lands, so treat it as a nicety rather than something to gate on.
+export function memberFirstName(userId) {
+  if (!members || userId == null) return '';
+  const m = members.find((u) => String(u.id) === String(userId));
+  return (m?.name || '').split(' ')[0];
+}
+
 export default function useAiTutorEnabled(userId) {
   const [state, setState] = useState(() => (
     fresh() ? { enabled: aiTutorEnabledFor(userId), loaded: true } : { enabled: false, loaded: false }

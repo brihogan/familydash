@@ -2149,6 +2149,28 @@ touching the textarea or gating Mark complete. Dev-only `/ai-preview` harness
 (excluded from prod bundles) lets the UI be reviewed at any level without
 logging in. Gated everywhere on `?ai=1`.
 
+### 2026-07-25 — Parent can drive a kid's conversation when sitting with them
+
+A parent viewing a kid's step was strictly read-only, which is right for
+browsing (it must not spend a model call or start a conversation the kid never
+asked for) but wrong for the normal case with a young kid: working the step
+together. The read-only panel now offers "👋 I'm here with Daniel", which opens
+the thread and enables the composer for that step only — reopening returns to
+read-only, so a later browse can't accidentally continue as them.
+
+The thread stays the KID's: their reading tier, their curiosity log, their
+Wonders page. Migration v94 adds `ai_messages.author_id` so a parent's turns
+are recorded as theirs — the transcript labels them ("You asked" / "Brian Hogan
+asked") rather than passing a grown-up's question off as the child's, and the
+"N asked" counter excludes them, since that figure is only meaningful as a
+measure of the kid reaching. Server-side a parent may post only to a thread in
+their own family. Verified end to end; safety probe still 17/17.
+
+**Files changed:** `server/src/db/migrations.js`, `server/src/routes/aiTutor.js`,
+`client/src/components/ai/StepChatPanel.jsx`, `ChatMessage.jsx`,
+`useStepChat.js`, `client/src/constants/aiFlags.js`,
+`client/src/pages/UserTaskDetailPage.jsx`
+
 ### 2026-07-25 — Tap a phrase in a reply to have it explained
 
 A kid on an iPad can't easily copy/paste "Kepler Space Telescope" to ask about

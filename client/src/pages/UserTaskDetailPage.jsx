@@ -27,7 +27,7 @@ import { playChoreCheck, playVictory } from '../utils/sounds.js';
 import { awardProgress } from '../utils/awardProgress.js';
 import useScrollLock from '../hooks/useScrollLock.js';
 import { renderEarnBadgeRef } from '../utils/earnBadgeRef.jsx';
-import useAiTutorEnabled, { aiTutorEnabledFor } from '../constants/aiFlags.js';
+import useAiTutorEnabled, { aiTutorEnabledFor, memberFirstName } from '../constants/aiFlags.js';
 import { tierForLevel, ANSWER_REVIEW_MIN_CHARS } from '../constants/aiTiers.js';
 import useStepChat from '../components/ai/useStepChat.js';
 import StepChatPanel from '../components/ai/StepChatPanel.jsx';
@@ -277,9 +277,18 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, onSav
   // and can't post; the thread belongs to the kid working the step.
   const aiOwnerId = user?.id ?? (aiRouteUserId ? parseInt(aiRouteUserId, 10) : null) ?? viewer?.id ?? null;
   const aiIsOwner = !!aiOwnerId && viewer?.id === aiOwnerId;
+  // A parent viewing their kid's step is a reader by default — browsing must
+  // not spend a model call or start a conversation the kid never asked for.
+  // But working through the step together is the normal way a young kid does
+  // this, so they can opt in explicitly. The thread stays the kid's.
+  const [aiTogether, setAiTogether] = useState(false);
+  useEffect(() => { setAiTogether(false); }, [step.id]);
+  const aiCanTalk = aiIsOwner || aiTogether;
+  const aiOwnerName = (user?.name || '').split(' ')[0] || memberFirstName(aiOwnerId);
   const aiChat = useStepChat({
     enabled: aiOn,
-    canOpen: aiIsOwner,
+    canOpen: aiCanTalk,
+    authorId: aiIsOwner ? null : (viewer?.id ?? null),
     tier: aiTier,
     meta: {
       stepId:         step.id,
@@ -293,7 +302,7 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, onSav
       kidName:        (user?.name || viewer?.name || '').split(' ')[0],
     },
   });
-  const canReviewAnswer = aiOn && aiIsOwner && needsInput && value.trim().length >= ANSWER_REVIEW_MIN_CHARS;
+  const canReviewAnswer = aiOn && aiCanTalk && needsInput && value.trim().length >= ANSWER_REVIEW_MIN_CHARS;
 
   // Following a cross-badge pointer. The server finds their own enrolment in
   // the target badge and seeds that step's thread with a handoff, so the new
@@ -635,6 +644,9 @@ function StepFocusModal({ step, taskSet, onComplete, onClose, onSaveNotes, onSav
             tier={aiTier}
             mode={aiChat.mode}
             stepTitle={step._displayName || step.name}
+            viewerId={viewer?.id ?? null}
+            ownerName={aiOwnerName}
+            onStartTogether={!aiIsOwner && viewer?.role === 'parent' ? () => setAiTogether(true) : null}
             notice={aiHandoffNotice}
             onCrossBadge={handleCrossBadge}
             className={`border-gray-200 dark:border-gray-700 lg:flex lg:w-[26rem] lg:shrink-0 lg:border-l ${
