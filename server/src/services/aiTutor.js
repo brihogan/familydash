@@ -394,8 +394,9 @@ export async function recapThread({ badgeName, stepText, transcript }) {
       'runs longer than the card is worse than no recap.\n' +
       'Say where it started and where it ended up. Name the actual things discussed — the ' +
       'specifics are the whole value, and "various topics" is worth nothing.\n' +
-      'Start with the subject matter. Never open with "The conversation", "This conversation", ' +
-      '"It started", "They asked" or "The child" — the reader already knows it is a conversation.\n' +
+      'Write about the subject matter, never about who said what. Do not name the speakers at ' +
+      'all — no "the child", no "the tutor", no "they asked" or "it explained". Never open with ' +
+      '"The conversation" or "It started"; the reader already knows it is a conversation.\n' +
       'GOOD: "Started with what a strike is and ended up on lane oil — why balls curve, and why ' +
       'the pattern changes as a game goes on."\n' +
       'GOOD: "How many exoplanets there are, then how anyone can tell whether one has life: ' +

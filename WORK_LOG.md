@@ -11,6 +11,8 @@
 - No scheduler — sweeps ride on requests that were happening anyway (opening a step, opening the Wonders page), max 3 per request, gated on the same two tutor flags so a switched-off kid costs nothing. `/wonders` returns `recapsPending`; `useWonders` does one delayed refetch so recaps appear without a manual reload. Client falls back to the trail while a thread is still live.
 - Verified end to end against the live API + local DB: 9 real threads recapped, quiet sweep correctly skips a live thread, completion trigger recaps one anyway, page renders recaps and self-updates. Server change → prod needs an image rebuild.
 - Styling: recap is italic near-black with a blog-style left quote rule (not brand blue, which read as a link next to the step text). Checked in light and dark.
+- Backfill: old threads DO qualify (eligibility is "no recap yet"), but the lazy path only does 3 per request, so history would trickle in and a thread nobody reopens would never get one. Added `server/scripts/backfillRecaps.js` — does the whole backlog, `--dry-run` / `--limit N`, safe to re-run, skips failures. Run once in the container after deploying: `docker compose exec app node server/scripts/backfillRecaps.js`. Verified locally on 4 threads.
+- Prompt also tightened to stop recaps narrating who said what ("Child asked… tutor redirected").
 
 ## Session Start: 2026-06-25 (evening)
 
