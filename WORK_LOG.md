@@ -6,6 +6,12 @@
 - Tapped chips are sent to the model verbatim as the kid's message, so a chip like "What do you love spending time on?" arrived as the *kid* asking the *tutor* — which could only be answered with "that's a question for you, not me". Fixed in the `chips` tool description + system prompt (`server/src/services/aiTutor.js`): chips must be first person (I/me/my), any "you/your" meaning the reader is broken, with rewrite examples; questions about the kid belong in the reply, not on a button. Also told the model not to spend a reply correcting who a question was for.
 - Verified against the live API across acrostic/social/knots/answer-review steps + opener: 20+ chips generated, all first-person and answerable. Server change → prod needs an image rebuild.
 
+### 2026-07-28 — Wonders page shows an AI recap instead of the topic trail
+- The raw trail read as repetitive noise ("Hot chocolate recipe → Collecting favourite recipes → Recipe collection complete → …"). New `recapThread()` in `services/aiTutor.js` writes a ≤40-word recap of the whole conversation; new `services/aiRecap.js` decides when. Two triggers: the thread has been quiet 15 min, or the step was marked complete (`recapStepThread` from the step-toggle route, fire-and-forget, swallows its own errors). Recaps are rewritten if the conversation continues (`recap_at < last_message_at`). New `ai_threads.recap` / `recap_at` columns.
+- No scheduler — sweeps ride on requests that were happening anyway (opening a step, opening the Wonders page), max 3 per request, gated on the same two tutor flags so a switched-off kid costs nothing. `/wonders` returns `recapsPending`; `useWonders` does one delayed refetch so recaps appear without a manual reload. Client falls back to the trail while a thread is still live.
+- Verified end to end against the live API + local DB: 9 real threads recapped, quiet sweep correctly skips a live thread, completion trigger recaps one anyway, page renders recaps and self-updates. Server change → prod needs an image rebuild.
+- Styling: recap is italic near-black with a blog-style left quote rule (not brand blue, which read as a link next to the step text). Checked in light and dark.
+
 ## Session Start: 2026-06-25 (evening)
 
 ### 2026-06-25 — Diagnosed Android (Fold7 PWA) "empty pages / app acts like server is down"

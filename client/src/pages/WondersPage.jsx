@@ -166,8 +166,18 @@ export default function WondersPage() {
               );
             })()}
 
-            {/* The breadcrumb — this is the rabbit hole made visible. */}
-            {t.trail?.length > 0 && (
+            {/* Where the conversation went, written up once it went quiet. A
+                thread they're still in the middle of has no recap yet, so it
+                falls back to the raw topic breadcrumb rather than showing
+                nothing. */}
+            {t.recap ? (
+              // Italic and a quote rule rather than a colour: the recap sits
+              // directly under the step text, and two blocks of body copy need
+              // telling apart without one of them reading as a link.
+              <p className="mt-2 pl-3 border-l-2 border-gray-300 dark:border-gray-600 text-sm italic text-gray-800 dark:text-gray-200">
+                {t.recap}
+              </p>
+            ) : t.trail?.length > 0 && (
               <p className="mt-2 text-sm text-brand-600 dark:text-brand-400">
                 {t.trail.join(' → ')}
               </p>

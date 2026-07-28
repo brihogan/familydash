@@ -15,6 +15,7 @@ import { tierForLevel } from '../constants/aiTiers.js';
 import {
   generateReply, generateOpener, summarizeForKid, aiTutorConfigured,
 } from '../services/aiTutor.js';
+import { maybeRecapQuietThreads, pendingRecapCount } from '../services/aiRecap.js';
 
 const router = Router();
 
@@ -323,7 +324,13 @@ router.get('/ai/users/:userId/steps/:stepId/thread', authenticate, async (req, r
 
     // Fold any finished conversations into their curiosity note before we build
     // this thread's prompt. Fire-and-forget — it's for the next thread, not this one.
-    if (req.user.userId === userId) maybeRefreshKidContext(userId);
+    if (req.user.userId === userId) {
+      maybeRefreshKidContext(userId);
+      // Opening a step is also a good moment to write up whatever they left
+      // behind an hour ago, so the Wonders page is already up to date when
+      // they get there.
+      maybeRecapQuietThreads(userId);
+    }
 
     let thread = loadThread(userId, stepId);
 
@@ -445,9 +452,14 @@ router.get('/ai/users/:userId/wonders', authenticate, (req, res, next) => {
     }
     assertSameFamily(userId, req.user.familyId);
 
+    // Anything that has gone quiet gets written up in the background. A parent
+    // opening this page counts too — it's as much for them as for the kid.
+    maybeRecapQuietThreads(userId);
+
     const rows = db.prepare(`
       SELECT t.id, t.task_step_id, t.task_set_id, t.badge_level, t.step_text, t.mode,
-             t.trail, t.message_count, t.last_message_at, t.flagged_at, t.flag_reason, t.flag_seen_at, t.flag_level,
+             t.trail, t.recap, t.recap_at, t.message_count, t.last_message_at,
+             t.flagged_at, t.flag_reason, t.flag_seen_at, t.flag_level,
              (SELECT COUNT(*) FROM ai_messages m
                WHERE m.thread_id = t.id AND m.role = 'kid'
                  AND m.kind = 'chat' AND m.source = 'typed'
@@ -463,6 +475,9 @@ router.get('/ai/users/:userId/wonders', authenticate, (req, res, next) => {
     `).all(userId);
 
     res.json({
+      // Recaps we just kicked off land a few seconds after this response. The
+      // client uses this to refetch once rather than poll.
+      recapsPending: pendingRecapCount(userId),
       threads: rows.map((r) => ({
         threadId:       r.id,
         stepId:         r.task_step_id,
@@ -474,6 +489,11 @@ router.get('/ai/users/:userId/wonders', authenticate, (req, res, next) => {
         stepText:       r.step_text,
         mode:           r.mode,
         trail:          JSON.parse(r.trail || '[]'),
+        // Written once the conversation goes quiet. Until then the client falls
+        // back to the trail, so a thread they're in the middle of still shows
+        // something.
+        recap:          r.recap || null,
+        recapStale:     !!r.recap && (!r.recap_at || r.recap_at < r.last_message_at),
         messageCount:   r.message_count,
         // Questions they typed themselves rather than tapping a suggestion —
         // the sharper signal of whether they're actually reaching.
@@ -562,6 +582,7 @@ router.get('/ai/users/:userId/threads/:threadId', authenticate, (req, res, next)
         badgeLevel:  thread.badge_level,
         stepText:    thread.step_text,
         trail:       JSON.parse(thread.trail || '[]'),
+        recap:       thread.recap || null,
         flagged:     req.user.role === 'parent' ? !!thread.flagged_at : false,
         flagReason:  req.user.role === 'parent' ? thread.flag_reason : null,
         flagLevel:   req.user.role === 'parent' ? (thread.flag_level || 'urgent') : null,

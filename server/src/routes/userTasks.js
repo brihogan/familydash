@@ -8,6 +8,7 @@ import { assertSameFamily as assertUserInFamily } from '../utils/assertions.js';
 import { localDateISO } from '../utils/dateHelpers.js';
 import { syncLinkedAwardSteps as syncLinkedAwardStepsShared } from '../services/awardSync.js';
 import { resolveEarnBadgeRef } from '../services/badgeRefLink.js';
+import { recapStepThread } from '../services/aiRecap.js';
 
 const router = Router();
 
@@ -1068,6 +1069,12 @@ router.post('/:userId/task-assignments/:taskSetId/steps/:stepId/toggle', authent
       }
 
       const nextInstance = completedCount + 1;
+
+      // Ticking a step off ends any tutor conversation about it, whether or not
+      // it has gone quiet — so write it up now instead of waiting out the quiet
+      // period. Background, and swallows its own failures: a recap must never
+      // be able to fail a completion.
+      recapStepThread(userId, stepId);
 
       // The committed answer now lives in task_step_completions, so clear the
       // draft answer for this step (general_notes scratchpad is kept).

@@ -1048,4 +1048,11 @@ export function runMigrations(db) {
   } catch (_) {}
   try { db.exec(`UPDATE ai_threads SET flag_level = 'urgent' WHERE flagged_at IS NOT NULL AND flag_level IS NULL`); } catch (_) {}
 
+  // A written recap of the conversation, generated once it has gone quiet (or
+  // the step was completed) and shown on the Wonders page in place of the raw
+  // topic trail. `recap_at` older than `last_message_at` means the conversation
+  // carried on afterwards and the recap needs rewriting.
+  try { db.exec(`ALTER TABLE ai_threads ADD COLUMN recap TEXT`); } catch (_) {}
+  try { db.exec(`ALTER TABLE ai_threads ADD COLUMN recap_at TEXT`); } catch (_) {}
+
 }

@@ -369,6 +369,54 @@ export async function generateOpener(ctx) {
   });
 }
 
+// ── Per-thread recap ─────────────────────────────────────────────────────────
+// What the Wonders page shows instead of the raw topic trail. The trail is a
+// list of what each individual turn was about, so a long conversation reads as
+// "Hot chocolate recipe → Collecting favourite recipes → Recipe collection
+// complete → Building a recipe collection" — repetitive, and it never says what
+// they actually got out of it.
+//
+// Written for whoever opens that page: the kid rereading their own rabbit hole,
+// and the parent seeing what their kid has been talking about. So: no "you", no
+// "the child", no praise — just where it started, where it went, and anything
+// they decided or worked out along the way.
+export async function recapThread({ badgeName, stepText, transcript }) {
+  const api = anthropic();
+  if (!api) return null;
+
+  const res = await api.messages.create({
+    model: MODEL,
+    max_tokens: 150,
+    system:
+      'You write a recap of a conversation between a child and a tutor. It sits on a card in a ' +
+      'list of every conversation they have had, so it has to be readable at a glance.\n' +
+      'HARD LIMIT: one or two sentences, 40 words in total. Shorter is better. A recap that ' +
+      'runs longer than the card is worse than no recap.\n' +
+      'Say where it started and where it ended up. Name the actual things discussed — the ' +
+      'specifics are the whole value, and "various topics" is worth nothing.\n' +
+      'Start with the subject matter. Never open with "The conversation", "This conversation", ' +
+      '"It started", "They asked" or "The child" — the reader already knows it is a conversation.\n' +
+      'GOOD: "Started with what a strike is and ended up on lane oil — why balls curve, and why ' +
+      'the pattern changes as a game goes on."\n' +
+      'GOOD: "How many exoplanets there are, then how anyone can tell whether one has life: ' +
+      'Kepler, SETI, and reading atmospheres with the James Webb telescope."\n' +
+      'BAD: "The conversation started with bowling scoring mechanics and then moved through the ' +
+      'bonus system before ending on technique." (opens with the banned phrase, and vague)\n' +
+      'Plain prose, no heading, no bullet points, no puns or wordplay on the subject. Do not ' +
+      'address anyone as "you". Do not praise, ' +
+      'grade, or say whether the step was done well. Never include identifying details.\n' +
+      'If the conversation barely got going, say so in a few words rather than inflating it.',
+    messages: [{
+      role: 'user',
+      content:
+        `Badge: ${badgeName}\nStep: ${stepText}\n\nConversation:\n${transcript}\n\nWrite the recap.`,
+    }],
+  });
+
+  const block = res.content.find((c) => c.type === 'text');
+  return block?.text?.trim() || null;
+}
+
 // ── Rolling curiosity summary ────────────────────────────────────────────────
 // Cheap pass over a finished thread; the result is injected into every future
 // thread's system prompt. This is what makes "Alien Life → Bowling" continuous
