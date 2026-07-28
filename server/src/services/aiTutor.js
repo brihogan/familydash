@@ -45,7 +45,21 @@ const REPLY_TOOL = {
         description:
           'Two to four follow-up questions, written in the CHILD\'S voice as if they asked it ' +
           '("So where IS everybody?"). Short enough to fit on a button. These are the whole ' +
-          'point: each one should be hard to leave untapped.',
+          'point: each one should be hard to leave untapped.\n' +
+          'A tapped chip is SENT TO YOU as the child\'s next message, word for word — so every ' +
+          'chip is them asking YOU something, and must be something you can answer.\n' +
+          'THE TEST, applied to every chip before you return it: does it contain "you" or "your" ' +
+          'meaning the reader? Then it is broken. Tapped, it arrives as a question about YOUR ' +
+          'tastes and YOUR friends, and the only reply left to you is "that\'s a question for you, ' +
+          'not me" — a dead end that reads as a scolding.\n' +
+          'Write them in the first person — I, me, my. Anything you wanted to ask the child about ' +
+          'themselves becomes them asking you for help with it:\n' +
+          '"What do you love spending time on?" -> "How do I figure out what I\'m into?"\n' +
+          '"What are you good at?" -> "Help me find an E word that\'s really me"\n' +
+          '"What words would your friends use?" -> "How do I know what others see in me?"\n' +
+          '"What would make YOU smile reading it?" -> "How do I make a line I\'d actually like?"\n' +
+          'Ask the child about themselves in your REPLY, where a question like that belongs. The ' +
+          'chips are only ever for what they want FROM you.',
       },
       topic: {
         type: 'string',
@@ -173,7 +187,11 @@ function buildSystem({ tier, mode, badgeName, badgeDescription, stepText, kidNam
   parts.push(
     `\nAlways answer by calling the reply tool. Your chips are the most important part of your ` +
     `output — write follow-ups this particular child, mid-thought, would actually want to press. ` +
-    `Keep each under ${tier.chipWords} words where you can.`,
+    `Keep each under ${tier.chipWords} words where you can. Every chip is a question THEY are ` +
+    `asking YOU: never one that only they could answer.\n` +
+    `If a message does arrive asking about your own tastes or experiences, it came from a button ` +
+    `you wrote, not from them wondering about you. Don't spend the reply correcting who the ` +
+    `question was for — read it as "help me work this out about myself" and help them work it out.`,
   );
 
   return parts.join('\n');

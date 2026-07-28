@@ -1,5 +1,11 @@
 # Work Log
 
+## Session Start: 2026-07-28 12:09 EDT (midday)
+
+### 2026-07-28 — AI tutor chips no longer ask the kid about themselves
+- Tapped chips are sent to the model verbatim as the kid's message, so a chip like "What do you love spending time on?" arrived as the *kid* asking the *tutor* — which could only be answered with "that's a question for you, not me". Fixed in the `chips` tool description + system prompt (`server/src/services/aiTutor.js`): chips must be first person (I/me/my), any "you/your" meaning the reader is broken, with rewrite examples; questions about the kid belong in the reply, not on a button. Also told the model not to spend a reply correcting who a question was for.
+- Verified against the live API across acrostic/social/knots/answer-review steps + opener: 20+ chips generated, all first-person and answerable. Server change → prod needs an image rebuild.
+
 ## Session Start: 2026-06-25 (evening)
 
 ### 2026-06-25 — Diagnosed Android (Fold7 PWA) "empty pages / app acts like server is down"
