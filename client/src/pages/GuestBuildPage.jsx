@@ -138,6 +138,12 @@ export default function GuestBuildPage() {
         title={`${session.name} — /${session.folder}`}
         getTicket={getTicket}
         onClose={signOut}
+        // New tab on purpose: navigating away would unmount the terminal, close
+        // the socket, and kill the Claude process they're in the middle of.
+        actions={[{
+          label: '🎮 Games',
+          onClick: () => window.open('/apps/build/~games', '_blank', 'noopener'),
+        }]}
       />
     );
   }

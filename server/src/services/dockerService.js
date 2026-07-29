@@ -387,14 +387,20 @@ export async function createGuestExecSession(familyId, slug) {
   const workDir = `/home/coder/workspace/${slug}`;
   const binDir = `/tmp/bin-${slug}`;
 
-  const bootstrap = [
+  const setup = [
     `mkdir -p ${workDir} ${binDir}`,
     `printf '#!/bin/bash\\nexec /home/coder/.npm-global/bin/claude --model ${modelId} "$@"\\n' > ${binDir}/claude`,
     `chmod +x ${binDir}/claude`,
     `export PATH=${binDir}:$PATH`,
     `cd ${workDir}`,
-    'exec bash',
   ].join(' && ');
+
+  // Drop them straight into Claude, resuming the conversation from before the
+  // disconnect if there is one — a kid whose Wi-Fi blips shouldn't have to know
+  // that `claude --continue` is the magic word. Falls back to a fresh session,
+  // and to a plain shell if Claude exits or isn't working. Separators are `;`
+  // so a non-zero exit still lands them somewhere usable.
+  const bootstrap = `${setup}; { claude --continue || claude; }; exec bash`;
 
   const exec = await container.exec({
     Cmd: ['bash', '-c', bootstrap],
@@ -489,6 +495,74 @@ export async function listGuestFolders(familyId) {
       stream.on('end', () => {
         const output = Buffer.concat(chunks).toString().trim();
         resolve(output.split('\n').filter((d) => d && d !== 'CLAUDE.md' && !d.startsWith('.')));
+      });
+      stream.on('error', () => resolve([]));
+    });
+  } catch {
+    return [];
+  }
+}
+
+// Read one file out of the shared guest workspace. `relPath` is relative to
+// /home/coder/workspace and must already be traversal-checked by the caller.
+export async function readGuestContainerFile(familyId, relPath) {
+  const container = await getOrCreateGuestContainer(familyId);
+  const exec = await container.exec({
+    Cmd: ['cat', `/home/coder/workspace/${relPath}`],
+    AttachStdout: true,
+    AttachStderr: true,
+    Tty: false,
+  });
+  const stream = await exec.start();
+
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    container.modem.demuxStream(stream, { write: (c) => chunks.push(c) }, { write: () => {} });
+    stream.on('end', async () => {
+      const info = await exec.inspect();
+      if (info.ExitCode !== 0) reject(new Error('File not found'));
+      else resolve(Buffer.concat(chunks));
+    });
+    stream.on('error', reject);
+  });
+}
+
+// Every playable app across all guests, as { slug, app } pairs. An "app" is any
+// folder two levels down holding an index.html — which is what Claude produces
+// when a kid asks for a game, without them having to follow a convention.
+export async function listGuestApps(familyId) {
+  const name = guestContainerName(familyId);
+  try {
+    const container = docker.getContainer(name);
+    const info = await container.inspect();
+    if (!info.State.Running) return [];
+
+    const exec = await container.exec({
+      Cmd: ['sh', '-c',
+        'cd /home/coder/workspace 2>/dev/null && ' +
+        "find . -mindepth 3 -maxdepth 3 -name index.html -not -path '*/node_modules/*' 2>/dev/null " +
+        "| sed 's|^\\./||'",
+      ],
+      AttachStdout: true,
+      AttachStderr: true,
+      Tty: false,
+    });
+    const stream = await exec.start();
+
+    return new Promise((resolve) => {
+      const chunks = [];
+      container.modem.demuxStream(stream, { write: (c) => chunks.push(c) }, { write: () => {} });
+      stream.on('end', () => {
+        const lines = Buffer.concat(chunks).toString().trim().split('\n').filter(Boolean);
+        const apps = [];
+        for (const line of lines) {
+          const parts = line.split('/');
+          // slug/app/index.html — anything else isn't a playable app folder
+          if (parts.length === 3 && parts[2] === 'index.html') {
+            apps.push({ slug: parts[0], app: parts[1] });
+          }
+        }
+        resolve(apps);
       });
       stream.on('error', () => resolve([]));
     });

@@ -918,5 +918,5 @@ appsSubdomainApp.use('/', subdomainRouter);
 // Also support /apps/ prefix for backward compat
 appsSubdomainApp.use('/apps', subdomainRouter);
 
-export { wsTickets, appsRouter, appsSubdomainApp, getDailyRemainingSeconds };
+export { wsTickets, appsRouter, appsSubdomainApp, getDailyRemainingSeconds, MIME_TYPES, KID_APP_CSP };
 export default router;

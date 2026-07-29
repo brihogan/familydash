@@ -1,17 +1,21 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import path from 'path';
 import crypto, { createHash } from 'crypto';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import db from '../db/db.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/requireRole.js';
+import { MIME_TYPES, KID_APP_CSP } from './claude.js';
 import {
   getOrCreateGuestContainer,
   getGuestContainerStatus,
   nukeGuestWorkspace,
   stopGuestContainer,
   listGuestFolders,
+  listGuestApps,
+  readGuestContainerFile,
 } from '../services/dockerService.js';
 
 const router = Router();
@@ -320,5 +324,184 @@ router.post('/stop', authenticate, requireRole('parent'), async (req, res, next)
   }
 });
 
-export { openWindow };
+// ─── Playing the games ─────────────────────────────────────────────────────
+// Mounted at /apps/build, BEFORE the kid-apps router — otherwise
+// /apps/build/alex/pong/ is read as username "build", app "alex".
+//
+// These pages are intentionally unauthenticated, matching how kid-built apps
+// already work (/apps/:kid/:app is public). What gates them is the window: when
+// the workshop closes, the games go dark with everything else. Kids can open
+// each other's games — they're in one room sharing one filesystem, and showing
+// each other what they made is the point.
+// strict:true so /alex/pong and /alex/pong/ are different routes. Without it
+// Express collapses them, the no-slash form serves index.html directly, and the
+// game's relative `./game.js` then resolves one directory too high. (The apps
+// subdomain router does the same thing for the same reason.)
+const guestAppsRouter = Router({ strict: true });
+
+const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+));
+
+function openFamilyIds() {
+  return db
+    .prepare('SELECT family_id FROM guest_access WHERE enabled = 1 AND expires_at > ?')
+    .all(Date.now())
+    .map((r) => r.family_id);
+}
+
+// A guest slug alone doesn't say which family it belongs to, so resolve it
+// against the families whose window is currently open.
+function resolveOpenGuest(slug) {
+  const rows = db
+    .prepare(`
+      SELECT gs.family_id, gs.slug, gs.name
+        FROM guest_sessions gs
+        JOIN guest_access ga ON ga.family_id = gs.family_id
+       WHERE gs.slug = ? AND ga.enabled = 1 AND ga.expires_at > ?
+    `)
+    .all(slug, Date.now());
+  return rows.length === 1 ? rows[0] : null;
+}
+
+function page(title, body) {
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escapeHtml(title)}</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;padding:2rem 1rem;min-height:100vh;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:linear-gradient(135deg,#1e1b4b 0%,#0f172a 100%);color:#e5e7eb}
+  .container{max-width:720px;margin:0 auto}
+  h1{font-size:1.6rem;margin:0 0 .25rem}
+  .sub{color:#94a3b8;font-size:.9rem;margin:0 0 1.75rem}
+  .group{margin-bottom:1.75rem}
+  .who{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;
+    color:#818cf8;margin:0 0 .6rem}
+  .card{display:flex;align-items:center;gap:.9rem;padding:.9rem 1rem;
+    margin-bottom:.6rem;border-radius:12px;text-decoration:none;color:inherit;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}
+  .card:hover{background:rgba(255,255,255,.09)}
+  .icon{font-size:1.6rem}
+  .title{font-weight:600;text-transform:capitalize}
+  .empty{color:#94a3b8;line-height:1.6}
+  code{background:rgba(255,255,255,.08);padding:.15rem .4rem;border-radius:4px}
+  a.back{display:inline-block;margin-top:1.5rem;color:#818cf8;font-size:.9rem}
+</style></head>
+<body><div class="container">${body}</div></body></html>`;
+}
+
+function appCard(slug, app, showOwnerless) {
+  const label = app.replace(/[-_]/g, ' ');
+  return `<a class="card" href="/apps/build/${encodeURIComponent(slug)}/${encodeURIComponent(app)}/">
+      <span class="icon">🎮</span>
+      <span class="title">${escapeHtml(label)}</span>
+    </a>`;
+}
+
+// Everyone's games in one place. This is what the "Games" button opens.
+guestAppsRouter.get('/~games', async (req, res) => {
+  const families = openFamilyIds();
+  if (families.length !== 1) {
+    return res.status(404).send(page('Games', `
+      <h1>No workshop is open</h1>
+      <p class="empty">Games show up here while the workshop is running.</p>`));
+  }
+  const familyId = families[0];
+
+  let apps = [];
+  try {
+    apps = await listGuestApps(familyId);
+  } catch { /* container down — render the empty state */ }
+
+  const names = new Map(
+    db.prepare('SELECT slug, name FROM guest_sessions WHERE family_id = ?')
+      .all(familyId).map((g) => [g.slug, g.name]),
+  );
+
+  const bySlug = new Map();
+  for (const { slug, app } of apps) {
+    if (!bySlug.has(slug)) bySlug.set(slug, []);
+    bySlug.get(slug).push(app);
+  }
+
+  const body = bySlug.size === 0
+    ? `<h1>Games</h1>
+       <p class="sub">Everything built in this workshop.</p>
+       <p class="empty">Nothing here yet. Ask Claude to build a game, then come back.<br>
+       Tip: a game needs an <code>index.html</code> in its own folder.</p>`
+    : `<h1>Games</h1>
+       <p class="sub">Everything built in this workshop — play anyone's.</p>
+       ${[...bySlug.entries()].map(([slug, list]) => `
+         <div class="group">
+           <p class="who">${escapeHtml(names.get(slug) || slug)}</p>
+           ${list.sort().map((a) => appCard(slug, a)).join('')}
+         </div>`).join('')}`;
+
+  res.set('Cache-Control', 'no-store');
+  res.send(page('Games', body));
+});
+
+// One guest's games — a shareable "here's my stuff" URL.
+guestAppsRouter.get('/:name', (req, res) => res.redirect(`/apps/build/${encodeURIComponent(req.params.name)}/`));
+
+guestAppsRouter.get('/:name/', async (req, res) => {
+  const guest = resolveOpenGuest(req.params.name);
+  if (!guest) return res.status(404).send(page('Not found', '<h1>Nothing here</h1>'));
+
+  let apps = [];
+  try {
+    apps = (await listGuestApps(guest.family_id)).filter((a) => a.slug === guest.slug);
+  } catch { /* container down */ }
+
+  const body = apps.length === 0
+    ? `<h1>${escapeHtml(guest.name)}'s games</h1>
+       <p class="empty">Nothing built yet.</p>
+       <a class="back" href="/apps/build/~games">← All games</a>`
+    : `<h1>${escapeHtml(guest.name)}'s games</h1>
+       <p class="sub">Tap one to play.</p>
+       ${apps.map((a) => a.app).sort().map((a) => appCard(guest.slug, a)).join('')}
+       <a class="back" href="/apps/build/~games">← All games</a>`;
+
+  res.set('Cache-Control', 'no-store');
+  res.send(page(`${guest.name}'s games`, body));
+});
+
+// The games themselves, read straight out of the shared workspace.
+async function serveGuestAppFile(req, res) {
+  const guest = resolveOpenGuest(req.params.name);
+  if (!guest) return res.status(404).send('Not found');
+
+  // The app folder is the boundary, not the workspace: a URL under
+  // /alex-b/pong/ may only ever read files under alex-b/pong/. Checking just
+  // for a leading `..` isn't enough — `pong/../../CLAUDE.md` normalizes to a
+  // path with no `..` left in it and would otherwise be served.
+  const appDir = `${guest.slug}/${req.params.app}`;
+  const filePath = req.params[0] || 'index.html';
+  const relative = path.normalize(path.join(appDir, filePath));
+  if (relative !== appDir && !relative.startsWith(`${appDir}/`)) {
+    return res.status(400).send('Invalid path');
+  }
+
+  try {
+    const data = await readGuestContainerFile(guest.family_id, relative);
+    res.set('Content-Security-Policy', KID_APP_CSP);
+    res.set('Content-Type', MIME_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream');
+    // Never cache — kids reload constantly while they're still building.
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    res.send(data);
+  } catch {
+    res.status(404).send('Not found');
+  }
+}
+
+guestAppsRouter.get('/:name/:app/', serveGuestAppFile);
+guestAppsRouter.get('/:name/:app/*', serveGuestAppFile);
+guestAppsRouter.get('/:name/:app', (req, res) => res.redirect(req.originalUrl + '/'));
+
+export { openWindow, guestAppsRouter };
 export default router;

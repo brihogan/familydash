@@ -26,7 +26,7 @@ import commonChoresRouter from './routes/commonChores.js';
 import adminRouter from './routes/admin.js';
 import turnsRouter from './routes/turns.js';
 import claudeRouter, { appsRouter, appsSubdomainApp } from './routes/claude.js';
-import guestRouter from './routes/guest.js';
+import guestRouter, { guestAppsRouter } from './routes/guest.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -162,6 +162,11 @@ app.get('/apps/build', (_req, res, next) => {
   if (!existsSync(indexPath)) return next();
   res.sendFile(indexPath);
 });
+
+// Guest-built games live under the same prefix (/apps/build/:name/:app/) and
+// must be matched before the kid-apps router, which would otherwise read
+// "build" as a username.
+app.use('/apps/build', guestAppsRouter);
 
 app.use('/apps', appsRouter);
 

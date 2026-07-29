@@ -2,6 +2,47 @@
 
 ## Session Start: 2026-07-29 11:53 EDT (midday)
 
+### 2026-07-29 — Guests can play each other's games; reconnect resumes Claude
+
+Building a game is only half of it, so guest apps are now served. `/apps/build/
+~games` lists everything anyone built (grouped by kid, opened from a **Games**
+button in the terminal — new tab, so switching to it doesn't kill their Claude
+process). `/apps/build/:name/` is one kid's shareable page, and
+`/apps/build/:name/:app/` plays it. An "app" is any folder holding an
+`index.html`, so kids don't have to follow a convention. Everyone can play
+everyone's — same room, same filesystem, that's the point.
+
+Serving is public *while the window is open* (matching how kid apps already
+work) and 404s the moment it closes. Reads are confined to the app folder:
+checking only for a leading `..` wasn't enough, since `pong/../../CLAUDE.md`
+normalizes to a path with no `..` left in it. Five traversal payloads verified
+blocked, including a `.claude/.credentials.json` attempt.
+
+Reconnects now land in `claude --continue`, falling back to a fresh session and
+then to a shell. A kid whose Wi-Fi drops shouldn't have to know the magic word.
+
+Router is `strict: true` — without it Express collapses `/pong` and `/pong/`,
+serving index.html from the un-slashed URL, and the game's relative `./game.js`
+then resolves one directory too high.
+
+**Files changed:** `server/src/routes/guest.js`, `server/src/routes/claude.js`
+(export MIME_TYPES/CSP), `server/src/services/dockerService.js`,
+`server/src/app.js`, `client/src/components/claude/ClaudeTerminal.jsx`,
+`client/src/pages/GuestBuildPage.jsx`
+
+### 2026-07-29 — Root vitest.config.js so the suite can't eat the dev database
+
+`npx vitest run` from the repo root found no config, so `DATABASE_PATH` was
+never set to `:memory:`, `db.js` fell back to `data/family.db`, and the suite's
+`beforeEach` DELETEd users + families + 15 other tables out of the live dev
+database. Cost the whole dev family (badges and ai_threads survived — they
+aren't in that cleanup list). Root config now pins the same in-memory DB.
+Verified by running the exact invocation that caused it: 35/35 pass, row counts
+unchanged. Written as a plain object, not `defineConfig()`, because vitest isn't
+a root dependency and the import would crash before the guard applied.
+
+**Files changed:** `vitest.config.js` (new)
+
 ### 2026-07-29 — Fixed a 409 race creating the shared container
 
 Opening the guest terminal could fail with *"container name /dash-guest-33 is

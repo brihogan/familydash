@@ -13,8 +13,9 @@ import { claudeApi } from '../../api/claude.api.js';
  * @param {Function} [props.getTicket] Override ticket fetching — the guest
  *   workshop issues tickets from /api/guest, not /api/claude/:userId.
  * @param {string}   [props.title]    Label in the title bar.
+ * @param {Array}    [props.actions]  Extra title-bar buttons: {label, onClick}.
  */
-export default function ClaudeTerminal({ userId, onClose, getTicket, title = 'Claude Code' }) {
+export default function ClaudeTerminal({ userId, onClose, getTicket, title = 'Claude Code', actions = [] }) {
   const containerRef = useRef(null);
   const [remaining, setRemaining] = useState(null);
   const remainingRef = useRef(null);
@@ -182,6 +183,15 @@ export default function ClaudeTerminal({ userId, onClose, getTicket, title = 'Cl
               {remaining === 0 ? 'Time up' : `${formatRemaining(remaining)} left`}
             </span>
           )}
+          {actions.map((action) => (
+            <button
+              key={action.label}
+              onClick={action.onClick}
+              style={{ padding: '4px 12px', fontSize: 13, color: '#c0caf5', border: '1px solid #4b5563', borderRadius: 4, background: 'transparent', cursor: 'pointer' }}
+            >
+              {action.label}
+            </button>
+          ))}
           {onClose && (
             <button
               onClick={onClose}
