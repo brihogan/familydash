@@ -2,6 +2,19 @@
 
 ## Session Start: 2026-07-29 11:53 EDT (midday)
 
+### 2026-07-29 — NEXT SESSION: register a new family + grant super admin
+
+The dev DB was erased this session (see the vitest entry below). `data/family.db`
+currently holds only a seeded `Test Family` (id 119, `parent@test.com` /
+`familydash`) that exists to unblock testing — it is not a real account.
+
+**Before doing anything else next session:** register a fresh family through the
+app and grant that account super admin (`server/set-admin.js` looks like the
+tool — confirm its usage first), then discard the Test Family.
+
+Production was never affected — separate SQLite file in the `sqlite_data` Docker
+volume on miniserver.
+
 ### 2026-07-29 — Guests can play each other's games; reconnect resumes Claude
 
 Building a game is only half of it, so guest apps are now served. `/apps/build/
