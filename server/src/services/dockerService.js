@@ -52,7 +52,43 @@ function containerName(userId) {
   return name;
 }
 
-export async function getOrCreateContainer(userId) {
+// Two callers must not both try to create the same container — Docker gives the
+// loser a 409 and the request fails. This bites hardest in the guest workshop,
+// where several kids opening /apps/build at the same moment all race to create
+// the one shared container, but it's the same latent race on the kid path
+// (a double-mounted tab is enough). Callers for one container share a promise.
+const inFlightContainers = new Map(); // name -> Promise<Container>
+
+function dedupeCreate(name, fn) {
+  const existing = inFlightContainers.get(name);
+  if (existing) return existing;
+  const pending = fn().finally(() => inFlightContainers.delete(name));
+  inFlightContainers.set(name, pending);
+  return pending;
+}
+
+// The dedupe above only covers this process. A 409 still means the container
+// appeared between our inspect and our create, so adopt it rather than failing.
+async function createOrAdopt(name, options) {
+  try {
+    const container = await docker.createContainer(options);
+    await container.start();
+    return container;
+  } catch (err) {
+    if (err.statusCode !== 409) throw err;
+    console.log(`[docker] ${name} was created concurrently — adopting it`);
+    const container = docker.getContainer(name);
+    const info = await container.inspect();
+    if (!info.State.Running) await container.start();
+    return container;
+  }
+}
+
+export function getOrCreateContainer(userId) {
+  return dedupeCreate(containerName(userId), () => buildContainer(userId));
+}
+
+async function buildContainer(userId) {
   const name = containerName(userId);
 
   // Resolve the current image ID so we can detect containers built from an old image.
@@ -91,7 +127,7 @@ export async function getOrCreateContainer(userId) {
   } catch { /* no legacy container, proceed */ }
 
   // Create new container
-  const container = await docker.createContainer({
+  return createOrAdopt(name, {
     Image: CONTAINER_IMAGE,
     name,
     Env: [
@@ -113,8 +149,6 @@ export async function getOrCreateContainer(userId) {
       ],
     },
   });
-  await container.start();
-  return container;
 }
 
 // Map model setting to Claude model ID
@@ -291,7 +325,11 @@ function guestActivityKey(familyId) {
   return `guest:${familyId}`;
 }
 
-export async function getOrCreateGuestContainer(familyId) {
+export function getOrCreateGuestContainer(familyId) {
+  return dedupeCreate(guestContainerName(familyId), () => buildGuestContainer(familyId));
+}
+
+async function buildGuestContainer(familyId) {
   const name = guestContainerName(familyId);
 
   let currentImageId = null;
@@ -316,7 +354,7 @@ export async function getOrCreateGuestContainer(familyId) {
 
   // Sized for a handful of concurrent sessions rather than one kid: each guest
   // runs their own `claude` process, and they tend to spin up dev servers too.
-  const container = await docker.createContainer({
+  return createOrAdopt(name, {
     Image: CONTAINER_IMAGE,
     name,
     Env: [
@@ -338,8 +376,6 @@ export async function getOrCreateGuestContainer(familyId) {
       ],
     },
   });
-  await container.start();
-  return container;
 }
 
 // A guest's shell, rooted in their own folder. The per-guest wrapper dir keeps
