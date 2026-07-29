@@ -2,6 +2,21 @@
 
 ## Session Start: 2026-07-29 11:53 EDT (midday)
 
+### 2026-07-29 — Fixed a 409 race creating the shared container
+
+Opening the guest terminal could fail with *"container name /dash-guest-33 is
+already in use"*. Two callers both inspected, both saw nothing, both created.
+StrictMode's double-mounted effect surfaced it in dev, but the real case is
+worse — several kids opening `/apps/build` at once all race for the one shared
+container, so most would have been told the workshop was still waking up.
+Callers now share one in-flight promise per container, and a 409 adopts the
+existing container instead of failing. Same latent race on the kid path, fixed
+with it. Verified against real Docker: 6 concurrent cold starts all succeed,
+exactly one container results, and nuke still keeps the auth volume while
+dropping the workspace volume.
+
+**Files changed:** `server/src/services/dockerService.js`
+
 ### 2026-07-29 — Guest workshop: passcode-gated Claude terminal at /apps/build
 
 Visiting kids can now build apps without an account. A parent opens a window in
