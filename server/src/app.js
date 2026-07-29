@@ -26,6 +26,7 @@ import commonChoresRouter from './routes/commonChores.js';
 import adminRouter from './routes/admin.js';
 import turnsRouter from './routes/turns.js';
 import claudeRouter, { appsRouter, appsSubdomainApp } from './routes/claude.js';
+import guestRouter from './routes/guest.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -144,6 +145,24 @@ app.use('/api/inbox', inboxRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/family', turnsRouter);
 app.use('/api/claude', claudeRouter);
+
+// Guest workshop. The passcode endpoint is public, so it gets its own tight
+// limiter — this is the one door into the box that has no account behind it.
+const guestLoginLimiter = rateLimit({ windowMs: 60_000, max: 10, message: { error: 'Too many attempts. Wait a minute.' } });
+const guestTicketLimiter = rateLimit({ windowMs: 60_000, max: 20, message: { error: 'Too many requests.' } });
+app.use('/api/guest/login', guestLoginLimiter);
+app.use('/api/guest/ws-ticket', guestTicketLimiter);
+app.use('/api/guest', guestRouter);
+
+// /apps/build is the guest terminal — a React page, not a kid-built static app.
+// It has to be matched before the /:username handlers in appsRouter, and it's
+// also why the SPA fallback at the bottom of this file has an exception for it.
+app.get('/apps/build', (_req, res, next) => {
+  const indexPath = join(__dirname, '..', 'public', 'index.html');
+  if (!existsSync(indexPath)) return next();
+  res.sendFile(indexPath);
+});
+
 app.use('/apps', appsRouter);
 
 // SDK files (main domain — for apps served at /apps/:user/:app/)
@@ -207,8 +226,11 @@ const publicDir = join(__dirname, '..', 'public');
 if (existsSync(publicDir)) {
   app.use(express.static(publicDir));
   app.get('*', (req, res) => {
-    // Don't serve the SPA for /apps routes — those are handled by the apps router
-    if (req.path.startsWith('/apps/')) return res.status(404).send('Not found');
+    // Don't serve the SPA for /apps routes — those are handled by the apps
+    // router. /apps/build is the exception: it's the guest terminal page.
+    if (req.path.startsWith('/apps/') && req.path !== '/apps/build') {
+      return res.status(404).send('Not found');
+    }
     res.sendFile(join(publicDir, 'index.html'));
   });
 }

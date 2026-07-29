@@ -44,6 +44,7 @@ import AppsPage from './pages/AppsPage.jsx';
 import BadgeBrowserPage from './pages/BadgeBrowserPage.jsx';
 import KidGroupPage from './pages/KidGroupPage.jsx';
 import SettingsBadgesPage from './pages/SettingsBadgesPage.jsx';
+import GuestBuildPage from './pages/GuestBuildPage.jsx';
 
 export default function App() {
   return (
@@ -54,6 +55,11 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+
+          {/* Guest workshop — deliberately outside ProtectedRoute. Visiting kids
+              have no family account; they get in with a passcode the parent
+              turns on for a couple of hours. */}
+          <Route path="/apps/build" element={<GuestBuildPage />} />
 
           {/* Dev-only harness for the AI tutor UI (Phase 1). Never registered in
               a production build — see pages/AiPreviewPage.jsx. */}

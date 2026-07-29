@@ -5,6 +5,7 @@ import { faGear, faUsers, faClipboardCheck, faTrophy, faArrowsRotate, faShieldHa
 import { useFamilySettings } from '../context/FamilySettingsContext.jsx';
 import { familyApi } from '../api/family.api.js';
 import DeviceTokensCard from '../components/settings/DeviceTokensCard.jsx';
+import GuestWorkshopCard from '../components/settings/GuestWorkshopCard.jsx';
 
 function buildSettingsCards(choresLabel) {
   return [
@@ -267,6 +268,7 @@ export default function SettingsPage() {
           </div>
         </div>
         <DeviceTokensCard />
+        <GuestWorkshopCard />
       </div>
 
     </div>

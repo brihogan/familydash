@@ -1,8 +1,117 @@
-import { createExecSession, touchActivity, resizeExec } from './dockerService.js';
+import {
+  createExecSession,
+  createGuestExecSession,
+  createGuestAdminExecSession,
+  touchActivity,
+  touchGuestActivity,
+  resizeExec,
+} from './dockerService.js';
 
 export function setupTerminalWs(wss) {
   const activeConnections = new Map(); // kidId -> count
+  const guestConnections = new Map();  // "familyId:slug" -> count
   const MAX_WS_PER_KID = 3;
+  const MAX_WS_PER_GUEST = 3;
+
+  // Guests aren't users: no DB row, no daily budget, no per-kid container.
+  // Their only clock is the parent's window, which is re-checked here at
+  // connect time and enforced again by a cutoff timer while they're connected.
+  async function handleGuestConnection(ws, entry, openWindow) {
+    const isAdmin = entry.kind === 'guest-admin';
+    const row = openWindow(entry.familyId);
+    if (!row) {
+      ws.close(4008, 'Building time is over');
+      return;
+    }
+
+    const key = isAdmin ? `${entry.familyId}:__admin` : `${entry.familyId}:${entry.slug}`;
+    const current = guestConnections.get(key) || 0;
+    if (current >= MAX_WS_PER_GUEST) {
+      ws.close(4029, 'Too many connections');
+      return;
+    }
+    guestConnections.set(key, current + 1);
+
+    let exec;
+    let stream;
+    try {
+      ({ exec, stream } = isAdmin
+        ? await createGuestAdminExecSession(entry.familyId)
+        : await createGuestExecSession(entry.familyId, entry.slug));
+    } catch (err) {
+      guestConnections.set(key, Math.max(0, (guestConnections.get(key) || 1) - 1));
+      throw err;
+    }
+
+    console.log(
+      `[ws] Guest exec session for family ${entry.familyId}`,
+      isAdmin ? '(parent admin shell)' : `folder ${entry.slug}`,
+    );
+
+    // Reuse the kid terminal's countdown protocol so the client can show a
+    // "time left" chip without knowing anything about guest windows.
+    let warnTimer = null;
+    let cutoffTimer = null;
+    if (!isAdmin) {
+      const remainingMs = Math.max(0, row.expires_at - Date.now());
+      ws.send(JSON.stringify({ type: 'time_limit', seconds: Math.floor(remainingMs / 1000) }));
+
+      const warnMs = remainingMs - 5 * 60 * 1000;
+      warnTimer = warnMs > 0
+        ? setTimeout(() => {
+          if (ws.readyState === ws.OPEN) {
+            ws.send(JSON.stringify({ type: 'time_warning', remainingSeconds: 300 }));
+          }
+        }, warnMs)
+        : null;
+
+      cutoffTimer = setTimeout(() => {
+        if (ws.readyState === ws.OPEN) {
+          ws.send(JSON.stringify({ type: 'time_expired' }));
+          setTimeout(() => {
+            stream.end();
+            ws.close(4008, 'Building time is over');
+          }, 2000);
+        }
+      }, remainingMs);
+    }
+
+    stream.on('data', (chunk) => {
+      touchGuestActivity(entry.familyId);
+      if (ws.readyState === ws.OPEN) ws.send(chunk);
+    });
+
+    stream.on('end', () => {
+      if (ws.readyState === ws.OPEN) ws.close(1000, 'Session ended');
+    });
+
+    stream.on('error', (err) => {
+      console.error('[ws] Guest stream error:', err.message);
+    });
+
+    ws.on('message', (data) => {
+      touchGuestActivity(entry.familyId);
+      if (typeof data === 'string' || (data instanceof Buffer && data[0] === 0x7b)) {
+        try {
+          const msg = JSON.parse(data.toString());
+          if (msg.type === 'resize' && msg.cols && msg.rows) {
+            resizeExec(exec, msg.cols, msg.rows);
+            return;
+          }
+        } catch { /* not JSON — treat as terminal input */ }
+      }
+      stream.write(data);
+    });
+
+    const cleanup = () => {
+      guestConnections.set(key, Math.max(0, (guestConnections.get(key) || 1) - 1));
+      clearTimeout(warnTimer);
+      clearTimeout(cutoffTimer);
+      stream.end();
+    };
+    ws.on('close', cleanup);
+    ws.on('error', cleanup);
+  }
   console.log('[ws] WebSocket server ready on /ws/terminal');
 
   // Keepalive: send a WS ping every 25s to every open terminal socket. This
@@ -45,7 +154,23 @@ export function setupTerminalWs(wss) {
         return;
       }
 
-      // 2. Validate one-time ticket (issued by POST /api/claude/:userId/ws-ticket)
+      // 2a. Guest workshop tickets live in their own map and take a separate
+      // path — no user row, no daily budget, cutoff driven by the parent's
+      // window. Checked first so a guest ticket never falls through to the
+      // kid-terminal logic below.
+      const { guestWsTickets, openWindow } = await import('../routes/guest.js');
+      const guestEntry = guestWsTickets.get(ticket);
+      if (guestEntry) {
+        guestWsTickets.delete(ticket); // One-time use
+        if (guestEntry.expiresAt < Date.now()) {
+          ws.close(4001, 'Invalid or expired ticket');
+          return;
+        }
+        await handleGuestConnection(ws, guestEntry, openWindow);
+        return;
+      }
+
+      // 2b. Validate one-time ticket (issued by POST /api/claude/:userId/ws-ticket)
       const { wsTickets } = await import('../routes/claude.js');
       const entry = wsTickets.get(ticket);
       if (!entry || entry.expiresAt < Date.now()) {

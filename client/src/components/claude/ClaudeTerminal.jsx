@@ -6,11 +6,24 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import { claudeApi } from '../../api/claude.api.js';
 
-export default function ClaudeTerminal({ userId, onClose }) {
+/**
+ * @param {object} props
+ * @param {number}   [props.userId]   Kid whose container to attach to.
+ * @param {Function} [props.onClose]  Omit to hide the Exit button (guest page).
+ * @param {Function} [props.getTicket] Override ticket fetching — the guest
+ *   workshop issues tickets from /api/guest, not /api/claude/:userId.
+ * @param {string}   [props.title]    Label in the title bar.
+ */
+export default function ClaudeTerminal({ userId, onClose, getTicket, title = 'Claude Code' }) {
   const containerRef = useRef(null);
   const [remaining, setRemaining] = useState(null);
   const remainingRef = useRef(null);
   const intervalRef = useRef(null);
+
+  // Held in a ref so an inline arrow passed as `getTicket` doesn't retrigger
+  // the effect (and tear down the terminal) on every parent render.
+  const getTicketRef = useRef(getTicket);
+  getTicketRef.current = getTicket;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -58,14 +71,23 @@ export default function ClaudeTerminal({ userId, onClose }) {
 
       let ticket;
       try {
-        const data = await claudeApi.getWsTicket(userId);
+        const data = getTicketRef.current
+          ? await getTicketRef.current()
+          : await claudeApi.getWsTicket(userId);
         ticket = data.ticket;
       } catch (err) {
         console.error('[claude-terminal] Failed to get ticket:', err);
-        if (!cancelled) {
-          term.writeln('\r\n\x1b[33mReconnecting...\x1b[0m');
-          reconnectTimeout = setTimeout(connect, 3000);
+        if (cancelled) return;
+        const status = err?.response?.status;
+        const message = err?.response?.data?.error;
+        // 401/403 means the session or the access window is gone. Retrying
+        // can't fix that, and a silent "Reconnecting..." loop reads as a hang.
+        if (status === 401 || status === 403) {
+          term.writeln(`\r\n\x1b[31m${message || 'This session has ended.'}\x1b[0m`);
+          return;
         }
+        term.writeln(`\r\n\x1b[33m${message || 'Could not reach the workspace'} — retrying...\x1b[0m`);
+        reconnectTimeout = setTimeout(connect, 3000);
         return;
       }
       if (cancelled) return;
@@ -152,7 +174,7 @@ export default function ClaudeTerminal({ userId, onClose }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#16161e', borderBottom: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: remaining === 0 ? '#ef4444' : '#22c55e' }} />
-          <span style={{ fontSize: 13, fontFamily: 'monospace', color: '#9ca3af' }}>Claude Code</span>
+          <span style={{ fontSize: 13, fontFamily: 'monospace', color: '#9ca3af' }}>{title}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {remaining != null && (
@@ -160,12 +182,14 @@ export default function ClaudeTerminal({ userId, onClose }) {
               {remaining === 0 ? 'Time up' : `${formatRemaining(remaining)} left`}
             </span>
           )}
-          <button
-            onClick={onClose}
-            style={{ padding: '4px 12px', fontSize: 13, color: '#9ca3af', border: '1px solid #4b5563', borderRadius: 4, background: 'transparent', cursor: 'pointer' }}
-          >
-            Exit
-          </button>
+          {onClose && (
+            <button
+              onClick={onClose}
+              style={{ padding: '4px 12px', fontSize: 13, color: '#9ca3af', border: '1px solid #4b5563', borderRadius: 4, background: 'transparent', cursor: 'pointer' }}
+            >
+              Exit
+            </button>
+          )}
         </div>
       </div>
       <div ref={containerRef} style={{ flex: 1, overflow: 'hidden' }} />

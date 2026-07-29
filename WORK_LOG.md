@@ -1,5 +1,42 @@
 # Work Log
 
+## Session Start: 2026-07-29 11:53 EDT (midday)
+
+### 2026-07-29 — Guest workshop: passcode-gated Claude terminal at /apps/build
+
+Visiting kids can now build apps without an account. A parent opens a window in
+Settings (passcode + duration, default 2h); kids go to `/apps/build`, enter the
+passcode and their first name, and get a Claude Code terminal. One shared
+container per family with a `docker exec` per guest — same filesystem and one
+OAuth login, but a per-guest folder means a separate cwd and therefore a
+separate Claude session. Auth and workspace are separate volumes so "Delete
+everything" wipes the kids' work without logging you out.
+
+Guest tokens are signed with a secret *derived* from `JWT_ACCESS_SECRET`, so
+they don't verify in `authenticate()` and can't be replayed against family
+routes. Every guest request re-reads the window, so closing it (or letting it
+lapse) kicks a connected kid within one retry cycle.
+
+Verified: wrong/right passcode, slug reuse on reconnect, guest token rejected
+(401) on `/api/family/*`, `/api/dashboard`, `/api/claude/*` and parent-only
+guest routes, mid-session revocation flipping a live terminal to the closed
+screen, settings card open→close round trip, and `/apps/build` serving the SPA
+in prod mode without shadowing `/apps/:kid/`. 35/35 server tests pass, client
+builds clean. **Not yet run against a real container — Docker wasn't up
+locally; the container path needs a smoke test on miniserver.**
+
+Also: `dockerService` model map was a generation behind — kids picking "Sonnet"
+got Sonnet 4.6. Now `claude-opus-5` / `claude-sonnet-5` / `claude-haiku-4-5`.
+Guests are hardcoded to Sonnet.
+
+**Files changed:** `server/src/db/migrations.js` (v93),
+`server/src/routes/guest.js` (new), `server/src/services/dockerService.js`,
+`server/src/services/wsService.js`, `server/src/app.js`,
+`client/src/api/guest.api.js` (new), `client/src/pages/GuestBuildPage.jsx` (new),
+`client/src/components/settings/GuestWorkshopCard.jsx` (new),
+`client/src/components/claude/ClaudeTerminal.jsx`, `client/src/App.jsx`,
+`client/src/pages/SettingsPage.jsx`, `client/vite.config.js`
+
 ## Session Start: 2026-07-28 12:09 EDT (midday)
 
 ### 2026-07-28 — AI tutor chips no longer ask the kid about themselves

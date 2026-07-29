@@ -1055,4 +1055,37 @@ export function runMigrations(db) {
   try { db.exec(`ALTER TABLE ai_threads ADD COLUMN recap TEXT`); } catch (_) {}
   try { db.exec(`ALTER TABLE ai_threads ADD COLUMN recap_at TEXT`); } catch (_) {}
 
+  // v93: guest workshop mode — a temporary Claude Code terminal at /apps/build
+  // that visiting kids reach with a passcode, no account. One row per family;
+  // `expires_at` is epoch ms and is checked on EVERY request, so letting the
+  // window lapse revokes access even for someone holding a valid token.
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS guest_access (
+        family_id     INTEGER PRIMARY KEY REFERENCES families(id) ON DELETE CASCADE,
+        enabled       INTEGER NOT NULL DEFAULT 0,
+        passcode_hash TEXT,
+        expires_at    INTEGER,
+        updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+  } catch (_) {}
+
+  // One row per guest who has ever signed in, keyed by the slug of their first
+  // name — that slug is also their folder inside the shared workspace, so a kid
+  // who reconnects (or reloads) lands back in the work they already did.
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS guest_sessions (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        family_id  INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+        name       TEXT NOT NULL,
+        slug       TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        last_seen  TEXT
+      )
+    `);
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_guest_sessions_family_slug ON guest_sessions(family_id, slug)`);
+  } catch (_) {}
+
 }

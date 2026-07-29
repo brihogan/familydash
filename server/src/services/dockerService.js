@@ -117,15 +117,17 @@ export async function getOrCreateContainer(userId) {
   return container;
 }
 
+// Map model setting to Claude model ID
+const MODEL_MAP = {
+  opus: 'claude-opus-5',
+  sonnet: 'claude-sonnet-5',
+  haiku: 'claude-haiku-4-5',
+};
+
 export async function createExecSession(userId, opts = {}) {
   const container = await getOrCreateContainer(userId);
 
-  // Map model setting to Claude model ID
-  const modelMap = {
-    opus: 'claude-opus-4-6',
-    sonnet: 'claude-sonnet-4-6',
-    haiku: 'claude-haiku-4-5-20251001',
-  };
+  const modelMap = MODEL_MAP;
   const modelId = modelMap[opts.model] || modelMap.sonnet;
 
   // Create a wrapper that forces the parent-selected model, then start bash
@@ -263,12 +265,216 @@ export async function resizeExec(exec, cols, rows) {
   } catch { /* ignore resize errors */ }
 }
 
-// Stop containers idle for > 30 minutes (runs every 5 min)
+// ─── Guest workshop container ──────────────────────────────────────────────
+// One shared container per family, not one per guest. Every guest gets their
+// own `docker exec` into it — separate PTY, separate `claude` process, and
+// (because Claude Code keys conversation history by working directory) a
+// separate session and /resume history. What they share is the filesystem and
+// ~/.claude, which is the point: one OAuth login covers everybody.
+//
+// Two volumes on purpose. Auth is kept apart from the workspace so the
+// "delete everything" button can wipe what the kids built without logging the
+// parent out and forcing a re-auth before the next workshop.
+function guestContainerName(familyId) {
+  return `dash-guest-${familyId}`;
+}
+
+function guestAuthVolume(familyId) {
+  return `claude-guest-auth-${familyId}`;
+}
+
+function guestWorkspaceVolume(familyId) {
+  return `claude-guest-ws-${familyId}`;
+}
+
+function guestActivityKey(familyId) {
+  return `guest:${familyId}`;
+}
+
+export async function getOrCreateGuestContainer(familyId) {
+  const name = guestContainerName(familyId);
+
+  let currentImageId = null;
+  try {
+    currentImageId = (await docker.getImage(CONTAINER_IMAGE).inspect()).Id;
+  } catch { /* image not found yet — will surface at createContainer */ }
+
+  try {
+    const container = docker.getContainer(name);
+    const info = await container.inspect();
+
+    if (currentImageId && info.Image !== currentImageId) {
+      console.log(`[docker] Guest container ${name} is stale (image updated) — recreating`);
+      await container.remove({ force: true });
+    } else {
+      if (!info.State.Running) await container.start();
+      return container;
+    }
+  } catch (err) {
+    if (err.statusCode !== 404) throw err;
+  }
+
+  // Sized for a handful of concurrent sessions rather than one kid: each guest
+  // runs their own `claude` process, and they tend to spin up dev servers too.
+  const container = await docker.createContainer({
+    Image: CONTAINER_IMAGE,
+    name,
+    Env: [
+      'TERM=xterm-256color',
+      'PATH=/home/coder/.claude/bin:/home/coder/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+    ],
+    Tty: true,
+    OpenStdin: true,
+    HostConfig: {
+      Memory: 4 * 1024 * 1024 * 1024,   // 4 GB
+      NanoCpus: 3_000_000_000,           // 3 CPU cores
+      PidsLimit: 1500,
+      CapDrop: ['ALL'],
+      SecurityOpt: ['no-new-privileges'],
+      ...(CLAUDE_NETWORK ? { NetworkMode: CLAUDE_NETWORK } : {}),
+      Binds: [
+        `${guestAuthVolume(familyId)}:/home/coder/.claude`,
+        `${guestWorkspaceVolume(familyId)}:/home/coder/workspace`,
+      ],
+    },
+  });
+  await container.start();
+  return container;
+}
+
+// A guest's shell, rooted in their own folder. The per-guest wrapper dir keeps
+// concurrent sessions from racing each other writing the same /tmp/claude.
+// `slug` is already sanitized to [a-z0-9-] by the caller.
+export async function createGuestExecSession(familyId, slug) {
+  const container = await getOrCreateGuestContainer(familyId);
+  const modelId = MODEL_MAP.sonnet;
+  const workDir = `/home/coder/workspace/${slug}`;
+  const binDir = `/tmp/bin-${slug}`;
+
+  const bootstrap = [
+    `mkdir -p ${workDir} ${binDir}`,
+    `printf '#!/bin/bash\\nexec /home/coder/.npm-global/bin/claude --model ${modelId} "$@"\\n' > ${binDir}/claude`,
+    `chmod +x ${binDir}/claude`,
+    `export PATH=${binDir}:$PATH`,
+    `cd ${workDir}`,
+    'exec bash',
+  ].join(' && ');
+
+  const exec = await container.exec({
+    Cmd: ['bash', '-c', bootstrap],
+    AttachStdin: true,
+    AttachStdout: true,
+    AttachStderr: true,
+    Tty: true,
+    User: 'coder',
+    WorkingDir: '/home/coder/workspace',
+  });
+  const stream = await exec.start({ hijack: true, stdin: true, Tty: true });
+  touchGuestActivity(familyId);
+  return { exec, stream };
+}
+
+// Parent's shell into the guest container, at the workspace root. This is how
+// the one-time `claude` OAuth login gets done — the token lands in the auth
+// volume and every guest exec inherits it.
+export async function createGuestAdminExecSession(familyId) {
+  const container = await getOrCreateGuestContainer(familyId);
+  const exec = await container.exec({
+    Cmd: ['bash'],
+    AttachStdin: true,
+    AttachStdout: true,
+    AttachStderr: true,
+    Tty: true,
+    User: 'coder',
+    WorkingDir: '/home/coder/workspace',
+  });
+  const stream = await exec.start({ hijack: true, stdin: true, Tty: true });
+  touchGuestActivity(familyId);
+  return { exec, stream };
+}
+
+export async function getGuestContainerStatus(familyId) {
+  try {
+    const info = await docker.getContainer(guestContainerName(familyId)).inspect();
+    return { exists: true, running: info.State.Running };
+  } catch (err) {
+    if (err.statusCode === 404) return { exists: false, running: false };
+    throw err;
+  }
+}
+
+export async function stopGuestContainer(familyId) {
+  try {
+    const container = docker.getContainer(guestContainerName(familyId));
+    const info = await container.inspect();
+    if (info.State.Running) await container.stop();
+  } catch (err) {
+    if (err.statusCode !== 404) throw err;
+  }
+  lastActivity.delete(guestActivityKey(familyId));
+}
+
+// Wipe everything the guests built. Removes the container (so the workspace
+// volume is no longer in use) and then the workspace volume itself. The auth
+// volume is deliberately left alone — see the note at the top of this section.
+export async function nukeGuestWorkspace(familyId) {
+  try {
+    await docker.getContainer(guestContainerName(familyId)).remove({ force: true });
+  } catch (err) {
+    if (err.statusCode !== 404) throw err;
+  }
+  lastActivity.delete(guestActivityKey(familyId));
+
+  try {
+    await docker.getVolume(guestWorkspaceVolume(familyId)).remove({ force: true });
+  } catch (err) {
+    if (err.statusCode !== 404) throw err;
+  }
+}
+
+// List the per-guest folders that actually exist on disk.
+export async function listGuestFolders(familyId) {
+  try {
+    const container = docker.getContainer(guestContainerName(familyId));
+    const info = await container.inspect();
+    if (!info.State.Running) return [];
+
+    const exec = await container.exec({
+      Cmd: ['ls', '-1', '/home/coder/workspace'],
+      AttachStdout: true,
+      AttachStderr: true,
+      Tty: false,
+    });
+    const stream = await exec.start();
+
+    return new Promise((resolve) => {
+      const chunks = [];
+      container.modem.demuxStream(stream, { write: (c) => chunks.push(c) }, { write: () => {} });
+      stream.on('end', () => {
+        const output = Buffer.concat(chunks).toString().trim();
+        resolve(output.split('\n').filter((d) => d && d !== 'CLAUDE.md' && !d.startsWith('.')));
+      });
+      stream.on('error', () => resolve([]));
+    });
+  } catch {
+    return [];
+  }
+}
+
+export function touchGuestActivity(familyId) {
+  lastActivity.set(guestActivityKey(familyId), Date.now());
+}
+
+// Stop containers idle for > 30 minutes (runs every 5 min). Guest containers
+// share the activity map under a `guest:<familyId>` key.
 setInterval(() => {
   const IDLE_TIMEOUT = 30 * 60 * 1000;
-  for (const [userId, ts] of lastActivity) {
-    if (Date.now() - ts > IDLE_TIMEOUT) {
-      stopContainer(userId).catch(() => {});
+  for (const [key, ts] of lastActivity) {
+    if (Date.now() - ts <= IDLE_TIMEOUT) continue;
+    if (typeof key === 'string' && key.startsWith('guest:')) {
+      stopGuestContainer(Number(key.slice(6))).catch(() => {});
+    } else {
+      stopContainer(key).catch(() => {});
     }
   }
 }, 5 * 60 * 1000);

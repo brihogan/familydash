@@ -61,6 +61,14 @@ export default defineConfig({
       '/apps': {
         target: `http://localhost:${process.env.VITE_API_PORT || '3010'}`,
         changeOrigin: true,
+        // /apps/build is the guest workshop — a React route, not a kid-built
+        // static app. Hand it back to Vite's SPA fallback instead of proxying
+        // it to the apps router, which would 404 on username "build".
+        // (Production has the equivalent exception in server/src/app.js.)
+        bypass: (req) => {
+          const path = (req.url || '').split('?')[0];
+          return path === '/apps/build' ? '/index.html' : undefined;
+        },
       },
       '/ws': {
         target: `http://localhost:${process.env.VITE_API_PORT || '3010'}`,
