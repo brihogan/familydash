@@ -387,8 +387,37 @@ export async function createGuestExecSession(familyId, slug) {
   const workDir = `/home/coder/workspace/${slug}`;
   const binDir = `/tmp/bin-${slug}`;
 
+  // The image's CLAUDE.md says "put every app in a folder inside ~/workspace",
+  // which is right for a kid's own container but wrong here — ~/workspace is
+  // shared, so every guest would build into the same root and clobber each
+  // other. Claude Code merges CLAUDE.md from the cwd upward, so a file in the
+  // guest's own folder overrides it. Also steers away from the storage API and
+  // multiplayer SDK, which are keyed to real user IDs and 404 for guests.
+  const guestGuidance = [
+    '# Your workspace',
+    '',
+    `You are working in \`${workDir}\`, which is **your own folder**.`,
+    '',
+    'IMPORTANT — this overrides any other instruction about paths:',
+    '',
+    '- Build every app or game in its own folder **inside the folder you are',
+    '  already in**. Use a relative path: `tic-tac-toe/index.html`, not',
+    '  `~/workspace/tic-tac-toe/index.html`.',
+    '- NEVER write to `~/workspace` directly. That folder is shared with other',
+    '  people and writing there will collide with their work.',
+    '- The entry point must be `index.html` inside the app folder.',
+    '',
+    '## Saving data',
+    '',
+    'The `./data` storage API and the multiplayer SDK are **not available** here.',
+    'Use `localStorage` for high scores, settings, and saved progress.',
+  ].join('\n');
+  const guidanceB64 = Buffer.from(guestGuidance, 'utf8').toString('base64');
+
   const setup = [
     `mkdir -p ${workDir} ${binDir}`,
+    // base64 so the markdown's quotes and backticks can't break the shell string
+    `echo ${guidanceB64} | base64 -d > ${workDir}/CLAUDE.md`,
     `printf '#!/bin/bash\\nexec /home/coder/.npm-global/bin/claude --model ${modelId} "$@"\\n' > ${binDir}/claude`,
     `chmod +x ${binDir}/claude`,
     `export PATH=${binDir}:$PATH`,
