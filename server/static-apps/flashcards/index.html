@@ -421,30 +421,59 @@
   .mascot{--c1:var(--hit);--c2:var(--accent);}
   .mascot .body{
     position:absolute;inset:14px 20px 10px 20px;border-radius:48% 48% 44% 44%;
-    background:linear-gradient(160deg,var(--c1),var(--c2));
+    background:linear-gradient(160deg,var(--c1),var(--c2));z-index:2;
   }
   .mascot .ear{
     position:absolute;top:-2px;width:40px;height:58px;border-radius:50%;
-    background:linear-gradient(160deg,var(--c1),var(--c2));
+    background:linear-gradient(160deg,var(--c1),var(--c2));z-index:1;
     transition:height .2s var(--ease),width .2s var(--ease),border-radius .2s var(--ease);
   }
-  /* ear shapes per critter */
-  .mascot[data-ears="tiny"] .ear{height:24px;width:30px;top:8px;}
-  .mascot[data-ears="floppy"] .ear{height:66px;width:32px;border-radius:50% 50% 46% 46%;top:16px;}
-  .mascot[data-ears="floppy"] .ear.l{left:12px;rotate:-24deg;}
-  .mascot[data-ears="floppy"] .ear.r{right:12px;rotate:24deg;}
-  .mascot[data-ears="long"] .ear{height:76px;width:26px;top:-24px;}
-  .mascot[data-ears="pointy"] .ear{
-    height:46px;width:42px;border-radius:6px 50% 6px 50%;top:4px;
+  .mascot .ear .inner{
+    position:absolute;inset:26% 24% 20% 24%;border-radius:inherit;
+    background:var(--c3,rgba(255,255,255,.35));opacity:.85;display:none;
   }
-  .mascot[data-ears="pointy"] .ear.l{rotate:-30deg;}
-  .mascot[data-ears="pointy"] .ear.r{rotate:30deg;border-radius:50% 6px 50% 6px;}
-  .mascot .ear.l{left:24px;transform-origin:bottom center;rotate:-16deg;}
-  .mascot .ear.r{right:24px;transform-origin:bottom center;rotate:16deg;}
+  .mascot[data-innerear="on"] .ear .inner{display:block;}
+  .mascot[data-innerear="dark"] .ear .inner{display:block;background:var(--c3,#2b2b33);opacity:1;}
+  /* panda ears are fully dark */
+  .mascot[data-innerear="dark"] .ear{background:var(--c3,#2b2b33);}
+  /* bigger ears for the monkey */
+  .mascot[data-bigears="on"][data-ears="round"] .ear{width:54px;height:54px;top:-6px;}
+  .mascot[data-bigears="on"][data-ears="round"] .ear.l{left:8px;}
+  .mascot[data-bigears="on"][data-ears="round"] .ear.r{right:8px;}
+  /* round: soft ovals poking above the head (bear/panda/monkey/frog) */
+  .mascot[data-ears="round"] .ear{height:44px;width:44px;top:-12px;}
+  .mascot[data-ears="round"] .ear.l{left:22px;} .mascot[data-ears="round"] .ear.r{right:22px;}
+  /* tiny: small nubs on top (duck/lizard) */
+  .mascot[data-ears="tiny"] .ear{height:26px;width:36px;top:-8px;border-radius:50% 50% 46% 46%;}
+  .mascot[data-ears="tiny"] .ear.l{left:32px;} .mascot[data-ears="tiny"] .ear.r{right:32px;}
+  /* floppy: long hanging ears framing the head (puppy) */
+  .mascot[data-ears="floppy"] .ear{height:74px;width:34px;border-radius:50% 50% 48% 48%;top:0;}
+  .mascot[data-ears="floppy"] .ear.l{left:6px;rotate:-24deg;}
+  .mascot[data-ears="floppy"] .ear.r{right:6px;rotate:24deg;}
+  /* droopy: longer, hanging down close alongside the head (puppy) */
+  .mascot[data-ears="droopy"] .ear{
+    height:86px;width:36px;border-radius:46% 46% 50% 50%;top:8px;z-index:0;
+  }
+  .mascot[data-ears="droopy"] .ear.l{left:2px;rotate:-12deg;}
+  .mascot[data-ears="droopy"] .ear.r{right:2px;rotate:12deg;}
+  /* long: upright rabbit ears */
+  .mascot[data-ears="long"] .ear{height:78px;width:26px;top:-46px;border-radius:50% 50% 44% 44%;}
+  .mascot[data-ears="long"] .ear.l{left:56px;rotate:-9deg;}
+  .mascot[data-ears="long"] .ear.r{right:56px;rotate:9deg;}
+  .mascot[data-ears="long"] .ear .inner{inset:20% 28% 14% 28%;}
+  /* pointy: triangular ears (cat/fox) */
+  .mascot[data-ears="pointy"] .ear{
+    height:42px;width:42px;top:-14px;border-radius:8px 70% 8px 70%;
+  }
+  .mascot[data-ears="pointy"] .ear.l{left:22px;rotate:-12deg;}
+  .mascot[data-ears="pointy"] .ear.r{right:22px;rotate:12deg;border-radius:70% 8px 70% 8px;}
+  .mascot[data-ears="pointy"] .ear .inner{inset:36% 24% 12% 24%;border-radius:6px 50% 6px 50%;}
+  .mascot[data-ears="none"] .ear{display:none;}
+  .mascot .ear{transform-origin:bottom center;}
 
   /* face lags the hop slightly and drifts, so the eyes aren't pinned */
   .mascot .face{
-    position:absolute;inset:0;
+    position:absolute;inset:0;z-index:3;
     animation:facelag 1s var(--spring) infinite;
   }
   /* .eye drifts; the inner .ball blinks — separate elements so the
@@ -465,9 +494,173 @@
     border:0 solid var(--bg);border-bottom-width:6px;border-radius:0 0 40px 40px;
     animation:talk 1s var(--spring) infinite;
   }
+  /* ---- extra critter details: hidden by default, shown per critter ---- */
+  .mascot .leg,.mascot .tail,.mascot .belly,.mascot .nose,.mascot .crest,
+  .mascot .snout,.mascot .cheek,.mascot .whisk,.mascot .patch{display:none;}
+
+  /* a spiky crest running over the head (lizard) */
+  .mascot .crest{
+    position:absolute;left:50%;top:-6px;width:0;height:0;z-index:1;
+    margin-left:-4px;
+    border-left:8px solid transparent;border-right:8px solid transparent;
+    border-bottom:20px solid var(--c2);
+    filter:drop-shadow(-16px 4px 0 var(--c2)) drop-shadow(16px 4px 0 var(--c2));
+  }
+  .mascot[data-crest="on"] .crest{display:block;}
+
+  /* dark eye patches (panda) sit behind the eyes */
+  .mascot .patch{
+    position:absolute;top:62px;width:36px;height:44px;border-radius:52% 48% 55% 45%;
+    background:var(--c3,#2b2b33);z-index:0;opacity:.92;
+  }
+  .mascot .patch.l{left:38px;rotate:-14deg;}
+  .mascot .patch.r{right:38px;rotate:14deg;}
+  .mascot[data-patch="on"] .patch{display:block;}
+  /* softer, lighter patches (puppy) — an eye spot over one eye */
+  .mascot[data-patch="soft"] .patch{
+    display:block;background:var(--c2);opacity:.55;top:58px;
+  }
+  .mascot[data-patch="soft"] .patch.r{display:none;}  /* single spot */
+
+  /* big froggy eyes bulging above the head */
+  .mascot[data-bigeyes="on"] .eye{
+    top:52px;width:26px;height:26px;
+    box-shadow:0 0 0 5px var(--c1),0 0 0 7px rgba(0,0,0,.08);
+    background:#fff;border-radius:50%;
+  }
+  .mascot[data-bigeyes="on"] .eye.l{left:44px;}
+  .mascot[data-bigeyes="on"] .eye.r{right:44px;}
+  .mascot[data-bigeyes="on"] .eye i{width:60%;height:60%;margin:20%;background:#2b2b33;}
+
+  /* a little forelock tuft (duck) */
+  .mascot .tuft{display:none;}
+  .mascot[data-tuft="on"] .tuft{
+    display:block;position:absolute;left:50%;top:-14px;margin-left:-7px;
+    width:14px;height:26px;border-radius:50% 50% 40% 40%;z-index:1;
+    background:linear-gradient(160deg,var(--c1),var(--c2));rotate:-8deg;
+  }
+
+  /* two little buck teeth (bunny) under the mouth */
+  .mascot .toof{display:none;}
+  .mascot[data-bucktooth="on"] .toof{
+    display:block;position:absolute;left:50%;top:112px;width:12px;height:12px;
+    margin-left:-13px;background:#fff;border-radius:2px 2px 4px 4px;z-index:3;
+    box-shadow:14px 0 0 #fff;
+  }
+  .mascot .eye{z-index:2;}
+  /* on a dark eye patch, ring the eye in white so the pupil still reads */
+  .mascot[data-patch="on"] .eye{
+    box-shadow:0 0 0 4px rgba(255,255,255,.92);border-radius:50%;
+  }
+
+  /* little feet peeking out at the very bottom, behind the body so only the
+     part below the body edge shows */
+  .mascot .leg{
+    position:absolute;bottom:0;width:30px;height:24px;border-radius:44% 44% 50% 50%;
+    background:linear-gradient(160deg,var(--c1),var(--c2));z-index:1;
+  }
+  .mascot .leg.l{left:40px;} .mascot .leg.r{right:40px;}
+  .mascot[data-feet="on"] .leg{display:block;}
+  /* webbed look for duck/frog */
+  .mascot[data-feet="web"] .leg{
+    display:block;bottom:0;width:36px;height:18px;border-radius:40% 40% 50% 50%;
+    background:var(--c3,#f0a830);
+  }
+  .mascot[data-feet="web"] .leg.l{left:34px;} .mascot[data-feet="web"] .leg.r{right:34px;}
+
+  /* a soft lighter tummy patch */
+  .mascot .belly{
+    position:absolute;left:50%;top:58px;width:56px;height:74px;margin-left:-28px;
+    border-radius:50% 50% 48% 48%;
+    background:rgba(255,255,255,.42);z-index:1;
+  }
+  .mascot[data-belly="on"] .belly{display:block;}
+
+  /* a rounded muzzle (dogs, monkeys) */
+  .mascot .snout{
+    position:absolute;left:50%;top:94px;width:50px;height:36px;margin-left:-25px;
+    border-radius:50%;background:rgba(255,255,255,.5);z-index:1;
+  }
+  .mascot[data-snout="on"] .snout{display:block;}
+  .mascot[data-snout="on"] .mouth{top:108px;}
+
+  /* a nose sitting at the top of the snout / muzzle */
+  .mascot .nose{
+    position:absolute;left:50%;top:92px;width:16px;height:12px;margin-left:-8px;
+    border-radius:50% 50% 50% 50%;background:#2b2b33;z-index:3;
+  }
+  .mascot[data-nose="on"] .nose{display:block;}
+  .mascot[data-snout="on"][data-nose="on"] .nose{top:96px;width:18px;height:13px;margin-left:-9px;}
+  /* beak instead of a nose for the duck */
+  .mascot[data-nose="beak"] .nose{
+    display:block;top:100px;width:38px;height:22px;margin-left:-19px;
+    border-radius:44% 44% 60% 60%;background:var(--c3,#f0a830);
+  }
+  .mascot[data-nose="beak"] .mouth{display:none;}
+
+  /* rosy cheeks */
+  .mascot .cheek{
+    position:absolute;top:96px;width:18px;height:12px;border-radius:50%;
+    background:rgba(255,120,150,.5);z-index:2;
+  }
+  .mascot .cheek.l{left:38px;} .mascot .cheek.r{right:38px;}
+  .mascot[data-cheeks="on"] .cheek{display:block;}
+
+  /* whiskers (cat, fox) drawn as thin lines */
+  .mascot .whisk{
+    position:absolute;top:100px;width:28px;height:2px;border-radius:2px;
+    background:rgba(255,255,255,.7);z-index:3;
+  }
+  .mascot .whisk.l{left:14px;transform:rotate(8deg);}
+  .mascot .whisk.r{right:14px;transform:rotate(-8deg);}
+  .mascot .whisk.l::before,.mascot .whisk.l::after,
+  .mascot .whisk.r::before,.mascot .whisk.r::after{
+    content:'';position:absolute;width:28px;height:2px;border-radius:2px;
+    background:inherit;left:0;
+  }
+  .mascot .whisk.l::before{top:-7px;transform:rotate(-10deg);}
+  .mascot .whisk.l::after{top:7px;transform:rotate(10deg);}
+  .mascot .whisk.r::before{top:-7px;transform:rotate(10deg);}
+  .mascot .whisk.r::after{top:7px;transform:rotate(-10deg);}
+  .mascot[data-whiskers="on"] .whisk{display:block;}
+
+  /* Tails emerge from under the body's lower-right rump. The root is pushed
+     deep under the body (left ~112, well inside the x20-150 body) and angled
+     down-and-out so a real chunk overlaps the body — no seam, no gap. */
+  /* Tails are drawn as an SVG J-curve: the stroke starts behind the body,
+     dips low near the right foot, then arcs out and upward. The path itself
+     is set per critter in applyCritter (thin/curl/bushy differ in width and
+     sweep). The svg is parked over the body's lower-right; z-index 1 keeps
+     the root hidden behind the body (z-index 2). */
+  .mascot .tail{
+    position:absolute;z-index:1;display:none;overflow:visible;
+    left:96px;bottom:6px;width:80px;height:90px;
+  }
+  .mascot[data-tail] .tail{display:block;}
+  .mascot[data-tail="none"] .tail{display:none;}
+  .mascot .tail .tailpath{
+    fill:none;stroke:var(--c1);
+    stroke-linecap:round;stroke-linejoin:round;
+  }
+  .mascot .tail .tailtip{fill:var(--c3,rgba(255,255,255,.6));display:none;}
+  .mascot[data-tail="bushy"] .tail .tailtip{display:block;}
+
+  /* puppy/bunny keep a little round puff instead of a curved tail */
+  .mascot[data-tail="stub"] .tail{display:none;}
+  .mascot .stubtail{display:none;}
+  .mascot[data-tail="stub"] .stubtail{
+    display:block;position:absolute;z-index:1;
+    left:134px;bottom:20px;width:30px;height:32px;border-radius:50%;
+    background:linear-gradient(150deg,var(--c2),var(--c1));
+  }
+  .mascot[data-tail="stub"] .stubtail::after{
+    content:'';position:absolute;inset:26%;border-radius:50%;
+    background:var(--c3,rgba(255,255,255,.55));
+  }
+
   .mascot .arm{
     position:absolute;top:82px;width:46px;height:14px;border-radius:99px;
-    background:var(--accent);
+    background:var(--accent);z-index:4;
   }
   .mascot .arm.l{left:-14px;transform-origin:right center;animation:wavel .5s var(--ease) infinite alternate;}
   .mascot .arm.r{right:-14px;transform-origin:left center;animation:waver .5s var(--ease) infinite alternate;}
@@ -731,6 +924,13 @@
     86%{transform:translateX(2px) rotate(.25deg);}
   }
   .cbAgain{background:var(--hit)!important;}
+
+  .devPreviewBtn{
+    width:100%;margin-top:12px;padding:12px;border-radius:12px;
+    background:var(--panel);border:1px dashed var(--accent);color:var(--ink);
+    font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;
+  }
+  .devPreviewBtn:active{transform:scale(.98);}
 
   /* ---------- STATS ---------- */
   .titlerow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 4px;}
@@ -1188,6 +1388,7 @@
     <button class="stab" data-s="coins" onclick="storeTab('coins')">Coins</button>
   </div>
   <div id="storeCritters" class="storeGrid"></div>
+  <button id="devPreview" class="devPreviewBtn" style="display:none" onclick="previewCritter()">👁 Preview equipped critter</button>
   <div id="storeHats" class="storeGrid" style="display:none"></div>
   <div id="storePowers" class="storeGrid" style="display:none"></div>
   <div id="storeCoinSkins" class="storeGrid" style="display:none"></div>
@@ -1267,13 +1468,25 @@
     <div class="cheerMain">
       <button class="mascot" id="giftBtn" onclick="openGift()" aria-label="Open your present">
         <div class="hop">
-          <i class="ear l"></i><i class="ear r"></i>
+          <svg class="tail" viewBox="0 0 80 90" aria-hidden="true"><path class="tailpath" d=""/><circle class="tailtip" cx="0" cy="0" r="0"/></svg>
+          <i class="stubtail"></i>
+          <i class="crest"></i>
+          <i class="tuft"></i>
+          <i class="ear l"><i class="inner"></i></i><i class="ear r"><i class="inner"></i></i>
+          <i class="leg l"></i><i class="leg r"></i>
           <i class="body"></i>
+          <i class="belly"></i>
           <span class="hatSlot" id="hatSlot"></span>
           <i class="arm l"></i><i class="arm r"></i>
           <div class="face">
+            <i class="patch l"></i><i class="patch r"></i>
             <span class="eye l"><i></i></span><span class="eye r"><i></i></span>
+            <i class="snout"></i>
+            <i class="nose"></i>
+            <i class="cheek l"></i><i class="cheek r"></i>
+            <i class="whisk l"></i><i class="whisk r"></i>
             <i class="mouth"></i>
+            <i class="toof"></i>
           </div>
           <div class="gift" id="gift">
             <i class="lid"></i>
@@ -1653,7 +1866,7 @@ function start(){
   }
   useKeypad=el('keypad').checked;
   total=deck.length; firstTotal=total; i=0; missed=[]; right=0; retryRound=false;
-  seenAll=0; rightAll=0;
+  seenAll=0; rightAll=0; sessionPrizes={};
   secondUsedOnCard=false;
   /* spend armed power-ups for this session */
   doubleOn = (powers.double||0)>0;
@@ -2018,6 +2231,34 @@ function savePowers(){ try{ localStorage.setItem(KEY+'.pow',JSON.stringify(power
    resulting rare/common spread reflects live drop rates. */
 let devTaps=0, devTimer=null;
 
+/* Dev preview: drop straight onto the checkpoint screen to inspect the
+   equipped critter, without running a session. Tap anywhere to dismiss. */
+let cbPreviewing=false;
+function previewCritter(){
+  applyCritter(); applyHat();
+  el('cheerEyebrow').textContent='Critter preview';
+  const c=CRITTERS.find(x=>x.id===activeCritter)||CRITTERS[0];
+  el('cheerHead').textContent=c.n;
+  el('cheerStat').innerHTML='Tap anywhere to dismiss';
+  el('cheerPips').innerHTML='';
+  drawSessionTray('cheerTray');
+  el('cheerscreen').classList.add('on');
+  el('cheerscreen').scrollTop=0;
+  /* park the gift so its box doesn't cover the critter's legs and tail */
+  const g=el('gift'); if(g) g.style.display='none';
+  el('cheerGo').style.visibility='hidden';
+  const tm=el('tapme'); if(tm) tm.style.display='none';
+  cbPreviewing=true;
+  setTimeout(()=>{ document.addEventListener('click',dismissPreview,{once:true}); },50);
+}
+function dismissPreview(){
+  if(!cbPreviewing) return;
+  cbPreviewing=false;
+  el('cheerscreen').classList.remove('on');
+  const g=el('gift'); if(g) g.style.display='';
+  el('cheerGo').style.visibility='visible';
+}
+
 function devTap(){
   clearTimeout(devTimer);
   devTaps++;
@@ -2034,8 +2275,11 @@ function devTap(){
    collection as well as a full one. 200 draws collects everything. */
 const DEV_STEPS=[200,40,80,120];
 let devStep=0;
+let devMode=false;   /* latches on after the first grant; unlocks previews */
 
 function devGrant(){
+  devMode=true;
+  refreshStore();
   addCoins(2000);
 
   const N=DEV_STEPS[devStep % DEV_STEPS.length];
@@ -2059,7 +2303,7 @@ function devGrant(){
   const rareOwned=owned.filter(p=>p.r).length;
   const commOwned=owned.length-rareOwned;
 
-  drawTray('setupTray'); drawTray('cheerTray'); drawTray('doneTray');
+  drawTray('setupTray'); drawSessionTray('cheerTray'); drawTray('doneTray');
   el('noPrizes').style.display='none';
   paintCoins();
 
@@ -2138,6 +2382,9 @@ function refreshStore(){
     }).join('');
     cg.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>buyCritter(b.dataset.c));
   }
+  /* dev-only: preview the equipped critter on the checkpoint screen */
+  const pv=el('devPreview');
+  if(pv) pv.style.display = devMode ? 'block' : 'none';
 
   /* hats */
   const hg=el('storeHats');
@@ -2323,16 +2570,16 @@ function useSkip(){
 /* Each critter recolors the mascot and swaps the ear/face shape.
    'blob' is the free default. Costs rise with cuteness. */
 const CRITTERS=[
-  {id:'blob',   n:'Blobby',  cost:0,   ears:'round',  c1:'var(--hit)',  c2:'var(--accent)', face:'🫧'},
-  {id:'frog',   n:'Frog',    cost:50,  ears:'tiny',   c1:'#7ed957',     c2:'#3fa34d',       face:'🐸'},
-  {id:'lizard', n:'Lizard',  cost:75,  ears:'tiny',   c1:'#8bd97a',     c2:'#4a9c6d',       face:'🦎'},
-  {id:'duck',   n:'Duck',    cost:100, ears:'tiny',   c1:'#ffd95c',     c2:'#f0a830',       face:'🦆'},
-  {id:'panda',  n:'Panda',   cost:150, ears:'round',  c1:'#f2f2f2',     c2:'#9aa0a6',       face:'🐼'},
-  {id:'monkey', n:'Monkey',  cost:200, ears:'round',  c1:'#c98b5e',     c2:'#8b5a34',       face:'🐵'},
-  {id:'dog',    n:'Puppy',   cost:250, ears:'floppy', c1:'#e0b184',     c2:'#a9713f',       face:'🐶'},
-  {id:'bunny',  n:'Bunny',   cost:300, ears:'long',   c1:'#ffd9e8',     c2:'#f08cbb',       face:'🐰'},
-  {id:'fox',    n:'Fox',     cost:400, ears:'pointy', c1:'#ff9a4d',     c2:'#d1522a',       face:'🦊'},
-  {id:'cat',    n:'Kitty',   cost:500, ears:'pointy', c1:'#ffb3c7',     c2:'#b76e9c',       face:'🐱'}
+  {id:'blob',   n:'Blobby',  cost:0,   ears:'round',  c1:'var(--hit)',  c2:'var(--accent)', c3:'rgba(255,255,255,.35)', face:'🫧', feat:{}},
+  {id:'frog',   n:'Frog',    cost:50,  ears:'round',  c1:'#7ed957',     c2:'#4aab3f',       c3:'#eafcd8', face:'🐸', feat:{feet:'web',belly:1,cheeks:1,bigeyes:1}},
+  {id:'lizard', n:'Lizard',  cost:75,  ears:'none',   c1:'#6fd08c',     c2:'#3c8f5e',       c3:'#2f7d4e', face:'🦎', feat:{feet:1,belly:1,tail:'thin',crest:1}},
+  {id:'duck',   n:'Duck',    cost:100, ears:'none',   c1:'#ffe066',     c2:'#f5c542',       c3:'#f0932b', face:'🦆', feat:{feet:'web',belly:1,nose:'beak',tuft:1}},
+  {id:'panda',  n:'Panda',   cost:150, ears:'round',  c1:'#f6f6f8',     c2:'#d2d5da',       c3:'#2b2b33', face:'🐼', feat:{feet:1,belly:1,nose:1,innerear:'dark',patch:1}},
+  {id:'monkey', n:'Monkey',  cost:200, ears:'round',  c1:'#b07a4e',     c2:'#7a4d2b',       c3:'#f0d3ad', face:'🐵', feat:{feet:1,snout:1,nose:1,tail:'curl',innerear:1,bigears:1}},
+  {id:'dog',    n:'Puppy',   cost:250, ears:'droopy', c1:'#e6bd8f',     c2:'#b07a44',       c3:'#f7e6d2', face:'🐶', feat:{feet:1,snout:1,nose:1,tail:'thin',patch:'soft'}},
+  {id:'bunny',  n:'Bunny',   cost:300, ears:'long',   c1:'#ffdbe9',     c2:'#f4a6cb',       c3:'#fff2f8', face:'🐰', feat:{feet:1,belly:1,cheeks:1,nose:1,tail:'stub',innerear:1,bucktooth:1}},
+  {id:'fox',    n:'Fox',     cost:400, ears:'pointy', c1:'#ff9a4d',     c2:'#d1522a',       c3:'#fff2e0', face:'🦊', feat:{feet:1,whiskers:1,nose:1,tail:'bushy',innerear:1,belly:1,snout:1}},
+  {id:'cat',    n:'Kitty',   cost:500, ears:'pointy', c1:'#ffb3c7',     c2:'#c77b9e',       c3:'#ffe0ec', face:'🐱', feat:{feet:1,whiskers:1,cheeks:1,nose:1,tail:'thin',innerear:1}}
 ];
 
 let ownedCritters={blob:1};
@@ -2355,7 +2602,47 @@ function applyCritter(){
   if(!m) return;
   m.style.setProperty('--c1',c.c1);
   m.style.setProperty('--c2',c.c2);
+  m.style.setProperty('--c3',c.c3||'rgba(255,255,255,.35)');
   m.dataset.ears=c.ears;
+  const f=c.feat||{};
+  const flag=(v,on)=> v ? (v===1?'on':v) : (on||'off');
+  m.dataset.feet     = flag(f.feet);
+  m.dataset.belly    = f.belly   ? 'on' : 'off';
+  m.dataset.snout    = f.snout   ? 'on' : 'off';
+  m.dataset.cheeks   = f.cheeks  ? 'on' : 'off';
+  m.dataset.whiskers = f.whiskers? 'on' : 'off';
+  m.dataset.innerear = flag(f.innerear);
+  m.dataset.nose     = flag(f.nose);
+  m.dataset.tail     = f.tail || 'none';
+  m.dataset.crest    = f.crest   ? 'on' : 'off';
+  m.dataset.patch    = flag(f.patch);
+  m.dataset.bigeyes  = f.bigeyes ? 'on' : 'off';
+  m.dataset.tuft     = f.tuft    ? 'on' : 'off';
+  m.dataset.bigears  = f.bigears ? 'on' : 'off';
+  m.dataset.bucktooth= f.bucktooth?'on' : 'off';
+  setTailShape(m, f.tail);
+}
+
+/* Draw the J-curved tail. The path roots behind the body (left, hidden), dips
+   low near the foot, then arcs out and up. Stroke width and sweep vary by
+   animal. Coordinates are in the tail svg's 80x90 viewBox. */
+function setTailShape(m, style){
+  const path=m.querySelector('.tailpath');
+  const tip=m.querySelector('.tailtip');
+  if(!path) return;
+  const shapes={
+    thin:  {d:'M32 56 C 34 78, 48 80, 56 66 S 66 30, 64 14', w:11, tip:null},
+    curl:  {d:'M30 54 C 32 80, 48 82, 57 66 S 68 28, 66 10', w:12, tip:null},
+    bushy: {d:'M30 58 C 32 82, 48 84, 58 68 S 70 32, 66 14', w:22, tip:[66,14,13]},
+  };
+  const s=shapes[style];
+  if(!s){ path.setAttribute('d',''); if(tip) tip.setAttribute('r','0'); return; }
+  path.setAttribute('d', s.d);
+  path.setAttribute('stroke-width', s.w);
+  if(tip){
+    if(s.tip){ tip.setAttribute('cx',s.tip[0]); tip.setAttribute('cy',s.tip[1]); tip.setAttribute('r',s.tip[2]); }
+    else tip.setAttribute('r','0');
+  }
 }
 
 /* ---------- POWER-UPS ----------
@@ -2595,6 +2882,7 @@ const PRIZES=[
 ];
 
 let inventory={};      /* id -> count */
+let sessionPrizes={};  /* id -> count won this session, cleared on session start */
 let pendingPrize=null; /* prize awaiting land */
 let revealTimer=null;
 
@@ -2627,6 +2915,24 @@ const PCAT=[
   ['n','Nature'],['p','Space'],['a','Animals']
 ];
 const catOf=id=>id.replace(/[0-9]+$/,'');
+
+/* Checkpoint tray: only the prizes won in this session, flat (no categories
+   since it's ~10 at most), newest first. */
+function drawSessionTray(id){
+  const box=el(id);
+  if(!box) return;
+  const ids=Object.keys(sessionPrizes);
+  if(!ids.length){ box.innerHTML=''; return; }
+  const won=PRIZES.filter(p=>sessionPrizes[p.id]);
+  const count=won.reduce((s,p)=>s+sessionPrizes[p.id],0);
+  box.innerHTML='<div class="trayCount">'+count+' prize'+(count===1?'':'s')+' this session</div>'+
+    '<div class="catSlots">'+won.map(p=>{
+      const c=sessionPrizes[p.id];
+      return '<button class="slot'+(p.r?' rare':'')+'" data-p="'+p.id+'" title="'+p.n+'" aria-label="'+p.n+'">'+
+             p.i+(c>1?'<b>'+c+'</b>':'')+'</button>';
+    }).join('')+'</div>';
+  box.querySelectorAll('.slot').forEach(b=>{ b.onclick=()=>viewPrize(b.dataset.p); });
+}
 
 function drawTray(id){
   const box=el(id);
@@ -2741,13 +3047,14 @@ function landPrize(){
   const p=pendingPrize;
   pendingPrize=null;
   inventory[p.id]=(inventory[p.id]||0)+1;
+  sessionPrizes[p.id]=(sessionPrizes[p.id]||0)+1;
   saveInv();
   const card=el('revealCard');
   card.classList.add('leaving');
   setTimeout(()=>{
     el('reveal').classList.remove('on');
     card.classList.remove('leaving');
-    drawTray('cheerTray'); drawTray('doneTray');
+    drawSessionTray('cheerTray'); drawTray('doneTray');
     const t=el('cheerscreen').classList.contains('on')?el('cheerTray'):el('doneTray');
     const slots=t.querySelectorAll('.slot');
     const last=[...slots].find(s=>s.title===p.n);
@@ -3229,7 +3536,7 @@ function startChallenge(size){
   if(!deck.length){ return; }
   useKeypad=el('chalKeypad').checked;
   total=deck.length; firstTotal=total; i=0; missed=[]; right=0; retryRound=false;
-  seenAll=0; rightAll=0;
+  seenAll=0; rightAll=0; sessionPrizes={};
   secondUsedOnCard=false;
   doubleOn=(powers.double||0)>0;
   bonusGift=(powers.gift||0)>0;
@@ -3399,7 +3706,7 @@ function showCheer(){
   }
   el('cheerscreen').classList.add('on');
   el('cheerscreen').scrollTop=0;
-  drawTray('cheerTray');
+  drawSessionTray('cheerTray');
   armGift();
   fireworks(2600);
 }
