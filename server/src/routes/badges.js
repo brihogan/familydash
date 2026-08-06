@@ -461,12 +461,33 @@ router.post('/users/:userId/badges/enroll', authenticate, (req, res, next) => {
       });
     }
 
-    // Check active badge count
+    // Check active badge count. Only badges still being WORKED ON hold a slot
+    // — a finished one frees its slot the moment the last step lands, without
+    // waiting for the 2-day auto-archive sweep. Archived enrollments (manual
+    // or auto) don't count either. Step total includes the optional slots the
+    // kid hasn't picked yet, matching the progress ring on the card, so a badge
+    // sitting at 90% isn't mistaken for a finished one.
     const activeBadgeCount = db.prepare(`
-      SELECT COUNT(*) AS n FROM task_assignments ta
-      JOIN task_sets ts ON ts.id = ta.task_set_id
-      WHERE ta.user_id = ? AND ta.is_active = 1 AND ta.completion_status IS NULL
-        AND ts.badge_id IS NOT NULL AND ts.is_active = 1
+      SELECT COUNT(*) AS n FROM (
+        SELECT
+          (SELECT COALESCE(SUM(repeat_count), 0) FROM task_steps WHERE task_set_id = ts.id AND is_active = 1)
+            + CASE WHEN ts.badge_id IS NOT NULL
+                THEN MAX(0, COALESCE(CAST(json_extract(b.level_opt_counts, '$.' || ts.badge_level) AS INTEGER), 0)
+                          - (SELECT COUNT(DISTINCT COALESCE(badge_opt_req_id, -1))
+                             FROM task_steps WHERE task_set_id = ts.id AND is_active = 1 AND is_optional = 1))
+                ELSE 0
+              END AS total_steps,
+          (SELECT COUNT(*) FROM task_step_completions WHERE task_set_id = ts.id AND user_id = ta.user_id) AS done_steps
+        FROM task_assignments ta
+        JOIN task_sets ts ON ts.id = ta.task_set_id
+        LEFT JOIN badges b ON b.id = ts.badge_id
+        WHERE ta.user_id = ? AND ta.is_active = 1 AND ta.completion_status IS NULL
+          AND ta.archived_at IS NULL
+          AND ts.badge_id IS NOT NULL AND ts.is_active = 1
+      )
+      /* total_steps = 0 → nothing to finish (e.g. count_at_level awards), so
+         it stays open rather than counting itself instantly complete. */
+      WHERE total_steps = 0 OR done_steps < total_steps
     `).get(targetId).n;
 
     if (activeBadgeCount >= targetUser.max_active_badges) {

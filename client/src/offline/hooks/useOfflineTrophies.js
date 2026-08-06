@@ -8,7 +8,10 @@ export default function useOfflineTrophies(userId) {
   const uid = Number(userId);
 
   const fetchFn = useCallback(async () => {
-    const data = await taskSetsApi.getUserTaskSets(userId);
+    // archived=all: earned badges auto-archive out of the task lists after a
+    // couple of days, but the Trophy Shelf is the permanent record — once you
+    // win it, it stays on the shelf.
+    const data = await taskSetsApi.getUserTaskSets(userId, { archived: 'all' });
     await db.trophyCache.put({ userId: uid, ...data, lastSync: Date.now() });
   }, [userId, uid]);
 

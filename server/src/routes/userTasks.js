@@ -12,6 +12,12 @@ import { recapStepThread } from '../services/aiRecap.js';
 
 const router = Router();
 
+// How long an earned badge/award lingers in the kid's lists before it
+// auto-archives. It's on the Trophy Shelf permanently either way — this is
+// just the victory lap, so a kid who earns something on Friday still sees it
+// sitting there Saturday morning.
+const COMPLETED_ARCHIVE_DAYS = 2;
+
 // Local thin wrapper so call sites stay clean (db is module-scoped here).
 const syncLinkedAwardSteps = (userId, taskSetId) => syncLinkedAwardStepsShared(db, userId, taskSetId);
 
@@ -234,6 +240,45 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
       row.completed_count = Math.min(done, total);
     }
 
+    // ── Auto-archive earned badges & awards ───────────────────────────────
+    // Runs here, after step_count/completed_count are final (unpicked-optional
+    // inflation + weighted award progress), so "done" means exactly what the
+    // kid sees on the card. COMPLETED_ARCHIVE_DAYS after the last step lands,
+    // the enrollment archives itself: out of the badges/awards lists, still on
+    // the Trophy Shelf, still reachable under the Archived filter. Anything
+    // waiting on a parent's approval is left alone.
+    const autoArchivedIds = new Set();
+    if (archivedParam !== 'true') {
+      const cutoffMs = Date.now() - COMPLETED_ARCHIVE_DAYS * 86400000;
+      const dueRows = rows.filter((r) => {
+        if (r.archived_at || !r.badge_id) return false;
+        if (!(r.step_count > 0 && r.completed_count >= r.step_count)) return false;
+        if (r.completion_status === 'pending' || r.pending_step_count > 0) return false;
+        if (!r.earned_at) return false;
+        const earnedMs = Date.parse(r.earned_at.replace(' ', 'T') + 'Z');
+        return Number.isFinite(earnedMs) && earnedMs <= cutoffMs;
+      });
+      if (dueRows.length > 0) {
+        const archiveStmt = db.prepare(
+          `UPDATE task_assignments SET archived_at = datetime('now')
+           WHERE task_set_id = ? AND user_id = ? AND is_active = 1 AND archived_at IS NULL`
+        );
+        db.transaction(() => {
+          for (const r of dueRows) archiveStmt.run(r.id, userId);
+        })();
+        const archivedAt = db.prepare(`SELECT datetime('now') AS t`).get().t;
+        for (const r of dueRows) {
+          r.archived_at = archivedAt;
+          autoArchivedIds.add(r.id);
+        }
+      }
+    }
+    // The default view is "not archived", so drop what we just archived.
+    // archived=all keeps them, with archived_at now set.
+    const visibleRows = archivedParam === 'all'
+      ? rows
+      : rows.filter((r) => !autoArchivedIds.has(r.id));
+
     // ── Linked-award badges per badge ───────────────────────────────────
     // For every BADGE task set the kid is enrolled in, find the AWARD task
     // sets (also kid-enrolled) whose steps point at it. Matches three
@@ -437,7 +482,7 @@ router.get('/:userId/task-assignments', authenticate, (req, res, next) => {
     const hasKingOfCrowns = kingOfCrownsHolders.has(userId);
 
     res.json({
-      taskSets: rows.map(parseRow),
+      taskSets: visibleRows.map(parseRow),
       streaks: { current: currentStreak, longest: longestStreak },
       savingsStreak: firstAccountDate ? { current: savingsCurrent, longest: savingsLongest } : null,
       crownStreak: { current: crownCurrent, longest: crownLongest },

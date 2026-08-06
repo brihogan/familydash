@@ -298,7 +298,9 @@ async function refreshInbox(familyId) {
 async function refreshTrophies(userId) {
   try {
     const uid = Number(userId);
-    const data = await taskSetsApi.getUserTaskSets(userId);
+    // archived=all — must match useOfflineTrophies, which reads this cache;
+    // the shelf keeps auto-archived trophies.
+    const data = await taskSetsApi.getUserTaskSets(userId, { archived: 'all' });
     await db.trophyCache.put({ userId: uid, ...data, lastSync: Date.now() });
     await db.syncMeta.put({ key: `trophies-${uid}`, lastSync: Date.now() });
   } catch { /* network error — skip */ }

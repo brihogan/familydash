@@ -1,5 +1,21 @@
 # Work Log
 
+## Session Start: 2026-08-06 10:06 EDT (morning)
+
+### 2026-08-06 — Earned badges let go of their slot, then clear out
+
+A finished badge kept counting against `max_active_badges`, so earning one
+locked the kid out of starting another. The active-badge count now only counts
+enrollments still being worked on (and skips archived ones), so the slot frees
+the moment the last step lands. Separately, badges/awards auto-archive two days
+after they're earned — out of the lists, still on the Trophy Shelf (which now
+reads `archived=all`) and still under the Archived filter. Pending-approval sets
+are left alone. New tests: `server/tests/badgeCompletion.test.js` (6).
+
+**Files changed:** `server/src/routes/badges.js`, `server/src/routes/userTasks.js`,
+`client/src/offline/hooks/useOfflineTrophies.js`, `client/src/offline/syncEngine.js`,
+`client/src/components/shared/Layout.jsx`
+
 ## Session Start: 2026-07-29 11:53 EDT (midday)
 
 ### 2026-07-29 — NEXT SESSION: register a new family + grant super admin

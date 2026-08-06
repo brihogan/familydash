@@ -214,7 +214,9 @@ export default function Layout() {
     if (user?.role !== 'kid') return;
     Promise.all([
       overviewApi.getOverview(user.id),
-      taskSetsApi.getUserTaskSets(user.id),
+      // archived=all in one request: the "tasks" count wants active work only,
+      // the trophy count wants every trophy including auto-archived ones.
+      taskSetsApi.getUserTaskSets(user.id, { archived: 'all' }),
       accountsApi.getPendingDeposits(user.id),
     ]).then(([overview, taskData, pdData]) => {
       const mainAccount = overview.accounts.find((a) => a.type === 'main');
@@ -223,7 +225,7 @@ export default function Layout() {
         mainBalanceCents:       mainAccount?.balance_cents ?? 0,
         ticketBalance:          overview.ticketBalance,
         taskSetsCount:          taskData.taskSets.filter(
-          (ts) => !(ts.step_count > 0 && ts.completed_count === ts.step_count)
+          (ts) => !ts.archived_at && !(ts.step_count > 0 && ts.completed_count === ts.step_count)
         ).length,
         completedTaskSetsCount: taskData.taskSets.filter(
           (ts) => ts.type === 'One-Off' && ts.step_count > 0 && ts.completed_count === ts.step_count
